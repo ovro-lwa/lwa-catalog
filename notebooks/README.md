@@ -2,8 +2,29 @@
 
 | Notebook | Role |
 | -------- | ---- |
-| `ovro_lwa_metacatalog.ipynb` | Discover FITS → PyBDSF → LST merge → global metacatalog |
-| `metacatalog_sky_view.ipynb` | Load `metacatalog.csv` and explore on the sky |
+| `ovro_lwa_metacatalog.ipynb` | Discover FITS → PyBDSF → LST merge → global metacatalog (Parquet) |
+| `metacatalog_sky_view.ipynb` | Load `metacatalog.parquet` and explore on the sky |
 
-As shared code lands in `lwa_catalog`, notebooks should shrink to configuration,
-paths, and presentation only.
+## Catalog storage
+
+Catalogs are written and read as **Apache Parquet** through `lwa_catalog`:
+
+| Artifact | Path under `OUTPUT_DIR` |
+| -------- | ----------------------- |
+| Per-image sources | `sources_{lst}_{band}.parquet` |
+| LST-merged band | `metacatalog_lst_{band}.parquet` |
+| Global metacatalog | `metacatalog.parquet` |
+
+Image products remain FITS. Detection and merge live in `lwa_catalog.create`;
+notebooks keep configuration constants and call library APIs for I/O.
+
+### Migrating legacy CSV/FITS caches
+
+```python
+from lwa_catalog import CatalogLayout, migrate_output_dir
+
+layout = CatalogLayout(OUTPUT_DIR)
+migrate_output_dir(layout)  # writes Parquet; keeps legacy files by default
+```
+
+Or set `MIGRATE_LEGACY_CSV = True` in the build notebook config cell.

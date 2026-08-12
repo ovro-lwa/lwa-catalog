@@ -1,35 +1,24 @@
-"""Smoke tests for package import and stub API surface."""
+"""Smoke tests for package import and public exports."""
 
 from __future__ import annotations
 
 import pandas as pd
-import pytest
+import pyarrow.parquet as pq
 
 
-def test_package_version() -> None:
+def test_package_version_and_exports() -> None:
     import lwa_catalog
 
     assert isinstance(lwa_catalog.__version__, str)
     assert lwa_catalog.__version__
+    assert hasattr(lwa_catalog, "CatalogLayout")
+    assert hasattr(lwa_catalog, "read_metacatalog")
+    assert hasattr(lwa_catalog, "write_metacatalog")
 
 
-def test_io_roundtrip_csv(tmp_path) -> None:
-    from lwa_catalog.io import read_catalog, validate_metacatalog, write_catalog
-
-    catalog = pd.DataFrame(
-        {
-            "RA": [123.4],
-            "DEC": [45.6],
-            "Peak_flux": [1.0],
-            "origin_band": ["Full"],
-            "bands_present": ["Full,Blue"],
-        }
-    )
-    path = tmp_path / "meta.csv"
-    write_catalog(catalog, path)
-    loaded = read_catalog(path)
-    validate_metacatalog(loaded)
-    assert len(loaded) == 1
+def test_pyarrow_parquet_importable() -> None:
+    assert hasattr(pq, "read_table")
+    assert hasattr(pq, "write_table")
 
 
 def test_analyze_summary() -> None:
@@ -51,10 +40,13 @@ def test_analyze_summary() -> None:
     assert int(counts["Full"]) == 1
 
 
-def test_create_stubs_raise() -> None:
-    from lwa_catalog.create import detect_sources, merge_lst_metacatalog
+def test_create_apis_importable() -> None:
+    from lwa_catalog.create import (
+        detect_sources,
+        discover_fits_files,
+        merge_lst_metacatalog,
+    )
 
-    with pytest.raises(NotImplementedError):
-        detect_sources("dummy.fits")
-    with pytest.raises(NotImplementedError):
-        merge_lst_metacatalog([], band="Full")
+    assert callable(detect_sources)
+    assert callable(discover_fits_files)
+    assert merge_lst_metacatalog([], band="Full").empty

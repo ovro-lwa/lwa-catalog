@@ -1,0 +1,2089 @@
+Wed 12-08-2026 21:30:59:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:30:59:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:30:59:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:30:59:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:30:59:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.21375e-01, 1.76239e-01, 50.0) degrees
+Wed 12-08-2026 21:30:59:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:30:59:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2213747246724065, 0.1762389923972084, 50.02772918368338)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:30:59:: USERINFO: Frequency of image ...................... : 72.354 MHz
+Wed 12-08-2026 21:30:59:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:31:00:: INFO    : Raw mean (Stokes I) =  31.3908 mJy and raw rms =  745.1996 mJy 
+Wed 12-08-2026 21:31:00:: INFO    : sigma clipped mean (Stokes I) =  -37.7583 mJy and  sigma clipped rms =  179.0281 mJy 
+Wed 12-08-2026 21:31:00:: USERINFO: Flux from sum of (non-blank) pixels ..... : 9474.863 Jy
+Wed 12-08-2026 21:31:00:: INFO    : Estimated bmpersrc_th =   36.70
+Wed 12-08-2026 21:31:00:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:31:00:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:31:00:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:31:00:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 325
+Wed 12-08-2026 21:31:00:: USERINFO: Derived rms_box (box size, step size) ... : (1625, 312) pixels
+Wed 12-08-2026 21:31:00:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:31:00:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:31:00:: USERINFO: Value of background rms ................. : 1.79e-01 Jy/beam
+Wed 12-08-2026 21:31:00:: USERINFO: Value of background mean ................ : -0.03776 Jy/beam
+Wed 12-08-2026 21:31:00:: USERINFO: Minimum number of pixels per island ..... : 10
+Wed 12-08-2026 21:31:01:: USERINFO: Number of islands found ................. : 3675
+Wed 12-08-2026 21:31:13:: USERINFO: Total number of Gaussians fit to image .. : 3843
+Wed 12-08-2026 21:31:13:: USERINFO: Total flux density in model ............. : 11378.484 Jy
+Wed 12-08-2026 21:31:13:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:31:14:: USERINFO: Number of sources formed from Gaussians   : 3769
+Wed 12-08-2026 21:31:15:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:31:16:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -6.304e-03 (Jy/beam)
+                                        std. dev: 3.421e-01 (Jy/beam)
+                                            skew: 164.757
+                                        kurtosis: 84160.891
+Wed 12-08-2026 21:31:17:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(36.70458426771656)
+                                        frequency            : 72354181.160356
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 10
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1625, 312)
+                                        rms_box_bright       : (651, 217)
+Wed 12-08-2026 21:31:17:: INFO    : Writing /tmp/tmpanmgt2mt.gaul.fits
+Wed 12-08-2026 21:31:17:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:31:17:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:31:17:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:31:17:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:31:17:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.71752e-01, 1.99012e-01, 46.1) degrees
+Wed 12-08-2026 21:31:17:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:31:17:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2717515523538448, 0.1990118957798769, 46.09501158473491)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:31:17:: USERINFO: Frequency of image ...................... : 51.231 MHz
+Wed 12-08-2026 21:31:17:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:31:18:: INFO    : Raw mean (Stokes I) =  100.8815 mJy and raw rms =  1255.8528 mJy 
+Wed 12-08-2026 21:31:18:: INFO    : sigma clipped mean (Stokes I) =  -52.7434 mJy and  sigma clipped rms =  367.6699 mJy 
+Wed 12-08-2026 21:31:18:: USERINFO: Flux from sum of (non-blank) pixels ..... : 21966.533 Jy
+Wed 12-08-2026 21:31:18:: INFO    : Estimated bmpersrc_th =   32.28
+Wed 12-08-2026 21:31:18:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:31:18:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:31:18:: INFO    : Estimated size of brightest source (pixels) = 6
+Wed 12-08-2026 21:31:18:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 207
+Wed 12-08-2026 21:31:18:: USERINFO: Derived rms_box (box size, step size) ... : (1035, 312) pixels
+Wed 12-08-2026 21:31:18:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:31:18:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:31:18:: USERINFO: Value of background rms ................. : 3.68e-01 Jy/beam
+Wed 12-08-2026 21:31:18:: USERINFO: Value of background mean ................ : -0.05274 Jy/beam
+Wed 12-08-2026 21:31:18:: USERINFO: Minimum number of pixels per island ..... : 14
+Wed 12-08-2026 21:31:19:: USERINFO: Number of islands found ................. : 2296
+Wed 12-08-2026 21:31:35:: USERINFO: Total number of Gaussians fit to image .. : 2479
+Wed 12-08-2026 21:31:35:: USERINFO: Total flux density in model ............. : 19501.894 Jy
+Wed 12-08-2026 21:31:35:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:31:36:: USERINFO: Number of sources formed from Gaussians   : 2379
+Wed 12-08-2026 21:31:36:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:31:37:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 1.132e-02 (Jy/beam)
+                                        std. dev: 4.205e-01 (Jy/beam)
+                                            skew: 0.460
+                                        kurtosis: 215.860
+Wed 12-08-2026 21:31:38:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(32.2841248784818)
+                                        frequency            : 51230820.928371
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 14
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1035, 312)
+                                        rms_box_bright       : (414, 138)
+Wed 12-08-2026 21:31:38:: INFO    : Writing /tmp/tmpgh52505o.gaul.fits
+Wed 12-08-2026 21:31:38:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:31:38:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:31:38:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:31:38:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:31:38:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.89084e-01, 2.06847e-01, 44.7) degrees
+Wed 12-08-2026 21:31:38:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:31:38:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2890842883525629, 0.2068471791913717, 44.74191415805431)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:31:38:: USERINFO: Frequency of image ...................... : 52.135 MHz
+Wed 12-08-2026 21:31:38:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:31:39:: INFO    : Raw mean (Stokes I) =  72.3131 mJy and raw rms =  1196.9777 mJy 
+Wed 12-08-2026 21:31:39:: INFO    : sigma clipped mean (Stokes I) =  -66.0426 mJy and  sigma clipped rms =  365.9876 mJy 
+Wed 12-08-2026 21:31:39:: USERINFO: Flux from sum of (non-blank) pixels ..... : 14248.023 Jy
+Wed 12-08-2026 21:31:39:: INFO    : Estimated bmpersrc_th =   35.29
+Wed 12-08-2026 21:31:39:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:31:39:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:31:39:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:31:39:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 95
+Wed 12-08-2026 21:31:39:: USERINFO: Derived rms_box (box size, step size) ... : (475, 158) pixels
+Wed 12-08-2026 21:31:39:: INFO    : Background rms and mean images computed
+Wed 12-08-2026 21:31:39:: USERINFO: --> Variation in rms image significant
+Wed 12-08-2026 21:31:39:: USERINFO: --> Using 2D map for background rms
+Wed 12-08-2026 21:31:39:: USERINFO: --> Variation in mean image significant
+Wed 12-08-2026 21:31:39:: USERINFO: --> Using 2D map for background mean
+Wed 12-08-2026 21:31:39:: USERINFO: Min/max values of background rms map .... : (2.90e-02, 7.52e-01) Jy/beam
+Wed 12-08-2026 21:31:39:: USERINFO: Min/max values of background mean map ... : (-2.65e-01, 1.47e-02) Jy/beam
+Wed 12-08-2026 21:31:40:: USERINFO: Minimum number of pixels per island ..... : 9
+Wed 12-08-2026 21:31:40:: USERINFO: Number of islands found ................. : 2375
+Wed 12-08-2026 21:31:48:: USERINFO: Total number of Gaussians fit to image .. : 2475
+Wed 12-08-2026 21:31:48:: USERINFO: Total flux density in model ............. : 16163.604 Jy
+Wed 12-08-2026 21:31:49:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:31:49:: USERINFO: Number of sources formed from Gaussians   : 2431
+Wed 12-08-2026 21:31:50:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:31:50:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -9.722e-03 (Jy/beam)
+                                        std. dev: 4.832e-01 (Jy/beam)
+                                            skew: -0.125
+                                        kurtosis: 129.741
+Wed 12-08-2026 21:31:51:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(35.289521035044125)
+                                        frequency            : 52135137.376268
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 9
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (475, 158)
+                                        rms_box_bright       : (191, 64)
+Wed 12-08-2026 21:31:51:: INFO    : Writing /tmp/tmp29sesq6f.gaul.fits
+Wed 12-08-2026 21:31:51:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:31:51:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:31:51:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:31:51:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:31:51:: USERINFO: Beam shape (major, minor, pos angle) .... : (4.18098e-01, 2.84951e-01, 41.8) degrees
+Wed 12-08-2026 21:31:51:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:31:51:: INFO    : Non-default input parameters:
+                                        beam                 = (0.4180982764519326, 0.2849506831978543, 41.76427520992048)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:31:51:: USERINFO: Frequency of image ...................... : 34.560 MHz
+Wed 12-08-2026 21:31:51:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:31:52:: INFO    : Raw mean (Stokes I) =  161.7440 mJy and raw rms =  2712.0596 mJy 
+Wed 12-08-2026 21:31:52:: INFO    : sigma clipped mean (Stokes I) =  -123.7381 mJy and  sigma clipped rms =  964.3706 mJy 
+Wed 12-08-2026 21:31:52:: USERINFO: Flux from sum of (non-blank) pixels ..... : 16028.960 Jy
+Wed 12-08-2026 21:31:52:: INFO    : Estimated bmpersrc_th =   41.19
+Wed 12-08-2026 21:31:52:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:31:52:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:31:52:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:31:52:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 50
+Wed 12-08-2026 21:31:52:: USERINFO: Derived rms_box (box size, step size) ... : (251, 84) pixels
+Wed 12-08-2026 21:31:52:: INFO    : Background rms and mean images computed
+Wed 12-08-2026 21:31:52:: USERINFO: --> Variation in rms image significant
+Wed 12-08-2026 21:31:52:: USERINFO: --> Using 2D map for background rms
+Wed 12-08-2026 21:31:52:: USERINFO: --> Variation in mean image significant
+Wed 12-08-2026 21:31:52:: USERINFO: --> Using 2D map for background mean
+Wed 12-08-2026 21:31:52:: USERINFO: Min/max values of background rms map .... : (4.54e-02, 1.81e+00) Jy/beam
+Wed 12-08-2026 21:31:52:: USERINFO: Min/max values of background mean map ... : (-7.40e-01, 1.53e-01) Jy/beam
+Wed 12-08-2026 21:31:52:: USERINFO: Minimum number of pixels per island ..... : 7
+Wed 12-08-2026 21:31:53:: USERINFO: Number of islands found ................. : 938
+Wed 12-08-2026 21:32:11:: USERINFO: Total number of Gaussians fit to image .. : 975
+Wed 12-08-2026 21:32:11:: USERINFO: Total flux density in model ............. : 17701.447 Jy
+Wed 12-08-2026 21:32:12:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:32:12:: USERINFO: Number of sources formed from Gaussians   : 949
+Wed 12-08-2026 21:32:12:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:32:12:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -1.686e-02 (Jy/beam)
+                                        std. dev: 1.206e+00 (Jy/beam)
+                                            skew: 1.002
+                                        kurtosis: 38.328
+Wed 12-08-2026 21:32:13:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(41.19009581771088)
+                                        frequency            : 34559568.399221
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 7
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (251, 84)
+                                        rms_box_bright       : (101, 34)
+Wed 12-08-2026 21:32:13:: INFO    : Writing /tmp/tmp3za7f5xe.gaul.fits
+Wed 12-08-2026 21:32:13:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:32:13:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:32:13:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:32:13:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:32:13:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.23721e-01, 1.83065e-01, 53.7) degrees
+Wed 12-08-2026 21:32:13:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:32:13:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2237207965870164, 0.1830647860908088, 53.74276593050939)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:32:13:: USERINFO: Frequency of image ...................... : 73.648 MHz
+Wed 12-08-2026 21:32:13:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:32:13:: INFO    : Raw mean (Stokes I) =  32.5071 mJy and raw rms =  731.0110 mJy 
+Wed 12-08-2026 21:32:13:: INFO    : sigma clipped mean (Stokes I) =  -32.0923 mJy and  sigma clipped rms =  168.2800 mJy 
+Wed 12-08-2026 21:32:13:: USERINFO: Flux from sum of (non-blank) pixels ..... : 9346.908 Jy
+Wed 12-08-2026 21:32:13:: INFO    : Estimated bmpersrc_th =   34.60
+Wed 12-08-2026 21:32:13:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:32:13:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:32:13:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:32:14:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 478
+Wed 12-08-2026 21:32:14:: USERINFO: Derived rms_box (box size, step size) ... : (2391, 312) pixels
+Wed 12-08-2026 21:32:14:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:32:14:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:32:14:: USERINFO: Value of background rms ................. : 1.68e-01 Jy/beam
+Wed 12-08-2026 21:32:14:: USERINFO: Value of background mean ................ : -0.03209 Jy/beam
+Wed 12-08-2026 21:32:14:: USERINFO: Minimum number of pixels per island ..... : 11
+Wed 12-08-2026 21:32:15:: USERINFO: Number of islands found ................. : 3694
+Wed 12-08-2026 21:32:48:: USERINFO: Total number of Gaussians fit to image .. : 3908
+Wed 12-08-2026 21:32:48:: USERINFO: Total flux density in model ............. : 10906.110 Jy
+Wed 12-08-2026 21:32:49:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:32:50:: USERINFO: Number of sources formed from Gaussians   : 3811
+Wed 12-08-2026 21:32:51:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:32:52:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -5.420e-03 (Jy/beam)
+                                        std. dev: 2.464e-01 (Jy/beam)
+                                            skew: -3.799
+                                        kurtosis: 441.615
+Wed 12-08-2026 21:32:53:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(34.59893756178772)
+                                        frequency            : 73648478.623106
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 11
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (2391, 312)
+                                        rms_box_bright       : (956, 312)
+Wed 12-08-2026 21:32:53:: INFO    : Writing /tmp/tmpco26rka2.gaul.fits
+Wed 12-08-2026 21:32:53:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:32:53:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:32:53:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:32:53:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:32:53:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.82342e-01, 2.31200e-01, 53.6) degrees
+Wed 12-08-2026 21:32:53:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:32:53:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2823420108451606, 0.2312000770004621, 53.55435454883619)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:32:53:: USERINFO: Frequency of image ...................... : 54.105 MHz
+Wed 12-08-2026 21:32:53:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:32:54:: INFO    : Raw mean (Stokes I) =  101.6019 mJy and raw rms =  1287.5126 mJy 
+Wed 12-08-2026 21:32:54:: INFO    : sigma clipped mean (Stokes I) =  -42.1383 mJy and  sigma clipped rms =  360.8830 mJy 
+Wed 12-08-2026 21:32:54:: USERINFO: Flux from sum of (non-blank) pixels ..... : 18329.037 Jy
+Wed 12-08-2026 21:32:54:: INFO    : Estimated bmpersrc_th =   31.78
+Wed 12-08-2026 21:32:54:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:32:54:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:32:54:: INFO    : Estimated size of brightest source (pixels) = 6
+Wed 12-08-2026 21:32:54:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 180
+Wed 12-08-2026 21:32:54:: USERINFO: Derived rms_box (box size, step size) ... : (901, 300) pixels
+Wed 12-08-2026 21:32:54:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:32:54:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:32:54:: USERINFO: Value of background rms ................. : 3.61e-01 Jy/beam
+Wed 12-08-2026 21:32:54:: USERINFO: Value of background mean ................ : -0.04214 Jy/beam
+Wed 12-08-2026 21:32:54:: USERINFO: Minimum number of pixels per island ..... : 18
+Wed 12-08-2026 21:32:55:: USERINFO: Number of islands found ................. : 1998
+Wed 12-08-2026 21:33:02:: USERINFO: Total number of Gaussians fit to image .. : 2160
+Wed 12-08-2026 21:33:02:: USERINFO: Total flux density in model ............. : 15510.020 Jy
+Wed 12-08-2026 21:33:03:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:33:03:: USERINFO: Number of sources formed from Gaussians   : 2086
+Wed 12-08-2026 21:33:04:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:33:05:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 1.563e-02 (Jy/beam)
+                                        std. dev: 4.240e-01 (Jy/beam)
+                                            skew: -1.024
+                                        kurtosis: 479.013
+Wed 12-08-2026 21:33:05:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(31.7799666774264)
+                                        frequency            : 54105115.971686
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 18
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (901, 300)
+                                        rms_box_bright       : (361, 120)
+Wed 12-08-2026 21:33:05:: INFO    : Writing /tmp/tmp0whyi01v.gaul.fits
+Wed 12-08-2026 21:33:05:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:33:05:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:33:05:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:33:05:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:33:05:: USERINFO: Beam shape (major, minor, pos angle) .... : (3.11462e-01, 2.55112e-01, 53.5) degrees
+Wed 12-08-2026 21:33:05:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:33:05:: INFO    : Non-default input parameters:
+                                        beam                 = (0.3114624241355757, 0.2551115497135802, 53.46076015007842)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:33:05:: USERINFO: Frequency of image ...................... : 52.071 MHz
+Wed 12-08-2026 21:33:05:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:33:06:: INFO    : Raw mean (Stokes I) =  76.8716 mJy and raw rms =  1202.2919 mJy 
+Wed 12-08-2026 21:33:06:: INFO    : sigma clipped mean (Stokes I) =  -51.9310 mJy and  sigma clipped rms =  353.3134 mJy 
+Wed 12-08-2026 21:33:06:: USERINFO: Flux from sum of (non-blank) pixels ..... : 11398.337 Jy
+Wed 12-08-2026 21:33:06:: INFO    : Estimated bmpersrc_th =   34.07
+Wed 12-08-2026 21:33:06:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:33:06:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:33:06:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:33:06:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 137
+Wed 12-08-2026 21:33:06:: USERINFO: Derived rms_box (box size, step size) ... : (685, 228) pixels
+Wed 12-08-2026 21:33:06:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:33:06:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:33:06:: USERINFO: Value of background rms ................. : 3.53e-01 Jy/beam
+Wed 12-08-2026 21:33:06:: USERINFO: Value of background mean ................ : -0.05193 Jy/beam
+Wed 12-08-2026 21:33:06:: USERINFO: Minimum number of pixels per island ..... : 12
+Wed 12-08-2026 21:33:07:: USERINFO: Number of islands found ................. : 1882
+Wed 12-08-2026 21:33:12:: USERINFO: Total number of Gaussians fit to image .. : 1997
+Wed 12-08-2026 21:33:12:: USERINFO: Total flux density in model ............. : 11191.713 Jy
+Wed 12-08-2026 21:33:13:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:33:13:: USERINFO: Number of sources formed from Gaussians   : 1968
+Wed 12-08-2026 21:33:14:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:33:14:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 1.396e-03 (Jy/beam)
+                                        std. dev: 4.569e-01 (Jy/beam)
+                                            skew: -0.225
+                                        kurtosis: 255.374
+Wed 12-08-2026 21:33:15:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(34.07245084611778)
+                                        frequency            : 52070810.197587
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 12
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (685, 228)
+                                        rms_box_bright       : (274, 91)
+Wed 12-08-2026 21:33:15:: INFO    : Writing /tmp/tmp8ovzmrru.gaul.fits
+Wed 12-08-2026 21:33:15:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:33:15:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:33:15:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:33:15:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:33:15:: USERINFO: Beam shape (major, minor, pos angle) .... : (4.55612e-01, 3.66854e-01, 53.7) degrees
+Wed 12-08-2026 21:33:15:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:33:15:: INFO    : Non-default input parameters:
+                                        beam                 = (0.4556118886097505, 0.3668536626871884, 53.66528845397027)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:33:15:: USERINFO: Frequency of image ...................... : 34.955 MHz
+Wed 12-08-2026 21:33:15:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:33:16:: INFO    : Raw mean (Stokes I) =  171.3110 mJy and raw rms =  2906.1040 mJy 
+Wed 12-08-2026 21:33:16:: INFO    : sigma clipped mean (Stokes I) =  -92.8297 mJy and  sigma clipped rms =  973.4930 mJy 
+Wed 12-08-2026 21:33:16:: USERINFO: Flux from sum of (non-blank) pixels ..... : 12101.034 Jy
+Wed 12-08-2026 21:33:16:: INFO    : Estimated bmpersrc_th =   40.46
+Wed 12-08-2026 21:33:16:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:33:16:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:33:16:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:33:16:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 42
+Wed 12-08-2026 21:33:17:: USERINFO: Derived rms_box (box size, step size) ... : (211, 70) pixels
+Wed 12-08-2026 21:33:17:: INFO    : Background rms and mean images computed
+Wed 12-08-2026 21:33:17:: USERINFO: --> Variation in rms image significant
+Wed 12-08-2026 21:33:17:: USERINFO: --> Using 2D map for background rms
+Wed 12-08-2026 21:33:17:: USERINFO: --> Variation in mean image significant
+Wed 12-08-2026 21:33:17:: USERINFO: --> Using 2D map for background mean
+Wed 12-08-2026 21:33:17:: USERINFO: Min/max values of background rms map .... : (1.90e-02, 1.73e+00) Jy/beam
+Wed 12-08-2026 21:33:17:: USERINFO: Min/max values of background mean map ... : (-8.40e-01, 1.93e-01) Jy/beam
+Wed 12-08-2026 21:33:17:: USERINFO: Minimum number of pixels per island ..... : 10
+Wed 12-08-2026 21:33:17:: USERINFO: Number of islands found ................. : 769
+Wed 12-08-2026 21:33:18:: USERINFO: Total number of Gaussians fit to image .. : 798
+Wed 12-08-2026 21:33:18:: USERINFO: Total flux density in model ............. : 12515.538 Jy
+Wed 12-08-2026 21:33:19:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:33:19:: USERINFO: Number of sources formed from Gaussians   : 793
+Wed 12-08-2026 21:33:19:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:33:19:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -5.866e-03 (Jy/beam)
+                                        std. dev: 1.217e+00 (Jy/beam)
+                                            skew: 0.924
+                                        kurtosis: 50.454
+Wed 12-08-2026 21:33:20:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(40.46017258251045)
+                                        frequency            : 34955286.841633
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 10
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (211, 70)
+                                        rms_box_bright       : (84, 28)
+Wed 12-08-2026 21:33:20:: INFO    : Writing /tmp/tmpm_177q6r.gaul.fits
+Wed 12-08-2026 21:33:20:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:33:20:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:33:20:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:33:20:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:33:20:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.24591e-01, 1.83645e-01, 53.7) degrees
+Wed 12-08-2026 21:33:20:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:33:20:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2245908186112336, 0.1836449662070422, 53.67440004049529)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:33:20:: USERINFO: Frequency of image ...................... : 73.423 MHz
+Wed 12-08-2026 21:33:20:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:33:21:: INFO    : Raw mean (Stokes I) =  31.9640 mJy and raw rms =  673.3388 mJy 
+Wed 12-08-2026 21:33:21:: INFO    : sigma clipped mean (Stokes I) =  -25.7568 mJy and  sigma clipped rms =  162.7264 mJy 
+Wed 12-08-2026 21:33:21:: USERINFO: Flux from sum of (non-blank) pixels ..... : 9126.236 Jy
+Wed 12-08-2026 21:33:21:: INFO    : Estimated bmpersrc_th =   33.61
+Wed 12-08-2026 21:33:21:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:33:21:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:33:21:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:33:21:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 709
+Wed 12-08-2026 21:33:21:: USERINFO: Derived rms_box (box size, step size) ... : (3545, 312) pixels
+Wed 12-08-2026 21:33:21:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:33:21:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:33:21:: USERINFO: Value of background rms ................. : 1.63e-01 Jy/beam
+Wed 12-08-2026 21:33:21:: USERINFO: Value of background mean ................ : -0.02576 Jy/beam
+Wed 12-08-2026 21:33:21:: USERINFO: Minimum number of pixels per island ..... : 11
+Wed 12-08-2026 21:33:22:: USERINFO: Number of islands found ................. : 3741
+Wed 12-08-2026 21:33:59:: USERINFO: Total number of Gaussians fit to image .. : 3962
+Wed 12-08-2026 21:33:59:: USERINFO: Total flux density in model ............. : 10791.896 Jy
+Wed 12-08-2026 21:34:00:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:34:02:: USERINFO: Number of sources formed from Gaussians   : 3861
+Wed 12-08-2026 21:34:03:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:34:03:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -5.830e-03 (Jy/beam)
+                                        std. dev: 2.543e-01 (Jy/beam)
+                                            skew: -2.118
+                                        kurtosis: 580.121
+Wed 12-08-2026 21:34:05:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(33.61035046974705)
+                                        frequency            : 73423113.751883
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 11
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (3545, 312)
+                                        rms_box_bright       : (1418, 312)
+Wed 12-08-2026 21:34:05:: INFO    : Writing /tmp/tmp6jdukm1p.gaul.fits
+Wed 12-08-2026 21:34:05:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:34:05:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:34:05:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:34:05:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:34:05:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.81562e-01, 2.30643e-01, 53.5) degrees
+Wed 12-08-2026 21:34:05:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:34:05:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2815617018352741, 0.2306425772194841, 53.52948608299608)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:34:05:: USERINFO: Frequency of image ...................... : 54.073 MHz
+Wed 12-08-2026 21:34:05:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:34:06:: INFO    : Raw mean (Stokes I) =  105.5897 mJy and raw rms =  1317.4315 mJy 
+Wed 12-08-2026 21:34:06:: INFO    : sigma clipped mean (Stokes I) =  -35.8662 mJy and  sigma clipped rms =  364.2514 mJy 
+Wed 12-08-2026 21:34:06:: USERINFO: Flux from sum of (non-blank) pixels ..... : 19147.385 Jy
+Wed 12-08-2026 21:34:06:: INFO    : Estimated bmpersrc_th =   31.27
+Wed 12-08-2026 21:34:06:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:34:06:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:34:06:: INFO    : Estimated size of brightest source (pixels) = 6
+Wed 12-08-2026 21:34:06:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 155
+Wed 12-08-2026 21:34:07:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:34:07:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:34:07:: USERINFO: Derived rms_box (box size, step size) ... : (930, 310) pixels
+Wed 12-08-2026 21:34:07:: INFO    : Background rms and mean images computed
+Wed 12-08-2026 21:34:07:: USERINFO: --> Using constant background rms
+Wed 12-08-2026 21:34:07:: USERINFO: --> Using constant background mean
+Wed 12-08-2026 21:34:07:: USERINFO: Value of background rms ................. : 3.64e-01 Jy/beam
+Wed 12-08-2026 21:34:07:: USERINFO: Value of background mean ................ : -0.03587 Jy/beam
+Wed 12-08-2026 21:34:07:: USERINFO: Minimum number of pixels per island ..... : 17
+Wed 12-08-2026 21:34:08:: USERINFO: Number of islands found ................. : 2088
+Wed 12-08-2026 21:34:15:: USERINFO: Total number of Gaussians fit to image .. : 2277
+Wed 12-08-2026 21:34:15:: USERINFO: Total flux density in model ............. : 16074.123 Jy
+Wed 12-08-2026 21:34:16:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:34:17:: USERINFO: Number of sources formed from Gaussians   : 2200
+Wed 12-08-2026 21:34:18:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:34:19:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 1.695e-02 (Jy/beam)
+                                        std. dev: 4.237e-01 (Jy/beam)
+                                            skew: 0.534
+                                        kurtosis: 271.598
+Wed 12-08-2026 21:34:21:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(31.26887639872703)
+                                        frequency            : 54072542.557322
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 17
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (930, 310)
+                                        rms_box_bright       : (311, 104)
+Wed 12-08-2026 21:34:21:: INFO    : Writing /tmp/tmphow516v_.gaul.fits
+Wed 12-08-2026 21:34:21:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:34:21:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:34:21:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:34:21:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:34:21:: USERINFO: Beam shape (major, minor, pos angle) .... : (3.11357e-01, 2.55222e-01, 53.5) degrees
+Wed 12-08-2026 21:34:21:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:34:21:: INFO    : Non-default input parameters:
+                                        beam                 = (0.3113570374169317, 0.2552219678205589, 53.4536971931315)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:34:21:: USERINFO: Frequency of image ...................... : 52.042 MHz
+Wed 12-08-2026 21:34:21:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:34:21:: INFO    : Raw mean (Stokes I) =  78.7700 mJy and raw rms =  1216.4865 mJy 
+Wed 12-08-2026 21:34:21:: INFO    : sigma clipped mean (Stokes I) =  -37.3300 mJy and  sigma clipped rms =  348.9959 mJy 
+Wed 12-08-2026 21:34:21:: USERINFO: Flux from sum of (non-blank) pixels ..... : 11678.729 Jy
+Wed 12-08-2026 21:34:21:: INFO    : Estimated bmpersrc_th =   33.56
+Wed 12-08-2026 21:34:21:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:34:21:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:34:21:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:34:22:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 271
+Wed 12-08-2026 21:34:22:: USERINFO: Derived rms_box (box size, step size) ... : (1355, 236) pixels
+Wed 12-08-2026 21:34:22:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:34:22:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:34:22:: USERINFO: Value of background rms ................. : 3.49e-01 Jy/beam
+Wed 12-08-2026 21:34:22:: USERINFO: Value of background mean ................ : -0.03733 Jy/beam
+Wed 12-08-2026 21:34:22:: USERINFO: Minimum number of pixels per island ..... : 12
+Wed 12-08-2026 21:34:22:: USERINFO: Number of islands found ................. : 1888
+Wed 12-08-2026 21:34:28:: USERINFO: Total number of Gaussians fit to image .. : 1982
+Wed 12-08-2026 21:34:28:: USERINFO: Total flux density in model ............. : 10831.728 Jy
+Wed 12-08-2026 21:34:28:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:34:29:: USERINFO: Number of sources formed from Gaussians   : 1953
+Wed 12-08-2026 21:34:30:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:34:30:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 5.713e-03 (Jy/beam)
+                                        std. dev: 4.725e-01 (Jy/beam)
+                                            skew: 19.273
+                                        kurtosis: 4130.412
+Wed 12-08-2026 21:34:31:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(33.560062289501325)
+                                        frequency            : 52042011.377446
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 12
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1355, 236)
+                                        rms_box_bright       : (542, 181)
+Wed 12-08-2026 21:34:31:: INFO    : Writing /tmp/tmp0nrjcolw.gaul.fits
+Wed 12-08-2026 21:34:31:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:34:31:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:34:31:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:34:31:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:34:31:: USERINFO: Beam shape (major, minor, pos angle) .... : (4.59280e-01, 3.71266e-01, 53.6) degrees
+Wed 12-08-2026 21:34:31:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:34:31:: INFO    : Non-default input parameters:
+                                        beam                 = (0.4592802549942189, 0.3712664343168971, 53.59609553687457)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:34:31:: USERINFO: Frequency of image ...................... : 34.600 MHz
+Wed 12-08-2026 21:34:31:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:34:32:: INFO    : Raw mean (Stokes I) =  179.8554 mJy and raw rms =  2831.4883 mJy 
+Wed 12-08-2026 21:34:32:: INFO    : sigma clipped mean (Stokes I) =  -69.6707 mJy and  sigma clipped rms =  964.9760 mJy 
+Wed 12-08-2026 21:34:32:: USERINFO: Flux from sum of (non-blank) pixels ..... : 12453.323 Jy
+Wed 12-08-2026 21:34:32:: INFO    : Estimated bmpersrc_th =   39.59
+Wed 12-08-2026 21:34:32:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:34:32:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:34:32:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:34:32:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 57
+Wed 12-08-2026 21:34:34:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:34:34:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:34:34:: USERINFO: Derived rms_box (box size, step size) ... : (410, 136) pixels
+Wed 12-08-2026 21:34:34:: INFO    : Background rms and mean images computed
+Wed 12-08-2026 21:34:34:: USERINFO: --> Using constant background rms
+Wed 12-08-2026 21:34:34:: USERINFO: --> Using constant background mean
+Wed 12-08-2026 21:34:34:: USERINFO: Value of background rms ................. : 9.65e-01 Jy/beam
+Wed 12-08-2026 21:34:34:: USERINFO: Value of background mean ................ : -0.06967 Jy/beam
+Wed 12-08-2026 21:34:34:: USERINFO: Minimum number of pixels per island ..... : 10
+Wed 12-08-2026 21:34:34:: USERINFO: Number of islands found ................. : 742
+Wed 12-08-2026 21:34:36:: USERINFO: Total number of Gaussians fit to image .. : 774
+Wed 12-08-2026 21:34:36:: USERINFO: Total flux density in model ............. : 11441.891 Jy
+Wed 12-08-2026 21:34:36:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:34:36:: USERINFO: Number of sources formed from Gaussians   : 762
+Wed 12-08-2026 21:34:37:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:34:37:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 1.461e-02 (Jy/beam)
+                                        std. dev: 1.165e+00 (Jy/beam)
+                                            skew: 1.481
+                                        kurtosis: 45.926
+Wed 12-08-2026 21:34:37:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(39.59266320197087)
+                                        frequency            : 34599742.150104
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 10
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (410, 136)
+                                        rms_box_bright       : (114, 38)
+Wed 12-08-2026 21:34:37:: INFO    : Writing /tmp/tmphksrwyjw.gaul.fits
+Wed 12-08-2026 21:34:37:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:34:37:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:34:37:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:34:37:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:34:37:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.24773e-01, 1.84322e-01, 53.6) degrees
+Wed 12-08-2026 21:34:37:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:34:37:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2247730568300198, 0.1843222114418376, 53.55557052457203)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:34:37:: USERINFO: Frequency of image ...................... : 73.295 MHz
+Wed 12-08-2026 21:34:37:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:34:38:: INFO    : Raw mean (Stokes I) =  32.2250 mJy and raw rms =  666.5022 mJy 
+Wed 12-08-2026 21:34:38:: INFO    : sigma clipped mean (Stokes I) =  -28.8720 mJy and  sigma clipped rms =  161.9989 mJy 
+Wed 12-08-2026 21:34:38:: USERINFO: Flux from sum of (non-blank) pixels ..... : 9159.510 Jy
+Wed 12-08-2026 21:34:38:: INFO    : Estimated bmpersrc_th =   33.45
+Wed 12-08-2026 21:34:38:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:34:38:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:34:38:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:34:38:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 740
+Wed 12-08-2026 21:34:38:: USERINFO: Derived rms_box (box size, step size) ... : (3701, 312) pixels
+Wed 12-08-2026 21:34:38:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:34:38:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:34:38:: USERINFO: Value of background rms ................. : 1.62e-01 Jy/beam
+Wed 12-08-2026 21:34:38:: USERINFO: Value of background mean ................ : -0.02887 Jy/beam
+Wed 12-08-2026 21:34:38:: USERINFO: Minimum number of pixels per island ..... : 11
+Wed 12-08-2026 21:34:40:: USERINFO: Number of islands found ................. : 3764
+Wed 12-08-2026 21:34:55:: USERINFO: Total number of Gaussians fit to image .. : 3976
+Wed 12-08-2026 21:34:55:: USERINFO: Total flux density in model ............. : 10297.547 Jy
+Wed 12-08-2026 21:34:55:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:34:57:: USERINFO: Number of sources formed from Gaussians   : 3907
+Wed 12-08-2026 21:34:58:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:34:59:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -4.003e-03 (Jy/beam)
+                                        std. dev: 2.656e-01 (Jy/beam)
+                                            skew: 3.223
+                                        kurtosis: 337.038
+Wed 12-08-2026 21:35:00:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(33.447895540570684)
+                                        frequency            : 73294777.490825
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 11
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (3701, 312)
+                                        rms_box_bright       : (1481, 312)
+Wed 12-08-2026 21:35:00:: INFO    : Writing /tmp/tmpcbl5fcsb.gaul.fits
+Wed 12-08-2026 21:35:00:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:35:00:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:35:00:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:35:00:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:35:00:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.83102e-01, 2.32209e-01, 53.5) degrees
+Wed 12-08-2026 21:35:00:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:35:00:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2831018685080117, 0.232208825234797, 53.50742653432169)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:35:00:: USERINFO: Frequency of image ...................... : 54.022 MHz
+Wed 12-08-2026 21:35:00:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:35:01:: INFO    : Raw mean (Stokes I) =  99.8271 mJy and raw rms =  1219.3181 mJy 
+Wed 12-08-2026 21:35:01:: INFO    : sigma clipped mean (Stokes I) =  -38.6239 mJy and  sigma clipped rms =  340.5314 mJy 
+Wed 12-08-2026 21:35:01:: USERINFO: Flux from sum of (non-blank) pixels ..... : 17882.494 Jy
+Wed 12-08-2026 21:35:01:: INFO    : Estimated bmpersrc_th =   30.68
+Wed 12-08-2026 21:35:01:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:35:01:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:35:01:: INFO    : Estimated size of brightest source (pixels) = 6
+Wed 12-08-2026 21:35:01:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 227
+Wed 12-08-2026 21:35:01:: USERINFO: Derived rms_box (box size, step size) ... : (1135, 312) pixels
+Wed 12-08-2026 21:35:01:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:35:01:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:35:01:: USERINFO: Value of background rms ................. : 3.41e-01 Jy/beam
+Wed 12-08-2026 21:35:01:: USERINFO: Value of background mean ................ : -0.03862 Jy/beam
+Wed 12-08-2026 21:35:01:: USERINFO: Minimum number of pixels per island ..... : 18
+Wed 12-08-2026 21:35:02:: USERINFO: Number of islands found ................. : 2110
+Wed 12-08-2026 21:35:11:: USERINFO: Total number of Gaussians fit to image .. : 2333
+Wed 12-08-2026 21:35:11:: USERINFO: Total flux density in model ............. : 14833.489 Jy
+Wed 12-08-2026 21:35:11:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:35:12:: USERINFO: Number of sources formed from Gaussians   : 2250
+Wed 12-08-2026 21:35:12:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:35:13:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 1.702e-02 (Jy/beam)
+                                        std. dev: 3.996e-01 (Jy/beam)
+                                            skew: 1.407
+                                        kurtosis: 121.392
+Wed 12-08-2026 21:35:14:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(30.675176635352248)
+                                        frequency            : 54022495.8973
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 18
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1135, 312)
+                                        rms_box_bright       : (454, 151)
+Wed 12-08-2026 21:35:14:: INFO    : Writing /tmp/tmp144hgmfh.gaul.fits
+Wed 12-08-2026 21:35:14:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:35:14:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:35:14:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:35:14:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:35:14:: USERINFO: Beam shape (major, minor, pos angle) .... : (3.11958e-01, 2.55899e-01, 53.5) degrees
+Wed 12-08-2026 21:35:14:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:35:14:: INFO    : Non-default input parameters:
+                                        beam                 = (0.3119584902495426, 0.2558994484611842, 53.48360858096697)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:35:14:: USERINFO: Frequency of image ...................... : 51.868 MHz
+Wed 12-08-2026 21:35:14:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:35:15:: INFO    : Raw mean (Stokes I) =  79.2215 mJy and raw rms =  1218.6659 mJy 
+Wed 12-08-2026 21:35:15:: INFO    : sigma clipped mean (Stokes I) =  -46.7187 mJy and  sigma clipped rms =  347.6604 mJy 
+Wed 12-08-2026 21:35:15:: USERINFO: Flux from sum of (non-blank) pixels ..... : 11691.991 Jy
+Wed 12-08-2026 21:35:15:: INFO    : Estimated bmpersrc_th =   32.84
+Wed 12-08-2026 21:35:15:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:35:15:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:35:15:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:35:15:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 499
+Wed 12-08-2026 21:35:15:: USERINFO: Derived rms_box (box size, step size) ... : (2495, 236) pixels
+Wed 12-08-2026 21:35:15:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:35:15:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:35:15:: USERINFO: Value of background rms ................. : 3.48e-01 Jy/beam
+Wed 12-08-2026 21:35:15:: USERINFO: Value of background mean ................ : -0.04672 Jy/beam
+Wed 12-08-2026 21:35:15:: USERINFO: Minimum number of pixels per island ..... : 12
+Wed 12-08-2026 21:35:15:: USERINFO: Number of islands found ................. : 1961
+Wed 12-08-2026 21:35:22:: USERINFO: Total number of Gaussians fit to image .. : 2052
+Wed 12-08-2026 21:35:22:: USERINFO: Total flux density in model ............. : 11064.827 Jy
+Wed 12-08-2026 21:35:23:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:35:24:: USERINFO: Number of sources formed from Gaussians   : 2024
+Wed 12-08-2026 21:35:24:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:35:25:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 4.250e-03 (Jy/beam)
+                                        std. dev: 4.716e-01 (Jy/beam)
+                                            skew: 2.769
+                                        kurtosis: 130.126
+Wed 12-08-2026 21:35:25:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(32.84052732298533)
+                                        frequency            : 51868089.101776
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 12
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (2495, 236)
+                                        rms_box_bright       : (998, 236)
+Wed 12-08-2026 21:35:25:: INFO    : Writing /tmp/tmpg7qmn3eu.gaul.fits
+Wed 12-08-2026 21:35:25:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:35:25:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:35:25:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:35:25:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:35:25:: USERINFO: Beam shape (major, minor, pos angle) .... : (4.75262e-01, 3.77386e-01, 53.6) degrees
+Wed 12-08-2026 21:35:25:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:35:25:: INFO    : Non-default input parameters:
+                                        beam                 = (0.4752619427145036, 0.377385616698926, 53.58788214631085)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:35:25:: USERINFO: Frequency of image ...................... : 34.071 MHz
+Wed 12-08-2026 21:35:25:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:35:26:: INFO    : Raw mean (Stokes I) =  181.1679 mJy and raw rms =  2816.6946 mJy 
+Wed 12-08-2026 21:35:26:: INFO    : sigma clipped mean (Stokes I) =  -73.0265 mJy and  sigma clipped rms =  955.3099 mJy 
+Wed 12-08-2026 21:35:26:: USERINFO: Flux from sum of (non-blank) pixels ..... : 11925.812 Jy
+Wed 12-08-2026 21:35:26:: INFO    : Estimated bmpersrc_th =   38.28
+Wed 12-08-2026 21:35:26:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:35:26:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:35:26:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:35:26:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 138
+Wed 12-08-2026 21:35:26:: USERINFO: Derived rms_box (box size, step size) ... : (691, 151) pixels
+Wed 12-08-2026 21:35:26:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:35:26:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:35:26:: USERINFO: Value of background rms ................. : 9.55e-01 Jy/beam
+Wed 12-08-2026 21:35:26:: USERINFO: Value of background mean ................ : -0.07303 Jy/beam
+Wed 12-08-2026 21:35:26:: USERINFO: Minimum number of pixels per island ..... : 11
+Wed 12-08-2026 21:35:26:: USERINFO: Number of islands found ................. : 716
+Wed 12-08-2026 21:35:29:: USERINFO: Total number of Gaussians fit to image .. : 755
+Wed 12-08-2026 21:35:29:: USERINFO: Total flux density in model ............. : 11335.920 Jy
+Wed 12-08-2026 21:35:30:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:35:30:: USERINFO: Number of sources formed from Gaussians   : 744
+Wed 12-08-2026 21:35:30:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:35:30:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 8.963e-03 (Jy/beam)
+                                        std. dev: 1.178e+00 (Jy/beam)
+                                            skew: 1.093
+                                        kurtosis: 29.773
+Wed 12-08-2026 21:35:31:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(38.28197229096173)
+                                        frequency            : 34070526.702013
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 11
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (691, 151)
+                                        rms_box_bright       : (276, 92)
+Wed 12-08-2026 21:35:31:: INFO    : Writing /tmp/tmpouaxns2j.gaul.fits
+Wed 12-08-2026 21:35:31:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:35:31:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:35:31:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:35:31:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:35:31:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.00984e-01, 9.29168e-02, 41.7) degrees
+Wed 12-08-2026 21:35:31:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:35:31:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1009841097818135, 0.09291683531912036, 41.69281290195912)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:35:31:: USERINFO: Frequency of image ...................... : 73.537 MHz
+Wed 12-08-2026 21:35:31:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:35:31:: INFO    : Raw mean (Stokes I) =  33.5754 mJy and raw rms =  734.4250 mJy 
+Wed 12-08-2026 21:35:31:: INFO    : sigma clipped mean (Stokes I) =  -31.6960 mJy and  sigma clipped rms =  170.9699 mJy 
+Wed 12-08-2026 21:35:31:: USERINFO: Flux from sum of (non-blank) pixels ..... : 42138.129 Jy
+Wed 12-08-2026 21:35:31:: INFO    : Estimated bmpersrc_th =   36.67
+Wed 12-08-2026 21:35:31:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:35:32:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:35:32:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:35:32:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 728
+Wed 12-08-2026 21:35:32:: USERINFO: Derived rms_box (box size, step size) ... : (3641, 312) pixels
+Wed 12-08-2026 21:35:32:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:35:32:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:35:32:: USERINFO: Value of background rms ................. : 1.71e-01 Jy/beam
+Wed 12-08-2026 21:35:32:: USERINFO: Value of background mean ................ : -0.0317 Jy/beam
+Wed 12-08-2026 21:35:32:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:35:33:: USERINFO: Number of islands found ................. : 5349
+Wed 12-08-2026 21:36:16:: USERINFO: Total number of Gaussians fit to image .. : 5570
+Wed 12-08-2026 21:36:16:: USERINFO: Total flux density in model ............. : 51830.101 Jy
+Wed 12-08-2026 21:36:17:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:36:20:: USERINFO: Number of sources formed from Gaussians   : 5423
+Wed 12-08-2026 21:36:21:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:36:22:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -7.721e-03 (Jy/beam)
+                                        std. dev: 2.593e-01 (Jy/beam)
+                                            skew: 5.298
+                                        kurtosis: 396.107
+Wed 12-08-2026 21:36:23:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(36.665233444116545)
+                                        frequency            : 73536531.358807
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (3641, 312)
+                                        rms_box_bright       : (1456, 312)
+Wed 12-08-2026 21:36:24:: INFO    : Writing /tmp/tmp2z93t3yz.gaul.fits
+Wed 12-08-2026 21:36:24:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:36:24:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:36:24:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:36:24:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:36:24:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.26836e-01, 1.16810e-01, 38.8) degrees
+Wed 12-08-2026 21:36:24:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:36:24:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1268363987369313, 0.1168098871555187, 38.75278435613718)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:36:24:: USERINFO: Frequency of image ...................... : 60.301 MHz
+Wed 12-08-2026 21:36:24:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:36:25:: INFO    : Raw mean (Stokes I) =  92.7979 mJy and raw rms =  1169.7542 mJy 
+Wed 12-08-2026 21:36:25:: INFO    : sigma clipped mean (Stokes I) =  -43.1772 mJy and  sigma clipped rms =  324.2408 mJy 
+Wed 12-08-2026 21:36:25:: USERINFO: Flux from sum of (non-blank) pixels ..... : 73759.109 Jy
+Wed 12-08-2026 21:36:25:: INFO    : Estimated bmpersrc_th =   32.15
+Wed 12-08-2026 21:36:25:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:36:25:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:36:25:: INFO    : Estimated size of brightest source (pixels) = 3
+Wed 12-08-2026 21:36:25:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 221
+Wed 12-08-2026 21:36:25:: USERINFO: Derived rms_box (box size, step size) ... : (1105, 312) pixels
+Wed 12-08-2026 21:36:25:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:36:25:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:36:25:: USERINFO: Value of background rms ................. : 3.24e-01 Jy/beam
+Wed 12-08-2026 21:36:25:: USERINFO: Value of background mean ................ : -0.04318 Jy/beam
+Wed 12-08-2026 21:36:25:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:36:26:: USERINFO: Number of islands found ................. : 3579
+Wed 12-08-2026 21:36:36:: USERINFO: Total number of Gaussians fit to image .. : 3755
+Wed 12-08-2026 21:36:36:: USERINFO: Total flux density in model ............. : 69931.441 Jy
+Wed 12-08-2026 21:36:36:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:36:38:: USERINFO: Number of sources formed from Gaussians   : 3681
+Wed 12-08-2026 21:36:38:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:36:39:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 4.820e-03 (Jy/beam)
+                                        std. dev: 3.503e-01 (Jy/beam)
+                                            skew: 2.897
+                                        kurtosis: 124.769
+Wed 12-08-2026 21:36:40:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(32.15376723456827)
+                                        frequency            : 60301199.558864
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1105, 312)
+                                        rms_box_bright       : (442, 147)
+Wed 12-08-2026 21:36:40:: INFO    : Writing /tmp/tmp9zcnl9tu.gaul.fits
+Wed 12-08-2026 21:36:41:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:36:41:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:36:41:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:36:41:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:36:41:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.43348e-01, 1.32070e-01, 36.9) degrees
+Wed 12-08-2026 21:36:41:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:36:41:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1433480176477803, 0.1320701593590627, 36.87501519535195)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:36:41:: USERINFO: Frequency of image ...................... : 52.895 MHz
+Wed 12-08-2026 21:36:41:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:36:41:: INFO    : Raw mean (Stokes I) =  81.2151 mJy and raw rms =  1241.3101 mJy 
+Wed 12-08-2026 21:36:41:: INFO    : sigma clipped mean (Stokes I) =  -54.5168 mJy and  sigma clipped rms =  367.9918 mJy 
+Wed 12-08-2026 21:36:41:: USERINFO: Flux from sum of (non-blank) pixels ..... : 50541.918 Jy
+Wed 12-08-2026 21:36:41:: INFO    : Estimated bmpersrc_th =   35.01
+Wed 12-08-2026 21:36:41:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:36:41:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:36:41:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:36:41:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 514
+Wed 12-08-2026 21:36:41:: USERINFO: Derived rms_box (box size, step size) ... : (2571, 236) pixels
+Wed 12-08-2026 21:36:41:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:36:41:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:36:41:: USERINFO: Value of background rms ................. : 3.68e-01 Jy/beam
+Wed 12-08-2026 21:36:41:: USERINFO: Value of background mean ................ : -0.05452 Jy/beam
+Wed 12-08-2026 21:36:41:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:36:42:: USERINFO: Number of islands found ................. : 2869
+Wed 12-08-2026 21:37:08:: USERINFO: Total number of Gaussians fit to image .. : 2984
+Wed 12-08-2026 21:37:08:: USERINFO: Total flux density in model ............. : 55527.587 Jy
+Wed 12-08-2026 21:37:08:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:37:09:: USERINFO: Number of sources formed from Gaussians   : 2931
+Wed 12-08-2026 21:37:10:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:37:11:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -8.014e-03 (Jy/beam)
+                                        std. dev: 4.363e-01 (Jy/beam)
+                                            skew: 1.775
+                                        kurtosis: 139.300
+Wed 12-08-2026 21:37:12:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(35.009879295037685)
+                                        frequency            : 52894951.891902
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (2571, 236)
+                                        rms_box_bright       : (1028, 236)
+Wed 12-08-2026 21:37:12:: INFO    : Writing /tmp/tmp7edqfic5.gaul.fits
+Wed 12-08-2026 21:37:12:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:37:12:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:37:12:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:37:12:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:37:12:: USERINFO: Beam shape (major, minor, pos angle) .... : (4.47441e-01, 3.59903e-01, 53.8) degrees
+Wed 12-08-2026 21:37:12:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:37:12:: INFO    : Non-default input parameters:
+                                        beam                 = (0.4474409007641977, 0.3599029486206394, 53.79711513474872)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:37:12:: USERINFO: Frequency of image ...................... : 35.888 MHz
+Wed 12-08-2026 21:37:12:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:37:12:: INFO    : Raw mean (Stokes I) =  173.1762 mJy and raw rms =  2844.5095 mJy 
+Wed 12-08-2026 21:37:12:: INFO    : sigma clipped mean (Stokes I) =  -75.5633 mJy and  sigma clipped rms =  901.8989 mJy 
+Wed 12-08-2026 21:37:12:: USERINFO: Flux from sum of (non-blank) pixels ..... : 12696.748 Jy
+Wed 12-08-2026 21:37:12:: INFO    : Estimated bmpersrc_th =   38.60
+Wed 12-08-2026 21:37:12:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:37:12:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:37:12:: INFO    : Estimated size of brightest source (pixels) = 5
+Wed 12-08-2026 21:37:13:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 153
+Wed 12-08-2026 21:37:13:: USERINFO: Derived rms_box (box size, step size) ... : (765, 151) pixels
+Wed 12-08-2026 21:37:13:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:37:13:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:37:13:: USERINFO: Value of background rms ................. : 9.02e-01 Jy/beam
+Wed 12-08-2026 21:37:13:: USERINFO: Value of background mean ................ : -0.07556 Jy/beam
+Wed 12-08-2026 21:37:13:: USERINFO: Minimum number of pixels per island ..... : 10
+Wed 12-08-2026 21:37:13:: USERINFO: Number of islands found ................. : 796
+Wed 12-08-2026 21:37:18:: USERINFO: Total number of Gaussians fit to image .. : 829
+Wed 12-08-2026 21:37:18:: USERINFO: Total flux density in model ............. : 12080.781 Jy
+Wed 12-08-2026 21:37:19:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:37:19:: USERINFO: Number of sources formed from Gaussians   : 809
+Wed 12-08-2026 21:37:19:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:37:19:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 8.403e-03 (Jy/beam)
+                                        std. dev: 1.110e+00 (Jy/beam)
+                                            skew: 1.440
+                                        kurtosis: 24.765
+Wed 12-08-2026 21:37:20:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(38.59579090291921)
+                                        frequency            : 35887760.325289
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 10
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (765, 151)
+                                        rms_box_bright       : (306, 102)
+Wed 12-08-2026 21:37:20:: INFO    : Writing /tmp/tmpxfwe6mqb.gaul.fits
+Wed 12-08-2026 21:37:20:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:37:20:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:37:20:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:37:20:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:37:20:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.00597e-01, 9.40470e-02, 31.3) degrees
+Wed 12-08-2026 21:37:20:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:37:20:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1005968752988013, 0.09404696301484937, 31.29050133878446)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:37:20:: USERINFO: Frequency of image ...................... : 73.845 MHz
+Wed 12-08-2026 21:37:20:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:37:21:: INFO    : Raw mean (Stokes I) =  32.7793 mJy and raw rms =  609.1190 mJy 
+Wed 12-08-2026 21:37:21:: INFO    : sigma clipped mean (Stokes I) =  -30.1252 mJy and  sigma clipped rms =  166.7782 mJy 
+Wed 12-08-2026 21:37:21:: USERINFO: Flux from sum of (non-blank) pixels ..... : 40801.070 Jy
+Wed 12-08-2026 21:37:21:: INFO    : Estimated bmpersrc_th =   35.57
+Wed 12-08-2026 21:37:21:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:37:21:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:37:21:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:37:21:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 699
+Wed 12-08-2026 21:37:21:: USERINFO: Derived rms_box (box size, step size) ... : (3495, 312) pixels
+Wed 12-08-2026 21:37:21:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:37:21:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:37:21:: USERINFO: Value of background rms ................. : 1.67e-01 Jy/beam
+Wed 12-08-2026 21:37:21:: USERINFO: Value of background mean ................ : -0.03013 Jy/beam
+Wed 12-08-2026 21:37:22:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:37:23:: USERINFO: Number of islands found ................. : 5551
+Wed 12-08-2026 21:38:09:: USERINFO: Total number of Gaussians fit to image .. : 5718
+Wed 12-08-2026 21:38:09:: USERINFO: Total flux density in model ............. : 50796.069 Jy
+Wed 12-08-2026 21:38:09:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:38:11:: USERINFO: Number of sources formed from Gaussians   : 5628
+Wed 12-08-2026 21:38:13:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:38:14:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -8.027e-03 (Jy/beam)
+                                        std. dev: 2.306e-01 (Jy/beam)
+                                            skew: 0.475
+                                        kurtosis: 160.416
+Wed 12-08-2026 21:38:15:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(35.57328340532383)
+                                        frequency            : 73845477.389067
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (3495, 312)
+                                        rms_box_bright       : (1398, 312)
+Wed 12-08-2026 21:38:15:: INFO    : Writing /tmp/tmpu4i1b75j.gaul.fits
+Wed 12-08-2026 21:38:16:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:38:16:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:38:16:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:38:16:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:38:16:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.23452e-01, 1.16506e-01, 29.0) degrees
+Wed 12-08-2026 21:38:16:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:38:16:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1234521160442595, 0.1165059924586194, 28.9736910484558)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:38:16:: USERINFO: Frequency of image ...................... : 55.239 MHz
+Wed 12-08-2026 21:38:16:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:38:16:: INFO    : Raw mean (Stokes I) =  100.1937 mJy and raw rms =  1124.6271 mJy 
+Wed 12-08-2026 21:38:16:: INFO    : sigma clipped mean (Stokes I) =  -45.1256 mJy and  sigma clipped rms =  356.4727 mJy 
+Wed 12-08-2026 21:38:17:: USERINFO: Flux from sum of (non-blank) pixels ..... : 82034.148 Jy
+Wed 12-08-2026 21:38:17:: INFO    : Estimated bmpersrc_th =   32.67
+Wed 12-08-2026 21:38:17:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:38:17:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:38:17:: INFO    : Estimated size of brightest source (pixels) = 3
+Wed 12-08-2026 21:38:17:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 174
+Wed 12-08-2026 21:38:17:: USERINFO: Derived rms_box (box size, step size) ... : (871, 290) pixels
+Wed 12-08-2026 21:38:17:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:38:17:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:38:17:: USERINFO: Value of background rms ................. : 3.56e-01 Jy/beam
+Wed 12-08-2026 21:38:17:: USERINFO: Value of background mean ................ : -0.04513 Jy/beam
+Wed 12-08-2026 21:38:17:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:38:18:: USERINFO: Number of islands found ................. : 3423
+Wed 12-08-2026 21:38:23:: USERINFO: Total number of Gaussians fit to image .. : 3577
+Wed 12-08-2026 21:38:23:: USERINFO: Total flux density in model ............. : 77027.293 Jy
+Wed 12-08-2026 21:38:24:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:38:25:: USERINFO: Number of sources formed from Gaussians   : 3484
+Wed 12-08-2026 21:38:26:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:38:27:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 6.146e-03 (Jy/beam)
+                                        std. dev: 3.698e-01 (Jy/beam)
+                                            skew: 2.047
+                                        kurtosis: 81.702
+Wed 12-08-2026 21:38:28:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(32.669951465422464)
+                                        frequency            : 55238919.347941
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (871, 290)
+                                        rms_box_bright       : (348, 116)
+Wed 12-08-2026 21:38:28:: INFO    : Writing /tmp/tmp7wiku_1i.gaul.fits
+Wed 12-08-2026 21:38:28:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:38:28:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:38:28:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:38:28:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:38:28:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.39238e-01, 1.32018e-01, 27.4) degrees
+Wed 12-08-2026 21:38:28:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:38:28:: INFO    : Non-default input parameters:
+                                        beam                 = (0.139237706894987, 0.1320179292459948, 27.37352329134517)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:38:28:: USERINFO: Frequency of image ...................... : 52.631 MHz
+Wed 12-08-2026 21:38:28:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:38:29:: INFO    : Raw mean (Stokes I) =  77.7004 mJy and raw rms =  1105.8240 mJy 
+Wed 12-08-2026 21:38:29:: INFO    : sigma clipped mean (Stokes I) =  -49.1217 mJy and  sigma clipped rms =  358.8250 mJy 
+Wed 12-08-2026 21:38:29:: USERINFO: Flux from sum of (non-blank) pixels ..... : 49801.789 Jy
+Wed 12-08-2026 21:38:29:: INFO    : Estimated bmpersrc_th =   35.27
+Wed 12-08-2026 21:38:29:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:38:29:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:38:29:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:38:29:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 256
+Wed 12-08-2026 21:38:29:: USERINFO: Derived rms_box (box size, step size) ... : (1281, 236) pixels
+Wed 12-08-2026 21:38:29:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:38:29:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:38:29:: USERINFO: Value of background rms ................. : 3.59e-01 Jy/beam
+Wed 12-08-2026 21:38:29:: USERINFO: Value of background mean ................ : -0.04912 Jy/beam
+Wed 12-08-2026 21:38:29:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:38:30:: USERINFO: Number of islands found ................. : 2892
+Wed 12-08-2026 21:38:39:: USERINFO: Total number of Gaussians fit to image .. : 2958
+Wed 12-08-2026 21:38:39:: USERINFO: Total flux density in model ............. : 53248.008 Jy
+Wed 12-08-2026 21:38:39:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:38:40:: USERINFO: Number of sources formed from Gaussians   : 2929
+Wed 12-08-2026 21:38:41:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:38:42:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -5.376e-03 (Jy/beam)
+                                        std. dev: 4.214e-01 (Jy/beam)
+                                            skew: 1.697
+                                        kurtosis: 59.811
+Wed 12-08-2026 21:38:43:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(35.27340203831111)
+                                        frequency            : 52631356.958349
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1281, 236)
+                                        rms_box_bright       : (512, 171)
+Wed 12-08-2026 21:38:43:: INFO    : Writing /tmp/tmpq38cmsil.gaul.fits
+Wed 12-08-2026 21:38:43:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:38:43:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:38:43:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:38:43:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:38:43:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.16574e-01, 2.04364e-01, 28.9) degrees
+Wed 12-08-2026 21:38:43:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:38:43:: INFO    : Non-default input parameters:
+                                        beam                 = (0.216574314856103, 0.2043638599018249, 28.93018313152511)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:38:43:: USERINFO: Frequency of image ...................... : 33.825 MHz
+Wed 12-08-2026 21:38:43:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:38:44:: INFO    : Raw mean (Stokes I) =  176.3172 mJy and raw rms =  2519.6284 mJy 
+Wed 12-08-2026 21:38:44:: INFO    : sigma clipped mean (Stokes I) =  -92.2624 mJy and  sigma clipped rms =  982.9021 mJy 
+Wed 12-08-2026 21:38:44:: USERINFO: Flux from sum of (non-blank) pixels ..... : 47033.668 Jy
+Wed 12-08-2026 21:38:44:: INFO    : Estimated bmpersrc_th =   41.58
+Wed 12-08-2026 21:38:44:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:38:44:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:38:44:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:38:44:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 117
+Wed 12-08-2026 21:38:44:: USERINFO: Derived rms_box (box size, step size) ... : (585, 151) pixels
+Wed 12-08-2026 21:38:44:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:38:44:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:38:44:: USERINFO: Value of background rms ................. : 9.83e-01 Jy/beam
+Wed 12-08-2026 21:38:44:: USERINFO: Value of background mean ................ : -0.09226 Jy/beam
+Wed 12-08-2026 21:38:44:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:38:44:: USERINFO: Number of islands found ................. : 1055
+Wed 12-08-2026 21:38:45:: USERINFO: Total number of Gaussians fit to image .. : 1063
+Wed 12-08-2026 21:38:45:: USERINFO: Total flux density in model ............. : 48576.611 Jy
+Wed 12-08-2026 21:38:46:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:38:46:: USERINFO: Number of sources formed from Gaussians   : 1049
+Wed 12-08-2026 21:38:47:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:38:47:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -5.783e-03 (Jy/beam)
+                                        std. dev: 1.103e+00 (Jy/beam)
+                                            skew: 1.484
+                                        kurtosis: 18.390
+Wed 12-08-2026 21:38:47:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(41.57756264341022)
+                                        frequency            : 33825486.722438
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (585, 151)
+                                        rms_box_bright       : (234, 78)
+Wed 12-08-2026 21:38:47:: INFO    : Writing /tmp/tmp7s63vkzf.gaul.fits
+Wed 12-08-2026 21:38:47:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:38:47:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:38:47:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:38:47:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:38:47:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.00877e-01, 9.45256e-02, 31.0) degrees
+Wed 12-08-2026 21:38:47:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:38:47:: INFO    : Non-default input parameters:
+                                        beam                 = (0.100876716891128, 0.09452559346346119, 31.01441994878319)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:38:47:: USERINFO: Frequency of image ...................... : 73.567 MHz
+Wed 12-08-2026 21:38:47:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:38:48:: INFO    : Raw mean (Stokes I) =  33.1670 mJy and raw rms =  652.1979 mJy 
+Wed 12-08-2026 21:38:48:: INFO    : sigma clipped mean (Stokes I) =  -30.0950 mJy and  sigma clipped rms =  169.2340 mJy 
+Wed 12-08-2026 21:38:48:: USERINFO: Flux from sum of (non-blank) pixels ..... : 40960.648 Jy
+Wed 12-08-2026 21:38:48:: INFO    : Estimated bmpersrc_th =   35.13
+Wed 12-08-2026 21:38:48:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:38:48:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:38:48:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:38:48:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 698
+Wed 12-08-2026 21:38:48:: USERINFO: Derived rms_box (box size, step size) ... : (3491, 312) pixels
+Wed 12-08-2026 21:38:48:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:38:48:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:38:48:: USERINFO: Value of background rms ................. : 1.69e-01 Jy/beam
+Wed 12-08-2026 21:38:48:: USERINFO: Value of background mean ................ : -0.0301 Jy/beam
+Wed 12-08-2026 21:38:48:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:38:50:: USERINFO: Number of islands found ................. : 5576
+Wed 12-08-2026 21:39:11:: USERINFO: Total number of Gaussians fit to image .. : 5689
+Wed 12-08-2026 21:39:11:: USERINFO: Total flux density in model ............. : 51003.293 Jy
+Wed 12-08-2026 21:39:13:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:39:15:: USERINFO: Number of sources formed from Gaussians   : 5616
+Wed 12-08-2026 21:39:17:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:39:18:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -8.124e-03 (Jy/beam)
+                                        std. dev: 2.492e-01 (Jy/beam)
+                                            skew: 2.997
+                                        kurtosis: 173.241
+Wed 12-08-2026 21:39:20:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(35.1290332462936)
+                                        frequency            : 73567005.639938
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (3491, 312)
+                                        rms_box_bright       : (1396, 312)
+Wed 12-08-2026 21:39:20:: INFO    : Writing /tmp/tmp69_e8tqc.gaul.fits
+Wed 12-08-2026 21:39:20:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:39:20:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:39:20:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:39:20:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:39:20:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.26324e-01, 1.19490e-01, 28.5) degrees
+Wed 12-08-2026 21:39:20:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:39:20:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1263241072639931, 0.1194900998980295, 28.52911439093276)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:39:20:: USERINFO: Frequency of image ...................... : 53.749 MHz
+Wed 12-08-2026 21:39:20:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:39:21:: INFO    : Raw mean (Stokes I) =  102.2796 mJy and raw rms =  1177.5389 mJy 
+Wed 12-08-2026 21:39:21:: INFO    : sigma clipped mean (Stokes I) =  -46.7325 mJy and  sigma clipped rms =  359.7610 mJy 
+Wed 12-08-2026 21:39:21:: USERINFO: Flux from sum of (non-blank) pixels ..... : 79794.266 Jy
+Wed 12-08-2026 21:39:21:: INFO    : Estimated bmpersrc_th =   32.50
+Wed 12-08-2026 21:39:21:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:39:21:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:39:21:: INFO    : Estimated size of brightest source (pixels) = 3
+Wed 12-08-2026 21:39:21:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 174
+Wed 12-08-2026 21:39:21:: USERINFO: Derived rms_box (box size, step size) ... : (871, 290) pixels
+Wed 12-08-2026 21:39:21:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:39:21:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:39:21:: USERINFO: Value of background rms ................. : 3.60e-01 Jy/beam
+Wed 12-08-2026 21:39:21:: USERINFO: Value of background mean ................ : -0.04673 Jy/beam
+Wed 12-08-2026 21:39:21:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:39:22:: USERINFO: Number of islands found ................. : 3468
+Wed 12-08-2026 21:39:33:: USERINFO: Total number of Gaussians fit to image .. : 3606
+Wed 12-08-2026 21:39:33:: USERINFO: Total flux density in model ............. : 75030.403 Jy
+Wed 12-08-2026 21:39:34:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:39:35:: USERINFO: Number of sources formed from Gaussians   : 3525
+Wed 12-08-2026 21:39:36:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:39:37:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 6.110e-03 (Jy/beam)
+                                        std. dev: 3.715e-01 (Jy/beam)
+                                            skew: 2.634
+                                        kurtosis: 26.687
+Wed 12-08-2026 21:39:38:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(32.504240241441984)
+                                        frequency            : 53749027.773341
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (871, 290)
+                                        rms_box_bright       : (348, 116)
+Wed 12-08-2026 21:39:38:: INFO    : Writing /tmp/tmpb78b54_7.gaul.fits
+Wed 12-08-2026 21:39:38:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:39:38:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:39:38:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:39:38:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:39:38:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.40915e-01, 1.33804e-01, 27.1) degrees
+Wed 12-08-2026 21:39:38:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:39:38:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1409152828141271, 0.1338043965929729, 27.10407515669412)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:39:38:: USERINFO: Frequency of image ...................... : 51.883 MHz
+Wed 12-08-2026 21:39:38:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:39:39:: INFO    : Raw mean (Stokes I) =  78.6706 mJy and raw rms =  1165.8555 mJy 
+Wed 12-08-2026 21:39:39:: INFO    : sigma clipped mean (Stokes I) =  -49.5734 mJy and  sigma clipped rms =  369.2422 mJy 
+Wed 12-08-2026 21:39:39:: USERINFO: Flux from sum of (non-blank) pixels ..... : 49158.184 Jy
+Wed 12-08-2026 21:39:39:: INFO    : Estimated bmpersrc_th =   35.73
+Wed 12-08-2026 21:39:39:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:39:39:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:39:39:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:39:39:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 292
+Wed 12-08-2026 21:39:39:: USERINFO: Derived rms_box (box size, step size) ... : (1461, 236) pixels
+Wed 12-08-2026 21:39:39:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:39:39:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:39:39:: USERINFO: Value of background rms ................. : 3.69e-01 Jy/beam
+Wed 12-08-2026 21:39:39:: USERINFO: Value of background mean ................ : -0.04957 Jy/beam
+Wed 12-08-2026 21:39:39:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:39:40:: USERINFO: Number of islands found ................. : 2870
+Wed 12-08-2026 21:39:57:: USERINFO: Total number of Gaussians fit to image .. : 2931
+Wed 12-08-2026 21:39:57:: USERINFO: Total flux density in model ............. : 53358.397 Jy
+Wed 12-08-2026 21:39:58:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:39:59:: USERINFO: Number of sources formed from Gaussians   : 2905
+Wed 12-08-2026 21:39:59:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:40:00:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -6.721e-03 (Jy/beam)
+                                        std. dev: 4.295e-01 (Jy/beam)
+                                            skew: 1.485
+                                        kurtosis: 32.582
+Wed 12-08-2026 21:40:01:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(35.72555104715826)
+                                        frequency            : 51882938.156656
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1461, 236)
+                                        rms_box_bright       : (584, 195)
+Wed 12-08-2026 21:40:01:: INFO    : Writing /tmp/tmpjczb5h8a.gaul.fits
+Wed 12-08-2026 21:40:01:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:40:01:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:40:01:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:40:01:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:40:01:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.17487e-01, 2.05130e-01, 29.0) degrees
+Wed 12-08-2026 21:40:01:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:40:01:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2174870501350756, 0.2051298237637195, 28.98639670467722)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:40:01:: USERINFO: Frequency of image ...................... : 33.767 MHz
+Wed 12-08-2026 21:40:01:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:40:02:: INFO    : Raw mean (Stokes I) =  177.0799 mJy and raw rms =  2573.1094 mJy 
+Wed 12-08-2026 21:40:02:: INFO    : sigma clipped mean (Stokes I) =  -89.8844 mJy and  sigma clipped rms =  993.6292 mJy 
+Wed 12-08-2026 21:40:02:: USERINFO: Flux from sum of (non-blank) pixels ..... : 46863.219 Jy
+Wed 12-08-2026 21:40:02:: INFO    : Estimated bmpersrc_th =   42.24
+Wed 12-08-2026 21:40:02:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:40:02:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:40:02:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:40:02:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 133
+Wed 12-08-2026 21:40:02:: USERINFO: Derived rms_box (box size, step size) ... : (665, 151) pixels
+Wed 12-08-2026 21:40:02:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:40:02:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:40:02:: USERINFO: Value of background rms ................. : 9.94e-01 Jy/beam
+Wed 12-08-2026 21:40:02:: USERINFO: Value of background mean ................ : -0.08988 Jy/beam
+Wed 12-08-2026 21:40:02:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:40:02:: USERINFO: Number of islands found ................. : 1012
+Wed 12-08-2026 21:40:04:: USERINFO: Total number of Gaussians fit to image .. : 1021
+Wed 12-08-2026 21:40:04:: USERINFO: Total flux density in model ............. : 47054.575 Jy
+Wed 12-08-2026 21:40:04:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:40:05:: USERINFO: Number of sources formed from Gaussians   : 1008
+Wed 12-08-2026 21:40:05:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:40:06:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -7.215e-04 (Jy/beam)
+                                        std. dev: 1.129e+00 (Jy/beam)
+                                            skew: 1.701
+                                        kurtosis: 18.100
+Wed 12-08-2026 21:40:06:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(42.24489833830263)
+                                        frequency            : 33767301.789668
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (665, 151)
+                                        rms_box_bright       : (266, 89)
+Wed 12-08-2026 21:40:06:: INFO    : Writing /tmp/tmpo808pcr0.gaul.fits
+Wed 12-08-2026 21:40:06:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:40:06:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:40:06:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:40:06:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:40:06:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.00654e-01, 9.39286e-02, 32.0) degrees
+Wed 12-08-2026 21:40:06:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:40:06:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1006539523540879, 0.09392864454906666, 31.99892578553364)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:40:06:: USERINFO: Frequency of image ...................... : 73.930 MHz
+Wed 12-08-2026 21:40:06:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:40:07:: INFO    : Raw mean (Stokes I) =  32.4186 mJy and raw rms =  664.9750 mJy 
+Wed 12-08-2026 21:40:07:: INFO    : sigma clipped mean (Stokes I) =  -31.9781 mJy and  sigma clipped rms =  168.6010 mJy 
+Wed 12-08-2026 21:40:07:: USERINFO: Flux from sum of (non-blank) pixels ..... : 40379.992 Jy
+Wed 12-08-2026 21:40:07:: INFO    : Estimated bmpersrc_th =   35.18
+Wed 12-08-2026 21:40:07:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:40:07:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:40:07:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:40:07:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 624
+Wed 12-08-2026 21:40:07:: USERINFO: Derived rms_box (box size, step size) ... : (3121, 312) pixels
+Wed 12-08-2026 21:40:07:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:40:07:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:40:07:: USERINFO: Value of background rms ................. : 1.69e-01 Jy/beam
+Wed 12-08-2026 21:40:07:: USERINFO: Value of background mean ................ : -0.03198 Jy/beam
+Wed 12-08-2026 21:40:07:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:40:09:: USERINFO: Number of islands found ................. : 5671
+Wed 12-08-2026 21:40:32:: USERINFO: Total number of Gaussians fit to image .. : 5842
+Wed 12-08-2026 21:40:32:: USERINFO: Total flux density in model ............. : 52000.021 Jy
+Wed 12-08-2026 21:40:33:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:40:35:: USERINFO: Number of sources formed from Gaussians   : 5739
+Wed 12-08-2026 21:40:36:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:40:37:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -9.324e-03 (Jy/beam)
+                                        std. dev: 2.472e-01 (Jy/beam)
+                                            skew: 1.599
+                                        kurtosis: 142.094
+Wed 12-08-2026 21:40:39:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(35.17733783025388)
+                                        frequency            : 73929656.026446
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (3121, 312)
+                                        rms_box_bright       : (1248, 312)
+Wed 12-08-2026 21:40:39:: INFO    : Writing /tmp/tmpsbxdp8gg.gaul.fits
+Wed 12-08-2026 21:40:39:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:40:39:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:40:39:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:40:39:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:40:39:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.23373e-01, 1.16370e-01, 29.9) degrees
+Wed 12-08-2026 21:40:39:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:40:39:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1233730659655191, 0.1163695138878508, 29.85653059153969)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:40:39:: USERINFO: Frequency of image ...................... : 55.576 MHz
+Wed 12-08-2026 21:40:39:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:40:40:: INFO    : Raw mean (Stokes I) =  105.3085 mJy and raw rms =  1167.5988 mJy 
+Wed 12-08-2026 21:40:40:: INFO    : sigma clipped mean (Stokes I) =  -48.5885 mJy and  sigma clipped rms =  374.7266 mJy 
+Wed 12-08-2026 21:40:40:: USERINFO: Flux from sum of (non-blank) pixels ..... : 86378.328 Jy
+Wed 12-08-2026 21:40:40:: INFO    : Estimated bmpersrc_th =   33.19
+Wed 12-08-2026 21:40:40:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:40:40:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:40:40:: INFO    : Estimated size of brightest source (pixels) = 3
+Wed 12-08-2026 21:40:40:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 171
+Wed 12-08-2026 21:40:40:: USERINFO: Derived rms_box (box size, step size) ... : (855, 285) pixels
+Wed 12-08-2026 21:40:40:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:40:40:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:40:40:: USERINFO: Value of background rms ................. : 3.75e-01 Jy/beam
+Wed 12-08-2026 21:40:40:: USERINFO: Value of background mean ................ : -0.04859 Jy/beam
+Wed 12-08-2026 21:40:40:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:40:41:: USERINFO: Number of islands found ................. : 3309
+Wed 12-08-2026 21:40:47:: USERINFO: Total number of Gaussians fit to image .. : 3454
+Wed 12-08-2026 21:40:47:: USERINFO: Total flux density in model ............. : 80190.991 Jy
+Wed 12-08-2026 21:40:47:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:40:49:: USERINFO: Number of sources formed from Gaussians   : 3358
+Wed 12-08-2026 21:40:50:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:40:50:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 7.545e-03 (Jy/beam)
+                                        std. dev: 3.838e-01 (Jy/beam)
+                                            skew: 2.715
+                                        kurtosis: 20.988
+Wed 12-08-2026 21:40:52:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(33.18992065924337)
+                                        frequency            : 55575961.194566
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (855, 285)
+                                        rms_box_bright       : (342, 114)
+Wed 12-08-2026 21:40:52:: INFO    : Writing /tmp/tmpiagou78n.gaul.fits
+Wed 12-08-2026 21:40:52:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:40:52:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:40:52:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:40:52:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:40:52:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.39873e-01, 1.32667e-01, 28.3) degrees
+Wed 12-08-2026 21:40:52:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:40:52:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1398725236433783, 0.1326669003194824, 28.30064423799962)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:40:52:: USERINFO: Frequency of image ...................... : 52.420 MHz
+Wed 12-08-2026 21:40:52:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:40:53:: INFO    : Raw mean (Stokes I) =  78.8991 mJy and raw rms =  1127.8639 mJy 
+Wed 12-08-2026 21:40:53:: INFO    : sigma clipped mean (Stokes I) =  -49.9079 mJy and  sigma clipped rms =  375.9750 mJy 
+Wed 12-08-2026 21:40:53:: USERINFO: Flux from sum of (non-blank) pixels ..... : 50094.355 Jy
+Wed 12-08-2026 21:40:53:: INFO    : Estimated bmpersrc_th =   36.61
+Wed 12-08-2026 21:40:53:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:40:53:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:40:53:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:40:53:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 244
+Wed 12-08-2026 21:40:53:: USERINFO: Derived rms_box (box size, step size) ... : (1221, 236) pixels
+Wed 12-08-2026 21:40:53:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:40:53:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:40:53:: USERINFO: Value of background rms ................. : 3.76e-01 Jy/beam
+Wed 12-08-2026 21:40:53:: USERINFO: Value of background mean ................ : -0.04991 Jy/beam
+Wed 12-08-2026 21:40:53:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:40:54:: USERINFO: Number of islands found ................. : 2845
+Wed 12-08-2026 21:41:02:: USERINFO: Total number of Gaussians fit to image .. : 2908
+Wed 12-08-2026 21:41:02:: USERINFO: Total flux density in model ............. : 53529.416 Jy
+Wed 12-08-2026 21:41:03:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:41:04:: USERINFO: Number of sources formed from Gaussians   : 2872
+Wed 12-08-2026 21:41:04:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:41:05:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -5.410e-03 (Jy/beam)
+                                        std. dev: 4.405e-01 (Jy/beam)
+                                            skew: 2.352
+                                        kurtosis: 55.181
+Wed 12-08-2026 21:41:06:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(36.614472826409056)
+                                        frequency            : 52419985.546974
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1221, 236)
+                                        rms_box_bright       : (488, 163)
+Wed 12-08-2026 21:41:06:: INFO    : Writing /tmp/tmpk4b10p6g.gaul.fits
+Wed 12-08-2026 21:41:06:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:41:06:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:41:06:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:41:06:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:41:06:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.17706e-01, 2.05398e-01, 29.1) degrees
+Wed 12-08-2026 21:41:06:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:41:06:: INFO    : Non-default input parameters:
+                                        beam                 = (0.21770611660883, 0.2053982486386537, 29.11963193544313)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:41:06:: USERINFO: Frequency of image ...................... : 33.710 MHz
+Wed 12-08-2026 21:41:06:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:41:07:: INFO    : Raw mean (Stokes I) =  176.0359 mJy and raw rms =  2477.1277 mJy 
+Wed 12-08-2026 21:41:07:: INFO    : sigma clipped mean (Stokes I) =  -87.5991 mJy and  sigma clipped rms =  992.6033 mJy 
+Wed 12-08-2026 21:41:07:: USERINFO: Flux from sum of (non-blank) pixels ..... : 46479.227 Jy
+Wed 12-08-2026 21:41:07:: INFO    : Estimated bmpersrc_th =   43.00
+Wed 12-08-2026 21:41:07:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:41:07:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:41:07:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:41:07:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 148
+Wed 12-08-2026 21:41:07:: USERINFO: Derived rms_box (box size, step size) ... : (741, 151) pixels
+Wed 12-08-2026 21:41:07:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:41:07:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:41:07:: USERINFO: Value of background rms ................. : 9.93e-01 Jy/beam
+Wed 12-08-2026 21:41:07:: USERINFO: Value of background mean ................ : -0.0876 Jy/beam
+Wed 12-08-2026 21:41:07:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:41:07:: USERINFO: Number of islands found ................. : 971
+Wed 12-08-2026 21:41:09:: USERINFO: Total number of Gaussians fit to image .. : 985
+Wed 12-08-2026 21:41:09:: USERINFO: Total flux density in model ............. : 45600.468 Jy
+Wed 12-08-2026 21:41:10:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:41:10:: USERINFO: Number of sources formed from Gaussians   : 973
+Wed 12-08-2026 21:41:10:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:41:10:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 3.330e-03 (Jy/beam)
+                                        std. dev: 1.129e+00 (Jy/beam)
+                                            skew: 2.099
+                                        kurtosis: 24.718
+Wed 12-08-2026 21:41:11:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(43.004642630887204)
+                                        frequency            : 33709809.276595
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (741, 151)
+                                        rms_box_bright       : (296, 99)
+Wed 12-08-2026 21:41:11:: INFO    : Writing /tmp/tmp6hsirmva.gaul.fits
+Wed 12-08-2026 21:41:11:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:41:11:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:41:11:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:41:11:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:41:11:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.01012e-01, 9.32998e-02, 45.3) degrees
+Wed 12-08-2026 21:41:11:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:41:11:: INFO    : Non-default input parameters:
+                                        beam                 = (0.101012211896092, 0.09329982730937654, 45.32757595637224)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:41:11:: USERINFO: Frequency of image ...................... : 73.677 MHz
+Wed 12-08-2026 21:41:11:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:41:12:: INFO    : Raw mean (Stokes I) =  29.4786 mJy and raw rms =  646.4045 mJy 
+Wed 12-08-2026 21:41:12:: INFO    : sigma clipped mean (Stokes I) =  -31.9485 mJy and  sigma clipped rms =  170.2432 mJy 
+Wed 12-08-2026 21:41:12:: USERINFO: Flux from sum of (non-blank) pixels ..... : 36834.344 Jy
+Wed 12-08-2026 21:41:12:: INFO    : Estimated bmpersrc_th =   35.69
+Wed 12-08-2026 21:41:12:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:41:12:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:41:12:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:41:12:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 270
+Wed 12-08-2026 21:41:12:: USERINFO: Derived rms_box (box size, step size) ... : (1351, 312) pixels
+Wed 12-08-2026 21:41:12:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:41:12:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:41:12:: USERINFO: Value of background rms ................. : 1.70e-01 Jy/beam
+Wed 12-08-2026 21:41:12:: USERINFO: Value of background mean ................ : -0.03195 Jy/beam
+Wed 12-08-2026 21:41:12:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:41:14:: USERINFO: Number of islands found ................. : 5612
+Wed 12-08-2026 21:41:49:: USERINFO: Total number of Gaussians fit to image .. : 5737
+Wed 12-08-2026 21:41:49:: USERINFO: Total flux density in model ............. : 52581.665 Jy
+Wed 12-08-2026 21:41:50:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:41:52:: USERINFO: Number of sources formed from Gaussians   : 5629
+Wed 12-08-2026 21:41:54:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:41:55:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -1.259e-02 (Jy/beam)
+                                        std. dev: 2.504e-01 (Jy/beam)
+                                            skew: -1.268
+                                        kurtosis: 192.720
+Wed 12-08-2026 21:41:56:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(35.69483065170301)
+                                        frequency            : 73676912.929477
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1351, 312)
+                                        rms_box_bright       : (541, 180)
+Wed 12-08-2026 21:41:57:: INFO    : Writing /tmp/tmpr7gqbq8n.gaul.fits
+Wed 12-08-2026 21:41:57:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:41:57:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:41:57:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:41:57:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:41:57:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.23092e-01, 1.14522e-01, 42.5) degrees
+Wed 12-08-2026 21:41:57:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:41:57:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1230922529247628, 0.1145223021590552, 42.5472797530203)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:41:57:: USERINFO: Frequency of image ...................... : 56.331 MHz
+Wed 12-08-2026 21:41:57:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:41:58:: INFO    : Raw mean (Stokes I) =  103.8983 mJy and raw rms =  1107.4503 mJy 
+Wed 12-08-2026 21:41:58:: INFO    : sigma clipped mean (Stokes I) =  -50.9285 mJy and  sigma clipped rms =  377.9188 mJy 
+Wed 12-08-2026 21:41:58:: USERINFO: Flux from sum of (non-blank) pixels ..... : 86793.797 Jy
+Wed 12-08-2026 21:41:58:: INFO    : Estimated bmpersrc_th =   34.13
+Wed 12-08-2026 21:41:58:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:41:58:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:41:58:: INFO    : Estimated size of brightest source (pixels) = 3
+Wed 12-08-2026 21:41:58:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 172
+Wed 12-08-2026 21:41:58:: USERINFO: Derived rms_box (box size, step size) ... : (861, 287) pixels
+Wed 12-08-2026 21:41:58:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:41:58:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:41:58:: USERINFO: Value of background rms ................. : 3.78e-01 Jy/beam
+Wed 12-08-2026 21:41:58:: USERINFO: Value of background mean ................ : -0.05093 Jy/beam
+Wed 12-08-2026 21:41:58:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:41:59:: USERINFO: Number of islands found ................. : 3314
+Wed 12-08-2026 21:42:04:: USERINFO: Total number of Gaussians fit to image .. : 3446
+Wed 12-08-2026 21:42:04:: USERINFO: Total flux density in model ............. : 79450.450 Jy
+Wed 12-08-2026 21:42:05:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:42:07:: USERINFO: Number of sources formed from Gaussians   : 3358
+Wed 12-08-2026 21:42:08:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:42:08:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 8.792e-03 (Jy/beam)
+                                        std. dev: 3.830e-01 (Jy/beam)
+                                            skew: 2.406
+                                        kurtosis: 16.387
+Wed 12-08-2026 21:42:10:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(34.128103586522265)
+                                        frequency            : 56330929.192106
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (861, 287)
+                                        rms_box_bright       : (344, 115)
+Wed 12-08-2026 21:42:10:: INFO    : Writing /tmp/tmpz3oi6ba0.gaul.fits
+Wed 12-08-2026 21:42:10:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:42:10:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:42:10:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:42:10:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:42:10:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.39323e-01, 1.30123e-01, 40.5) degrees
+Wed 12-08-2026 21:42:10:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:42:10:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1393233163988645, 0.1301229677518129, 40.50348082643261)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:42:10:: USERINFO: Frequency of image ...................... : 52.994 MHz
+Wed 12-08-2026 21:42:10:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:42:11:: INFO    : Raw mean (Stokes I) =  75.4700 mJy and raw rms =  1081.0811 mJy 
+Wed 12-08-2026 21:42:11:: INFO    : sigma clipped mean (Stokes I) =  -51.7514 mJy and  sigma clipped rms =  386.4737 mJy 
+Wed 12-08-2026 21:42:11:: USERINFO: Flux from sum of (non-blank) pixels ..... : 49046.488 Jy
+Wed 12-08-2026 21:42:11:: INFO    : Estimated bmpersrc_th =   38.48
+Wed 12-08-2026 21:42:11:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:42:11:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:42:11:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:42:11:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 240
+Wed 12-08-2026 21:42:11:: USERINFO: Derived rms_box (box size, step size) ... : (1201, 236) pixels
+Wed 12-08-2026 21:42:11:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:42:11:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:42:11:: USERINFO: Value of background rms ................. : 3.86e-01 Jy/beam
+Wed 12-08-2026 21:42:11:: USERINFO: Value of background mean ................ : -0.05175 Jy/beam
+Wed 12-08-2026 21:42:11:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:42:11:: USERINFO: Number of islands found ................. : 2704
+Wed 12-08-2026 21:42:16:: USERINFO: Total number of Gaussians fit to image .. : 2751
+Wed 12-08-2026 21:42:16:: USERINFO: Total flux density in model ............. : 52846.787 Jy
+Wed 12-08-2026 21:42:17:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:42:18:: USERINFO: Number of sources formed from Gaussians   : 2724
+Wed 12-08-2026 21:42:19:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:42:19:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -5.847e-03 (Jy/beam)
+                                        std. dev: 4.494e-01 (Jy/beam)
+                                            skew: 1.467
+                                        kurtosis: 38.675
+Wed 12-08-2026 21:42:20:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(38.48436964669484)
+                                        frequency            : 52993742.91285
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (1201, 236)
+                                        rms_box_bright       : (481, 160)
+Wed 12-08-2026 21:42:20:: INFO    : Writing /tmp/tmpmsuznmjf.gaul.fits
+Wed 12-08-2026 21:42:20:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:42:20:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:42:20:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:42:20:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:42:20:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.17233e-01, 2.05213e-01, 29.0) degrees
+Wed 12-08-2026 21:42:20:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:42:20:: INFO    : Non-default input parameters:
+                                        beam                 = (0.2172329098238226, 0.2052133583796333, 29.00153303491707)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:42:20:: USERINFO: Frequency of image ...................... : 33.722 MHz
+Wed 12-08-2026 21:42:20:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:42:21:: INFO    : Raw mean (Stokes I) =  170.3310 mJy and raw rms =  2361.2839 mJy 
+Wed 12-08-2026 21:42:21:: INFO    : sigma clipped mean (Stokes I) =  -91.6637 mJy and  sigma clipped rms =  1025.2592 mJy 
+Wed 12-08-2026 21:42:21:: USERINFO: Flux from sum of (non-blank) pixels ..... : 45111.547 Jy
+Wed 12-08-2026 21:42:21:: INFO    : Estimated bmpersrc_th =   44.93
+Wed 12-08-2026 21:42:21:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:42:21:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:42:21:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:42:21:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 146
+Wed 12-08-2026 21:42:21:: USERINFO: Derived rms_box (box size, step size) ... : (731, 151) pixels
+Wed 12-08-2026 21:42:21:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:42:21:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:42:21:: USERINFO: Value of background rms ................. : 1.03e+00 Jy/beam
+Wed 12-08-2026 21:42:21:: USERINFO: Value of background mean ................ : -0.09166 Jy/beam
+Wed 12-08-2026 21:42:21:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:42:21:: USERINFO: Number of islands found ................. : 953
+Wed 12-08-2026 21:42:23:: USERINFO: Total number of Gaussians fit to image .. : 958
+Wed 12-08-2026 21:42:23:: USERINFO: Total flux density in model ............. : 45242.216 Jy
+Wed 12-08-2026 21:42:23:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:42:24:: USERINFO: Number of sources formed from Gaussians   : 952
+Wed 12-08-2026 21:42:24:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:42:24:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -4.919e-04 (Jy/beam)
+                                        std. dev: 1.153e+00 (Jy/beam)
+                                            skew: 1.545
+                                        kurtosis: 19.047
+Wed 12-08-2026 21:42:25:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(44.927769875138296)
+                                        frequency            : 33721798.977407
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (731, 151)
+                                        rms_box_bright       : (292, 97)
+Wed 12-08-2026 21:42:25:: INFO    : Writing /tmp/tmpbhs78t2z.gaul.fits
+Wed 12-08-2026 21:42:25:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:42:25:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:42:25:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:42:25:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:42:25:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.00657e-01, 9.30905e-02, 45.9) degrees
+Wed 12-08-2026 21:42:25:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:42:25:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1006570579714985, 0.0930904521751541, 45.9153970934418)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:42:25:: USERINFO: Frequency of image ...................... : 73.758 MHz
+Wed 12-08-2026 21:42:25:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:42:26:: INFO    : Raw mean (Stokes I) =  27.0692 mJy and raw rms =  638.1391 mJy 
+Wed 12-08-2026 21:42:26:: INFO    : sigma clipped mean (Stokes I) =  -34.0782 mJy and  sigma clipped rms =  172.1698 mJy 
+Wed 12-08-2026 21:42:26:: USERINFO: Flux from sum of (non-blank) pixels ..... : 34019.461 Jy
+Wed 12-08-2026 21:42:26:: INFO    : Estimated bmpersrc_th =   36.63
+Wed 12-08-2026 21:42:26:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:42:26:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:42:26:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:42:26:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 538
+Wed 12-08-2026 21:42:26:: USERINFO: Derived rms_box (box size, step size) ... : (2691, 312) pixels
+Wed 12-08-2026 21:42:26:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:42:26:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:42:26:: USERINFO: Value of background rms ................. : 1.72e-01 Jy/beam
+Wed 12-08-2026 21:42:26:: USERINFO: Value of background mean ................ : -0.03408 Jy/beam
+Wed 12-08-2026 21:42:26:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:42:28:: USERINFO: Number of islands found ................. : 5505
+Wed 12-08-2026 21:42:40:: USERINFO: Total number of Gaussians fit to image .. : 5621
+Wed 12-08-2026 21:42:40:: USERINFO: Total flux density in model ............. : 50476.324 Jy
+Wed 12-08-2026 21:42:41:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:42:43:: USERINFO: Number of sources formed from Gaussians   : 5542
+Wed 12-08-2026 21:42:44:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:42:45:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -1.308e-02 (Jy/beam)
+                                        std. dev: 2.715e-01 (Jy/beam)
+                                            skew: -0.475
+                                        kurtosis: 118.767
+Wed 12-08-2026 21:42:47:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(36.62596690584493)
+                                        frequency            : 73758228.454288
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (2691, 312)
+                                        rms_box_bright       : (1076, 312)
+Wed 12-08-2026 21:42:47:: INFO    : Writing /tmp/tmpzvsdi80n.gaul.fits
+Wed 12-08-2026 21:42:47:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:42:47:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:42:47:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:42:47:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:42:47:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.23788e-01, 1.15604e-01, 45.4) degrees
+Wed 12-08-2026 21:42:47:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:42:47:: INFO    : Non-default input parameters:
+                                        beam                 = (0.123788221838461, 0.1156044970956599, 45.42635738790921)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:42:47:: USERINFO: Frequency of image ...................... : 55.348 MHz
+Wed 12-08-2026 21:42:47:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:42:48:: INFO    : Raw mean (Stokes I) =  102.6559 mJy and raw rms =  1041.7429 mJy 
+Wed 12-08-2026 21:42:48:: INFO    : sigma clipped mean (Stokes I) =  -54.2813 mJy and  sigma clipped rms =  383.6042 mJy 
+Wed 12-08-2026 21:42:48:: USERINFO: Flux from sum of (non-blank) pixels ..... : 84475.539 Jy
+Wed 12-08-2026 21:42:48:: INFO    : Estimated bmpersrc_th =   35.99
+Wed 12-08-2026 21:42:48:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:42:48:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:42:48:: INFO    : Estimated size of brightest source (pixels) = 3
+Wed 12-08-2026 21:42:49:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 159
+Wed 12-08-2026 21:42:49:: USERINFO: Derived rms_box (box size, step size) ... : (795, 265) pixels
+Wed 12-08-2026 21:42:49:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:42:49:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:42:49:: USERINFO: Value of background rms ................. : 3.84e-01 Jy/beam
+Wed 12-08-2026 21:42:49:: USERINFO: Value of background mean ................ : -0.05428 Jy/beam
+Wed 12-08-2026 21:42:49:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:42:50:: USERINFO: Number of islands found ................. : 3289
+Wed 12-08-2026 21:42:54:: USERINFO: Total number of Gaussians fit to image .. : 3406
+Wed 12-08-2026 21:42:54:: USERINFO: Total flux density in model ............. : 76152.404 Jy
+Wed 12-08-2026 21:42:55:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:42:56:: USERINFO: Number of sources formed from Gaussians   : 3344
+Wed 12-08-2026 21:42:57:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:42:58:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 1.012e-02 (Jy/beam)
+                                        std. dev: 3.803e-01 (Jy/beam)
+                                            skew: 1.966
+                                        kurtosis: 14.234
+Wed 12-08-2026 21:42:59:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(35.98940280954781)
+                                        frequency            : 55347510.915596
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (795, 265)
+                                        rms_box_bright       : (318, 106)
+Wed 12-08-2026 21:43:00:: INFO    : Writing /tmp/tmp955o2sdq.gaul.fits
+Wed 12-08-2026 21:43:00:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:43:00:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:43:00:: INFO    : Original data shape of pre-opened HDUList: (2358, 2358)
+Wed 12-08-2026 21:43:00:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 2358, 2358)
+Wed 12-08-2026 21:43:00:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.39516e-01, 1.30913e-01, 45.1) degrees
+Wed 12-08-2026 21:43:00:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:43:00:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1395162509208659, 0.1309129163048652, 45.09383496252219)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:43:00:: USERINFO: Frequency of image ...................... : 52.490 MHz
+Wed 12-08-2026 21:43:00:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:43:00:: INFO    : Raw mean (Stokes I) =  72.5883 mJy and raw rms =  1020.0101 mJy 
+Wed 12-08-2026 21:43:00:: INFO    : sigma clipped mean (Stokes I) =  -49.8022 mJy and  sigma clipped rms =  393.3992 mJy 
+Wed 12-08-2026 21:43:00:: USERINFO: Flux from sum of (non-blank) pixels ..... : 46824.250 Jy
+Wed 12-08-2026 21:43:00:: INFO    : Estimated bmpersrc_th =   40.98
+Wed 12-08-2026 21:43:00:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:43:01:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:43:01:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:43:01:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 141
+Wed 12-08-2026 21:43:01:: USERINFO: Derived rms_box (box size, step size) ... : (705, 235) pixels
+Wed 12-08-2026 21:43:01:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:43:01:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:43:01:: USERINFO: Value of background rms ................. : 3.93e-01 Jy/beam
+Wed 12-08-2026 21:43:01:: USERINFO: Value of background mean ................ : -0.0498 Jy/beam
+Wed 12-08-2026 21:43:01:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:43:01:: USERINFO: Number of islands found ................. : 2637
+Wed 12-08-2026 21:43:07:: USERINFO: Total number of Gaussians fit to image .. : 2687
+Wed 12-08-2026 21:43:07:: USERINFO: Total flux density in model ............. : 49886.891 Jy
+Wed 12-08-2026 21:43:08:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:43:09:: USERINFO: Number of sources formed from Gaussians   : 2665
+Wed 12-08-2026 21:43:10:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:43:10:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: -4.735e-03 (Jy/beam)
+                                        std. dev: 4.472e-01 (Jy/beam)
+                                            skew: 1.298
+                                        kurtosis: 33.409
+Wed 12-08-2026 21:43:11:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(40.98285183588179)
+                                        frequency            : 52489715.076987
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (705, 235)
+                                        rms_box_bright       : (282, 94)
+Wed 12-08-2026 21:43:11:: INFO    : Writing /tmp/tmpag30grx8.gaul.fits
+Wed 12-08-2026 21:43:11:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:43:11:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:43:11:: INFO    : Original data shape of pre-opened HDUList: (1508, 1508)
+Wed 12-08-2026 21:43:11:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 1508, 1508)
+Wed 12-08-2026 21:43:11:: USERINFO: Beam shape (major, minor, pos angle) .... : (2.18271e-01, 2.03503e-01, 44.6) degrees
+Wed 12-08-2026 21:43:11:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:43:11:: INFO    : Non-default input parameters:
+                                        beam                 = (0.218270610892395, 0.203502620661506, 44.55887150237677)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:43:11:: USERINFO: Frequency of image ...................... : 33.645 MHz
+Wed 12-08-2026 21:43:11:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:43:12:: INFO    : Raw mean (Stokes I) =  161.9107 mJy and raw rms =  2182.8530 mJy 
+Wed 12-08-2026 21:43:12:: INFO    : sigma clipped mean (Stokes I) =  -87.3807 mJy and  sigma clipped rms =  1061.0878 mJy 
+Wed 12-08-2026 21:43:12:: USERINFO: Flux from sum of (non-blank) pixels ..... : 43036.375 Jy
+Wed 12-08-2026 21:43:12:: INFO    : Estimated bmpersrc_th =   48.45
+Wed 12-08-2026 21:43:12:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:43:12:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:43:12:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:43:12:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 59
+Wed 12-08-2026 21:43:14:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:43:14:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:43:14:: USERINFO: Derived rms_box (box size, step size) ... : (424, 141) pixels
+Wed 12-08-2026 21:43:14:: INFO    : Background rms and mean images computed
+Wed 12-08-2026 21:43:14:: USERINFO: --> Using constant background rms
+Wed 12-08-2026 21:43:14:: USERINFO: --> Using constant background mean
+Wed 12-08-2026 21:43:14:: USERINFO: Value of background rms ................. : 1.06e+00 Jy/beam
+Wed 12-08-2026 21:43:14:: USERINFO: Value of background mean ................ : -0.08738 Jy/beam
+Wed 12-08-2026 21:43:14:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:43:14:: USERINFO: Number of islands found ................. : 920
+Wed 12-08-2026 21:43:15:: USERINFO: Total number of Gaussians fit to image .. : 929
+Wed 12-08-2026 21:43:15:: USERINFO: Total flux density in model ............. : 42980.512 Jy
+Wed 12-08-2026 21:43:16:: USERINFO: --> Grouping Gaussians into sources
+Wed 12-08-2026 21:43:16:: USERINFO: Number of sources formed from Gaussians   : 922
+Wed 12-08-2026 21:43:17:: INFO    : Calculating residual image after subtracting reconstructed gaussians
+Wed 12-08-2026 21:43:17:: INFO    : Statistics of the Gaussian residual image:
+                                            mean: 2.079e-04 (Jy/beam)
+                                        std. dev: 1.174e+00 (Jy/beam)
+                                            skew: 0.779
+                                        kurtosis: 14.530
+Wed 12-08-2026 21:43:17:: INFO    : Internally derived parameters:
+                                        bmpersrc_th          : np.float64(48.45289611897685)
+                                        frequency            : 33645394.510764
+                                        indir                : './'
+                                        maxpix_isl           : inf
+                                        minpix_isl           : 6
+                                        outdir               : '/home/claw/code/lwa-catalog/notebooks'
+                                        rms_box              : (424, 141)
+                                        rms_box_bright       : (118, 39)
+Wed 12-08-2026 21:43:17:: INFO    : Writing /tmp/tmpep1pzzfk.gaul.fits
+Wed 12-08-2026 21:43:17:: INFO    : Processing in-memory FITS HDU
+Wed 12-08-2026 21:43:17:: USERINFO: --> Using pre-opened FITS HDUList
+Wed 12-08-2026 21:43:17:: INFO    : Original data shape of pre-opened HDUList: (3122, 3122)
+Wed 12-08-2026 21:43:17:: INFO    : Final data shape (npol, nchan, x, y): (1, 1, 3122, 3122)
+Wed 12-08-2026 21:43:17:: USERINFO: Beam shape (major, minor, pos angle) .... : (1.00018e-01, 9.42253e-02, 38.8) degrees
+Wed 12-08-2026 21:43:17:: INFO    : PyBDSF version 0.1.dev946+g4152f1239
+Wed 12-08-2026 21:43:17:: INFO    : Non-default input parameters:
+                                        beam                 = (0.1000182347530632, 0.0942253174080601, 38.83249756635814)
+                                        filename             = 'in_memory.fits'
+                                        ncores               = 16
+                                        quiet                = True
+                                        thresh               = 'hard'
+                                        thresh_isl           = 7.0
+                                        thresh_pix           = 4.0
+Wed 12-08-2026 21:43:17:: USERINFO: Frequency of image ...................... : 74.447 MHz
+Wed 12-08-2026 21:43:17:: USERINFO: Number of blank pixels .................. : 0 (0.0%)
+Wed 12-08-2026 21:43:18:: INFO    : Raw mean (Stokes I) =  22.1410 mJy and raw rms =  1063.0502 mJy 
+Wed 12-08-2026 21:43:18:: INFO    : sigma clipped mean (Stokes I) =  -42.6334 mJy and  sigma clipped rms =  184.1919 mJy 
+Wed 12-08-2026 21:43:18:: USERINFO: Flux from sum of (non-blank) pixels ..... : 27666.305 Jy
+Wed 12-08-2026 21:43:18:: INFO    : Estimated bmpersrc_th =   38.34
+Wed 12-08-2026 21:43:18:: INFO    : Parameter confused is False
+Wed 12-08-2026 21:43:18:: USERINFO: --> Calculating background rms and mean images
+Wed 12-08-2026 21:43:18:: INFO    : Estimated size of brightest source (pixels) = 2
+Wed 12-08-2026 21:43:18:: INFO    : Maximum extent of largest 10-sigma island using clipped rms (pixels) = 666
+Wed 12-08-2026 21:43:18:: USERINFO: Derived rms_box (box size, step size) ... : (3331, 312) pixels
+Wed 12-08-2026 21:43:18:: USERINFO: --> Size of rms_box larger than 1/4 of image size
+Wed 12-08-2026 21:43:18:: USERINFO: --> Using constant background rms and mean
+Wed 12-08-2026 21:43:18:: USERINFO: Value of background rms ................. : 1.84e-01 Jy/beam
+Wed 12-08-2026 21:43:18:: USERINFO: Value of background mean ................ : -0.04263 Jy/beam
+Wed 12-08-2026 21:43:18:: USERINFO: Minimum number of pixels per island ..... : 6
+Wed 12-08-2026 21:43:20:: USERINFO: Number of islands found ................. : 5358

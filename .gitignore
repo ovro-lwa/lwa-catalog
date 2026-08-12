@@ -38,10 +38,12 @@ htmlcov/
 # Jupyter
 .ipynb_checkpoints/
 
-# Catalog / FITS outputs (local runs)
+# Catalog / image outputs from local runs (not library fixtures)
 *.fits
 *.csv
 !tests/data/**/*.csv
+!tests/data/**/*.parquet
+# Parquet catalogs are the supported format — do not ignore *.parquet globally
 
 # OS
 .DS_Store
