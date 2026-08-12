@@ -1,0 +1,48 @@
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+src/lwa_catalog/_version.py
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+ENV/
+.pixi/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Catalog / FITS outputs (local runs)
+*.fits
+*.csv
+!tests/data/**/*.csv
+
+# OS
+.DS_Store
+Thumbs.db

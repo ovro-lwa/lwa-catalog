@@ -1,0 +1,87 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lwa-catalog"
+dynamic = ["version"]
+description = "Tools for creating and analyzing OVRO-LWA source catalogs and metacatalogs"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Casey Law", email = "claw@astro.caltech.edu" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "astropy>=6.0",
+]
+
+[project.optional-dependencies]
+detect = [
+    "bdsf",
+]
+viz = [
+    "matplotlib>=3.8",
+    "bokeh>=3.3",
+    "panel>=1.3",
+    "ipywidgets>=8.0",
+    "astrowidget>=0.1.1",
+]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+    "ruff>=0.4",
+]
+all = ["lwa-catalog[detect,viz,dev]"]
+
+[project.urls]
+Homepage = "https://github.com/ovro-lwa/lwa-catalog"
+Repository = "https://github.com/ovro-lwa/lwa-catalog"
+Issues = "https://github.com/ovro-lwa/lwa-catalog/issues"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/lwa_catalog/_version.py"
+
+[tool.hatch.version.raw-options]
+fallback_version = "0.1.0.dev0"
+local_scheme = "no-local-version"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/notebooks",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
