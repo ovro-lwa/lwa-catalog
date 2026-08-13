@@ -38,7 +38,12 @@ def _restfreq_hz(header: fits.Header) -> float | None:
 
 
 def prepare_hdu(path: Path) -> fits.PrimaryHDU:
-    """Read FITS, squeeze to 2D, sanitize NaNs, and fix header for PyBDSF."""
+    """Read FITS, squeeze to 2D, and fix header for PyBDSF.
+
+    Non-finite pixels (±inf) are converted to NaN. NaNs are preserved so
+    PyBDSF can blank them; zero-filling blanked primary-beam regions creates
+    constant patches that trigger ``unphysical rms`` errors.
+    """
     path = Path(path)
     with fits.open(path, memmap=True) as hdul:
         hdu = hdul[0]
@@ -46,7 +51,9 @@ def prepare_hdu(path: Path) -> fits.PrimaryHDU:
         if data.ndim != 2:
             msg = f"Expected 2D image in {path.name}, got shape {data.shape}"
             raise ValueError(msg)
-        data = np.where(np.isfinite(data), data, 0.0)
+        # Copy so we do not mutate memmap-backed arrays in place.
+        data = np.array(data, dtype=np.float32, copy=True)
+        data[~np.isfinite(data)] = np.nan
         header = hdu.header.copy()
     rf = _restfreq_hz(header)
     if rf is not None:

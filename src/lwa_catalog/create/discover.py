@@ -26,16 +26,24 @@ BAND_PREFIX_RE = re.compile(
     r"^(Full|Blue|Green|Red)_I_.*\.fits$",
     re.IGNORECASE,
 )
+
+# Frequency subband coadd: 18MHz_I_..._LST01h_....fits
+SUBBAND_COADD_RE = re.compile(
+    r"^(\d+MHz)_I_.*\.fits$",
+    re.IGNORECASE,
+)
 LST_IN_NAME_RE = re.compile(r"LST(\d{1,2})h", re.IGNORECASE)
+# Parent dir like 01h_18MHz or 01h_Blue
+SUBBAND_DIR_RE = re.compile(r"^(\d{2})h_(.+)$", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
 class FitsMetadata:
-    """FITS path plus parsed LST hour, color band, and optional time key."""
+    """FITS path plus parsed LST hour, band, and optional time key."""
 
     path: Path
     lst_hour: str  # e.g. "01h"
-    band: str  # Full | Blue | Green | Red
+    band: str  # Full | Blue | Green | Red | 18MHz | ...
     time_key: str | None = None  # optional lst-color time bin key
 
 
@@ -49,11 +57,21 @@ def _lst_from_parents(path: Path) -> str | None:
         m = HOUR_DIR_RE.match(parent.name)
         if m:
             return format_lst_hour(m.group(1))
+        m = SUBBAND_DIR_RE.match(parent.name)
+        if m:
+            return format_lst_hour(m.group(1))
     return None
 
 
+def _lst_from_name_or_parents(path: Path) -> str | None:
+    m_lst = LST_IN_NAME_RE.search(path.name)
+    if m_lst:
+        return format_lst_hour(m_lst.group(1))
+    return _lst_from_parents(path)
+
+
 def parse_fits_metadata(path: Path) -> FitsMetadata | None:
-    """Return LST hour and color band for a FITS path, or None if unrecognized."""
+    """Return LST hour and band for a FITS path, or None if unrecognized."""
     path = Path(path)
     name = path.name
 
@@ -78,11 +96,15 @@ def parse_fits_metadata(path: Path) -> FitsMetadata | None:
     m = BAND_PREFIX_RE.match(name)
     if m:
         band = m.group(1).title()
-        m_lst = LST_IN_NAME_RE.search(name)
-        if m_lst:
-            lst_h = format_lst_hour(m_lst.group(1))
-        else:
-            lst_h = _lst_from_parents(path)
+        lst_h = _lst_from_name_or_parents(path)
+        if lst_h is None:
+            return None
+        return FitsMetadata(path=path, lst_hour=lst_h, band=band)
+
+    m = SUBBAND_COADD_RE.match(name)
+    if m:
+        band = m.group(1)  # keep original casing, e.g. 18MHz
+        lst_h = _lst_from_name_or_parents(path)
         if lst_h is None:
             return None
         return FitsMetadata(path=path, lst_hour=lst_h, band=band)

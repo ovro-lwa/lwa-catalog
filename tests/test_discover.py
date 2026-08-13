@@ -47,6 +47,30 @@ def test_parse_unrecognized_returns_none() -> None:
     assert parse_fits_metadata(Path("/tmp/random.fits")) is None
 
 
+def test_parse_subband_coadd_filename() -> None:
+    path = Path(
+        "/data/01h_18MHz/"
+        "18MHz_I_deep_Taper_Robust-0.75_pbcorr_dewarped_aligned_coadd_"
+        "LST01h_20241218-20241221_N008.fits"
+    )
+    meta = parse_fits_metadata(path)
+    assert meta is not None
+    assert meta.lst_hour == "01h"
+    assert meta.band == "18MHz"
+    assert meta.time_key is None
+
+
+def test_parse_subband_coadd_lst_from_parent(tmp_path: Path) -> None:
+    hour_dir = tmp_path / "07h_18MHz"
+    hour_dir.mkdir()
+    path = hour_dir / "18MHz_I_deep_Taper_Robust-0.75_pbcorr.fits"
+    path.write_bytes(b"")
+    meta = parse_fits_metadata(path)
+    assert meta is not None
+    assert meta.lst_hour == "07h"
+    assert meta.band == "18MHz"
+
+
 def test_discover_and_lst_hours(tmp_path: Path) -> None:
     (tmp_path / "I_05h_deep_Taper_R0_Blue.fits").write_bytes(b"")
     (tmp_path / "I_05h_deep_Taper_R0_Full.fits").write_bytes(b"")
