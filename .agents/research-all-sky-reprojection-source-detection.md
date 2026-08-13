@@ -617,3 +617,140 @@ them.
   - [Research: Catalog I/O](research-catalog-io.md)
   - lwa-healpix README “Future directions” (all-sky coadd across LST)
   - PyBDSF `check_outsideuniv` option docstring (SIN all-sky pixels)
+
+---
+
+## Follow-up Research [2026-08-13 13:19]
+
+**Question:** How does PyBDSF work on a mosaic made from many hour images? After mosaicking, a 2-D image HDU and header can be created with lwa-healpix, and `BMAJ`/`BMIN` can be calculated if missing. Will PyBDSF interpret the projection properly?
+
+**Findings:**
+
+PyBDSF has no mosaic-specific code path. A multi-hour coadd is treated as one 2-D FITS image. Detection and Gaussian fitting run in **pixel coordinates**. The FITS WCS (including the projection coded in `CTYPE`) is used only when converting fitted pixel positions and sizes to sky. That conversion is delegated to **Astropy WCS**, not to a PyBDSF-owned SIN/CAR implementation.
+
+### How a 2-D mosaic HDU is obtained from lwa-healpix
+
+`coadd_fits(..., target_header=...)` (`/home/claw/code/lwa-healpix/src/lwa_healpix/coadd.py:313-454`) reprojects each hourly FITS onto the caller’s 2-D WCS and returns `(combined, total_weight)` arrays. It does not construct an HDU. A 2-D product is assembled by the caller as `fits.PrimaryHDU(data=combined, header=target_header)` (or an equivalent header built from that WCS).
+
+Existing headers in lwa-healpix that can serve as `target_header`:
+
+| Source | CTYPE | Grid | CDELT present? |
+|--------|-------|------|----------------|
+| `tests/test_coadd.py:276-291` `_image_target_header` | `RA---SIN` / `DEC--SIN` | caller `nx`×`ny` | Yes |
+| `hips.py:46-63` `DEFAULT_CAR_HEADER` | `GLON-CAR` / `GLAT-CAR` | 3600×1800 | Yes (−0.1°, +0.1°) |
+| `hips.py:66-95` `_car_header_for_nside` | `GLON-CAR`/`GLAT-CAR` or `RA---CAR`/`DEC--CAR` | full sky, scale from NSIDE | Yes |
+
+`combine_fits_to_spectral_cube` (`coadd.py:570-655`) writes a **3-D** FITS whose spatial WCS is `ref_wcs_2d.to_header()` from the first input file (typically native SIN, not an all-sky CAR). That path is a spectral cube, not the 2-D mosaic HDU described in the question.
+
+`coadd_fits` does not copy `BMAJ`/`BMIN`/`BPA` or frequency cards. Those must be added on the HDU before `beam_from_header` / `init_freq` run.
+
+`_reproject_healpix_to_car` (`hips.py:98-112`) is the other 2-D array+header pair: a HEALPix map resampled onto CAR. Same packaging step (caller builds `PrimaryHDU`).
+
+### What PyBDSF does with that HDU (independent of how many hours were coadded)
+
+Once `bdsf.process_image(hdu)` receives the HDU (`bdsf/__init__.py:248-317`):
+
+1. **Read and axis order** (`functions.py:1252-1320`). `CTYPE` is split on `-`; only the coordinate name is kept (`RA---SIN` → `RA`, `RA---CAR` → `RA`, `GLON-CAR` → `GLON`). The image is accepted if axes include **RA+DEC or GLON+GLAT**. The projection code (`SIN`, `CAR`, `TAN`, …) is not interpreted here. Data are reshaped to `[STOKES, FREQ, x, y]`.
+
+2. **WCS object** (`readimage.py:147-170`). `astropy.wcs.WCS(hdr)` + `wcs.fix()`. This is where the projection in the full `CTYPE` is applied. `p2s` / `s2p` wrap `wcs_pix2world` / `wcs_world2pix` on the first two world coordinates (`readimage.py:176-206`).
+
+3. **Pixel-scale constants** (`readimage.py:171`). `acdelt = [abs(hdr['cdelt1']), abs(hdr['cdelt2'])]`. `CDELT1` and `CDELT2` must exist as header keywords (a CD/PC-only header without `CDELT` raises `KeyError`).
+
+4. **Beam** (`readimage.py:309-400`). `opts.beam` or header `BMAJ`/`BMIN`/`BPA`. Converted to pixels at the **image center** with constant `CDELT`: `s1 = abs(bmaj / cdelt1)` (`readimage.py:319-330`). This conversion does not use local projection scale.
+
+5. **Frequency** (`readimage.py:402-445`). Spectral WCS axis, or `RESTFREQ` / `FREQ`, or `opts.frequency`. A 2-D CAR header from `hips.py` has none of these unless the caller adds them. `lwa_catalog.create.detect.prepare_hdu` copies `RESTFREQ`/`RESTFRQ` from `RESTFREQ`, `RESTFRQ`, `CRVAL3`, or `FREQ` when present (`detect.py:30-37, 58-61`).
+
+6. **Island find + Gaussian fit** (`gausfit.py`). Peak, pixel center, and pixel FWHM/PA. No WCS.
+
+7. **Sky conversion after a successful fit** (`gausfit.py:1054-1064`):
+   - `centre_sky = img.pix2sky(pixel_xy)` → Astropy world coordinates
+   - `size_sky = img.pix2gaus(..., use_wcs=True)` → local angular size at the source
+   - `size_sky_uncorr = img.pix2gaus(..., use_wcs=False)` → `CDELT` at image center only
+
+8. **FITS `gaul` catalog** (`gausfit.py:971-984`). `centre_sky` is written as columns **`RA`, `DEC`**. `size_sky` is written as **`Maj`, `Min`, `PA`**. `lwa-catalog` keeps those columns (`constants.py:8-30`, `detect.py` `write_catalog(..., catalog_type="gaul")`).
+
+There is no branch that knows the image is a mosaic of many LST hours.
+
+### How projection enters positions vs sizes
+
+**Positions.** `pix2sky` is Astropy `wcs_pix2world` (`readimage.py:176-190`). For `RA---SIN`, `RA---CAR`, `DEC--TAN`, etc., the world values are equatorial RA/Dec in degrees. Those values are what appear in the `gaul` `RA`/`DEC` columns. The projection in `CTYPE` is applied by Astropy for every source.
+
+**Sizes (`use_wcs=True`).** `pix2gaus` → `pixdist2angdist` (`readimage.py:233-259, 585-605`):
+
+1. Take two pixel points along the Gaussian PA, centered on the source.
+2. Convert each to world via `pix2sky`.
+3. Call `func.angsep` (`functions.py:495-518`), a spherical separation on the two world numbers treated as longitude/latitude in degrees.
+4. That local degree-per-pixel scale converts FWHM from pixels to degrees. PA is offset by `get_rot` (angle between +y and north at that pixel), also via `pix2sky`/`sky2pix` (`readimage.py:531-553`).
+
+The comment at `readimage.py:208-211` states these transforms are valid **only at the Gaussian’s center** and ignore change across the Gaussian.
+
+**Sizes (`use_wcs=False`) and beam.** `beam2pix` / `pix2beam` (`readimage.py:319-347`) use a single `CDELT` pair. Flux is `peak * size_pix / beam_pix` (`gausfit.py:1050`). Deconvolution uses that same center-scale beam in pixels (`gausfit.py:1060-1061`).
+
+**`correct_proj`** (`opts.py:1299-1310`, default `True`) applies only to **BBS-format** catalogs (`output.py:572-575`). The FITS `gaul` path used by `lwa-catalog` writes `size_sky` (WCS-local) regardless of this flag.
+
+### Will PyBDSF interpret the projection?
+
+What the code does, by header type:
+
+| Mosaic header | Axis acceptance (`functions.py:1271-1277`) | `pix2sky` world system | `gaul` column names | Local size via `pix2gaus` |
+|---------------|--------------------------------------------|------------------------|---------------------|---------------------------|
+| `RA---SIN` / `DEC--SIN` | RA+DEC | Equatorial (Astropy SIN) | `RA`, `DEC` | Yes, at source pixel |
+| `RA---CAR` / `DEC--CAR` (`_car_header_for_nside(..., coord_frame!="galactic")`) | RA+DEC | Equatorial (Astropy CAR) | `RA`, `DEC` | Yes, at source pixel |
+| `GLON-CAR` / `GLAT-CAR` (`DEFAULT_CAR_HEADER`, default `_car_header_for_nside`) | GLON+GLAT | Galactic lon/lat | still `RA`, `DEC` | `angsep` on GLON/GLAT as spherical lon/lat |
+
+PyBDSF does not implement SIN or CAR itself. It constructs `WCS(header)` and calls `wcs_pix2world`. Any projection Astropy accepts in a standard 2-D FITS WCS is used for positions. The projection string after `-` in `CTYPE` is ignored by PyBDSF’s axis-ordering logic and is consumed only by Astropy.
+
+Two header requirements are independent of projection:
+
+- **`CDELT1` / `CDELT2`** must be present (`readimage.py:171`). lwa-healpix CAR helpers and the SIN test header include them. `WCS.to_header()` from some Astropy versions can emit a PC matrix without `CDELT`; that form does not satisfy this read.
+- **Celestial axis names** must be RA/DEC or GLON/GLAT. Other systems raise `RuntimeError("Image data not found")` (`functions.py:1271-1273`).
+
+### SIN all-sky vs CAR all-sky inside PyBDSF
+
+`check_outsideuniv` (`preprocess.py:154-176`, default **off**): for every pixel, `pix2sky` then `sky2pix`; if the round-trip differs by more than 0.5 pixel, the pixel is set to NaN. The option docstring names SIN all-sky images (`opts.py:512-522`). CAR full-sky grids typically round-trip. `DEFAULT_BDSF_KW` does not set this flag.
+
+`prepare_hdu` as of this follow-up (`detect.py:40-62`) converts non-finite values to **NaN** (not 0) so PyBDSF can blank them. Unobserved mosaic pixels left as NaN stay blanked; zeros would be treated as data.
+
+### Header cards a mosaicked 2-D HDU needs for the existing detect wrapper
+
+For `prepare_hdu` → `run_pybdsf_on_hdu` on a caller-built mosaic HDU:
+
+| Card / property | Required by | Present on lwa-healpix CAR/SIN `target_header`? |
+|-----------------|-------------|--------------------------------------------------|
+| 2-D data | `prepare_hdu` `detect.py:51-53` | Yes, from `coadd_fits` array |
+| `CTYPE1`/`CTYPE2` RA/DEC or GLON/GLAT + projection | PyBDSF `functions.py:1266-1277` + Astropy WCS | Yes on the headers listed above |
+| `CDELT1`/`CDELT2` | `readimage.py:171` | Yes on those helpers |
+| `CRVAL`, `CRPIX`, `CUNIT` | Astropy WCS | Yes |
+| `BMAJ`, `BMIN` (optional `BPA`) | `beam_from_header` `detect.py:67-68`; PyBDSF `init_beam` | No — caller-calculated, as stated in the question |
+| Frequency (`RESTFREQ` / `RESTFRQ` / `FREQ` / spectral axis) | PyBDSF `init_freq` `readimage.py:434-445` | No on CAR helpers |
+| Equinox / `RADESYS` | `get_equinox` `readimage.py:493-529`; default J2000 if missing | Optional |
+
+`run_pybdsf_on_hdu` can take that in-memory `PrimaryHDU` directly (`detect.py` / `bdsf/__init__.py:248-253`). `detect_sources` additionally needs a path and `FitsMetadata`.
+
+### Pixel-space vs sky-space on a varying-scale mosaic
+
+On a CAR all-sky grid, pixel scale in true angle changes with latitude. PyBDSF:
+
+- Fits Gaussians in **pixels** (constant pixel beam from center `CDELT`).
+- Reports **positions** through the full projection.
+- Reports **Maj/Min/PA** with a first-order local scale at the source center (`pix2gaus`).
+- Converts the restoring beam to pixels with **center `CDELT` only** (`beam2pix`), and uses that for flux and deconvolution.
+
+That is the same mechanism used on a single wide-field SIN snapshot; a mosaic does not change it.
+
+### Note on Finding 3 (NaN handling)
+
+The original Finding 3 text described `prepare_hdu` as replacing non-finite pixels with `0.0`. The current function (`detect.py:40-62`) writes `NaN` instead, so PyBDSF can blank those pixels. That matters for mosaic regions with no contributing hours (`coadd_fits` leaves `total_weight == 0` as 0 in `combined`; a caller who writes NaN where weight is 0 would be blanked).
+
+**Files read for this follow-up:**
+- `/opt/devel/claw/envs/py312/lib/python3.12/site-packages/bdsf/readimage.py` (full)
+- `/opt/devel/claw/envs/py312/lib/python3.12/site-packages/bdsf/functions.py:495-518, 1252-1397`
+- `/opt/devel/claw/envs/py312/lib/python3.12/site-packages/bdsf/gausfit.py:971-1064`
+- `/opt/devel/claw/envs/py312/lib/python3.12/site-packages/bdsf/opts.py:512-528, 1299-1310`
+- `/opt/devel/claw/envs/py312/lib/python3.12/site-packages/bdsf/preprocess.py:72-80, 154-176`
+- `/opt/devel/claw/envs/py312/lib/python3.12/site-packages/bdsf/output.py:572-575`
+- `/opt/devel/claw/envs/py312/lib/python3.12/site-packages/bdsf/__init__.py:214-323`
+- `/home/claw/code/lwa-healpix/src/lwa_healpix/coadd.py:313-454, 530-664`
+- `/home/claw/code/lwa-healpix/src/lwa_healpix/hips.py:46-112`
+- `/home/claw/code/lwa-healpix/tests/test_coadd.py:276-291`
+- `src/lwa_catalog/create/detect.py:30-62` (current NaN-preserving `prepare_hdu`)
