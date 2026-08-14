@@ -3,6 +3,7 @@
 | Notebook | Role |
 | -------- | ---- |
 | `ovro_lwa_metacatalog.ipynb` | Discover FITS → PyBDSF → LST merge → global metacatalog (Parquet) |
+| `ovro_lwa_mosaic_detect.ipynb` | Coadd hourly Full-band FITS to one SIN mosaic → PyBDSF → compare to LST-merged catalog |
 | `metacatalog_sky_view.ipynb` | Load `metacatalog.parquet` and explore on the sky |
 
 ## Catalog storage
