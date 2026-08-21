@@ -14,6 +14,7 @@ from astropy.io import fits
 from astropy.table import Table
 
 from lwa_catalog.constants import GAUL_COLUMNS
+from lwa_catalog.coords import normalize_ra_columns
 from lwa_catalog.create.discover import FitsMetadata
 
 DEFAULT_BDSF_KW: dict[str, Any] = {
@@ -174,4 +175,4 @@ def detect_sources(
     df["BMAJ"] = bmaj
     df["BMIN"] = bmin
     df["BPA"] = bpa
-    return df
+    return normalize_ra_columns(df)

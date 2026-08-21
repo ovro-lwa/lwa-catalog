@@ -17,6 +17,7 @@ from lwa_catalog.constants import (
     OVRO_LATITUDE_DEG,
     SPECTRAL_INDEX_PAIRS,
 )
+from lwa_catalog.coords import normalize_ra_columns
 
 
 def _pick_median_flux_row(df: pd.DataFrame, flux_col: str = "Peak_flux") -> pd.Series:
@@ -196,6 +197,7 @@ def merge_lst_metacatalog(catalogs: Iterable[pd.DataFrame], *, band: str) -> pd.
     combined = pd.concat(frames, ignore_index=True)
     if combined.empty:
         return pd.DataFrame()
+    combined = normalize_ra_columns(combined)
 
     rows: list[dict] = []
     for members in _cluster_by_sky_position(combined):
@@ -502,6 +504,7 @@ def build_global_metacatalog(
             color_bands=color_bands,
         )
     meta = add_spectral_indices(temp)
+    meta = normalize_ra_columns(meta)
     meta.insert(0, "meta_id", range(len(meta)))
     return meta.sort_values("Peak_flux", ascending=False, na_position="last").reset_index(
         drop=True
