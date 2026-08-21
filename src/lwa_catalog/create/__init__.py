@@ -12,6 +12,7 @@ from lwa_catalog.create.discover import (
     resolve_fits_slot,
 )
 from lwa_catalog.create.merge import (
+    add_spectral_indices,
     associate_band_into_metacatalog,
     build_global_metacatalog,
     merge_lst_metacatalog,
@@ -19,6 +20,7 @@ from lwa_catalog.create.merge import (
 
 __all__ = [
     "FitsMetadata",
+    "add_spectral_indices",
     "associate_band_into_metacatalog",
     "build_global_metacatalog",
     "detect_sources",

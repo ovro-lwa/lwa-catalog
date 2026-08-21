@@ -5,6 +5,23 @@ from __future__ import annotations
 COLOR_BANDS: tuple[str, ...] = ("Full", "Blue", "Green", "Red")
 ASSOC_BANDS: tuple[str, ...] = ("Blue", "Green", "Red")
 
+# Owens Valley Radio Observatory / OVRO-LWA (geodetic latitude, degrees).
+OVRO_LATITUDE_DEG: float = 37.239777
+
+# Rest-frame center frequencies (Hz) from RESTFRQ on OVRO-LWA deep color products.
+BAND_FREQ_HZ: dict[str, float] = {
+    "Blue": 73_956_883.683421,
+    "Green": 51_675_007.041984,
+    "Red": 34_599_742.150104,
+    "Full": 57_200_637.276411,
+}
+
+# (label, band_lo_or_a, band_hi_or_b) for α = log(S_a/S_b) / log(ν_a/ν_b).
+SPECTRAL_INDEX_PAIRS: tuple[tuple[str, str, str], ...] = (
+    ("RG", "Red", "Green"),
+    ("GB", "Green", "Blue"),
+)
+
 GAUL_COLUMNS: tuple[str, ...] = (
     "RA",
     "DEC",
@@ -37,6 +54,7 @@ GAUL_FLOAT_COLUMNS: tuple[str, ...] = tuple(
 BAND_FIELDS: tuple[str, ...] = (
     "Peak_flux",
     "Total_flux",
+    "E_Total_flux",
     "RA",
     "DEC",
     "Maj",

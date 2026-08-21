@@ -24,15 +24,18 @@ def test_lst_merged_schema_extends_sources() -> None:
     src = set(sources_schema().names)
     lst = set(lst_merged_schema().names)
     assert src <= lst
-    assert {"n_lst_contributions", "lst_hours", "representative_lst"} <= lst
+    assert {"n_lst_contributions", "lst_hours", "representative_lst", "Peak_flux_std"} <= lst
 
 
 def test_metacatalog_schema_has_required_and_assoc_fields() -> None:
     names = set(metacatalog_schema().names)
     assert METACATALOG_REQUIRED_COLUMNS <= names
     assert "Peak_flux_Blue" in names
+    assert "E_Total_flux_Blue" in names
     assert "n_assoc_Green" in names
     assert "source_file_Red" in names
+    assert {"alpha_RG", "E_alpha_RG", "alpha_GB", "E_alpha_GB"} <= names
+    assert "Peak_flux_std" in names
 
 
 def test_table_from_dataframe_fills_missing_and_keeps_extras() -> None:

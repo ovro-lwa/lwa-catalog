@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import pyarrow as pa
 
-from lwa_catalog.constants import ASSOC_BANDS, BAND_FIELDS, GAUL_FLOAT_COLUMNS
+from lwa_catalog.constants import ASSOC_BANDS, BAND_FIELDS, GAUL_FLOAT_COLUMNS, SPECTRAL_INDEX_PAIRS
 
 
 def sources_schema() -> pa.Schema:
@@ -38,6 +38,7 @@ def lst_merged_schema() -> pa.Schema:
         pa.field("n_lst_contributions", pa.int64(), nullable=True),
         pa.field("lst_hours", pa.string(), nullable=True),
         pa.field("representative_lst", pa.string(), nullable=True),
+        pa.field("Peak_flux_std", pa.float64(), nullable=True),
     ]
     existing = {f.name for f in base}
     for field in extra:
@@ -66,6 +67,7 @@ def metacatalog_schema() -> pa.Schema:
         pa.field("n_lst_contributions", pa.int64(), nullable=True),
         pa.field("lst_hours", pa.string(), nullable=True),
         pa.field("representative_lst", pa.string(), nullable=True),
+        pa.field("Peak_flux_std", pa.float64(), nullable=True),
         pa.field("source_file_Full", pa.string(), nullable=True),
     ]
     for band in ASSOC_BANDS:
@@ -73,6 +75,9 @@ def metacatalog_schema() -> pa.Schema:
         for name in BAND_FIELDS:
             fields.append(pa.field(f"{name}_{band}", pa.float64(), nullable=True))
         fields.append(pa.field(f"source_file_{band}", pa.string(), nullable=True))
+    for label, _, _ in SPECTRAL_INDEX_PAIRS:
+        fields.append(pa.field(f"alpha_{label}", pa.float64(), nullable=True))
+        fields.append(pa.field(f"E_alpha_{label}", pa.float64(), nullable=True))
     return pa.schema(fields)
 
 
