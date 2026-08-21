@@ -44,6 +44,8 @@ GAUL_COLUMNS: tuple[str, ...] = (
     "Gaus_id",
     "Isl_id",
     "Source_id",
+    "Resid_Isl_rms",
+    "Resid_Isl_mean",
 )
 
 # PyBDSF Gaussian numeric columns (everything in GAUL except codes/ids).
