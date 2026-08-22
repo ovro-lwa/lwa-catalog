@@ -187,6 +187,22 @@ def test_rematch_unknown_meta_id_raises(tmp_path: Path) -> None:
         rematch_meta_source(meta, layout, meta_id=999_999)
 
 
+def test_associate_skips_nan_coordinates() -> None:
+    from lwa_catalog.create.merge import associate_catalogs
+
+    base = pd.DataFrame({"RA": [30.0], "DEC": [37.0], "BMAJ": [0.5]})
+    band = pd.DataFrame(
+        {
+            "RA": [np.nan, 30.05, 90.0],
+            "DEC": [37.0, 37.0, np.nan],
+            "BMAJ": [0.5, 0.5, 0.5],
+        }
+    )
+    hits, matched = associate_catalogs(base, band)
+    assert hits.get(0) == [1]
+    assert matched == {1}
+
+
 def test_plot_helpers_return_axes() -> None:
     pytest.importorskip("matplotlib")
     import matplotlib

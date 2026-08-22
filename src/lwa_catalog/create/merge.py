@@ -133,31 +133,54 @@ def _associate_catalogs(
 ) -> tuple[dict[int, list[int]], set[int]]:
     """Vectorized base↔band matching within per-pair beam radii.
 
+    Rows with non-finite ``RA``/``DEC`` are skipped. Returned indices refer to
+    the original *base_df* / *band_df* row positions (``iloc``).
+
     Returns ``{base_iloc: [band_iloc, ...]}`` and the set of matched band ilocs.
     """
     if base_df.empty or band_df.empty:
         return {}, set()
 
-    base_sc = _skycoord_from_columns(base_df)
-    band_sc = _skycoord_from_columns(band_df)
-    bmaj_base = base_df["BMAJ"].to_numpy(dtype=float)
-    bmaj_band = band_df["BMAJ"].to_numpy(dtype=float)
+    base_ra = base_df["RA"].to_numpy(dtype=float)
+    base_dec = base_df["DEC"].to_numpy(dtype=float)
+    band_ra = band_df["RA"].to_numpy(dtype=float)
+    band_dec = band_df["DEC"].to_numpy(dtype=float)
+    base_ok = np.isfinite(base_ra) & np.isfinite(base_dec)
+    band_ok = np.isfinite(band_ra) & np.isfinite(band_dec)
+    if not base_ok.any() or not band_ok.any():
+        return {}, set()
 
-    search_radius = float(max(bmaj_base.max(), bmaj_band.max())) * u.deg
-    # Astropy returns (idx_searcharound, idx_self) = (band, base)
-    idx_band, idx_base, sep2d, _ = base_sc.search_around_sky(band_sc, search_radius)
-    if len(idx_base) == 0:
+    base_idx = np.flatnonzero(base_ok)
+    band_idx = np.flatnonzero(band_ok)
+    base_work = base_df.iloc[base_idx]
+    band_work = band_df.iloc[band_idx]
+
+    base_sc = _skycoord_from_columns(base_work)
+    band_sc = _skycoord_from_columns(band_work)
+    bmaj_base = np.nan_to_num(
+        base_work["BMAJ"].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0
+    )
+    bmaj_band = np.nan_to_num(
+        band_work["BMAJ"].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0
+    )
+
+    search_radius = float(max(float(bmaj_base.max()), float(bmaj_band.max()), 0.0)) * u.deg
+    # Astropy returns (idx_searcharound, idx_self) = (band_work, base_work)
+    idx_band_w, idx_base_w, sep2d, _ = base_sc.search_around_sky(band_sc, search_radius)
+    if len(idx_base_w) == 0:
         return {}, set()
 
     sep_deg = sep2d.to(u.deg).value
-    limits = np.maximum(bmaj_base[idx_base], bmaj_band[idx_band])
+    limits = np.maximum(bmaj_base[idx_base_w], bmaj_band[idx_band_w])
     keep = sep_deg <= limits
-    idx_base = idx_base[keep]
-    idx_band = idx_band[keep]
+    idx_base_w = idx_base_w[keep]
+    idx_band_w = idx_band_w[keep]
 
     hits_by_base: dict[int, list[int]] = {}
     matched: set[int] = set()
-    for i, j in zip(idx_base.tolist(), idx_band.tolist(), strict=True):
+    for iw, jw in zip(idx_base_w.tolist(), idx_band_w.tolist(), strict=True):
+        i = int(base_idx[iw])
+        j = int(band_idx[jw])
         hits_by_base.setdefault(i, []).append(j)
         matched.add(j)
     return hits_by_base, matched
