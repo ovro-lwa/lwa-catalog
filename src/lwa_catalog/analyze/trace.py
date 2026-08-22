@@ -14,6 +14,16 @@ from lwa_catalog.paths import CatalogLayout
 
 _KEY_COLUMNS = ("meta_id", "band", "lst_hour", "Source_id", "source_file")
 
+# Default absolute-error column names for GAUL flux / shape / position fields.
+_DEFAULT_ERR: dict[str, str] = {
+    "Peak_flux": "E_Peak_flux",
+    "Total_flux": "E_Total_flux",
+    "RA": "E_RA",
+    "DEC": "E_DEC",
+    "Maj": "E_Maj",
+    "Min": "E_Min",
+}
+
 
 @dataclass
 class SourceTrace:
@@ -232,14 +242,73 @@ def rematch_meta_source(
     )
 
 
-def _band_colors(bands: list[str]) -> list[str]:
-    palette = {
+def _band_palette() -> dict[str, str]:
+    return {
         "Full": "#4c4c4c",
         "Blue": "#1f77b4",
         "Green": "#2ca02c",
         "Red": "#d62728",
     }
-    return [palette.get(b, "#7f7f7f") for b in bands]
+
+
+def _err_array(df: pd.DataFrame, err_col: str | None, n: int) -> np.ndarray | None:
+    """Return non-negative finite errors, or ``None`` if unavailable."""
+    if not err_col or err_col not in df.columns:
+        return None
+    err = pd.to_numeric(df[err_col], errors="coerce").to_numpy(dtype=float)
+    err = np.where(np.isfinite(err) & (err >= 0.0), err, np.nan)
+    if not np.isfinite(err).any():
+        return None
+    return err
+
+
+def _errorbar_by_band(
+    ax,
+    df: pd.DataFrame,
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    xerr: np.ndarray | None = None,
+    yerr: np.ndarray | None = None,
+) -> None:
+    """Draw per-band errorbars (colors) so multi-band members stay distinguishable."""
+    palette = _band_palette()
+    if "band" in df.columns:
+        bands = df["band"].astype(str).to_numpy()
+        for band in dict.fromkeys(bands.tolist()):
+            mask = bands == band
+            color = palette.get(band, "#7f7f7f")
+            xe = None if xerr is None else xerr[mask]
+            ye = None if yerr is None else yerr[mask]
+            ax.errorbar(
+                x[mask],
+                y[mask],
+                xerr=xe,
+                yerr=ye,
+                fmt="o",
+                color=color,
+                ecolor=color,
+                elinewidth=1.0,
+                capsize=2,
+                markersize=5,
+                alpha=0.85,
+                label=band,
+            )
+        ax.legend(title="band", fontsize=8)
+    else:
+        ax.errorbar(
+            x,
+            y,
+            xerr=xerr,
+            yerr=yerr,
+            fmt="o",
+            color="#7f7f7f",
+            ecolor="#7f7f7f",
+            elinewidth=1.0,
+            capsize=2,
+            markersize=5,
+            alpha=0.85,
+        )
 
 
 def plot_peak_flux_vs_lst(
@@ -247,7 +316,7 @@ def plot_peak_flux_vs_lst(
     *,
     ax=None,
 ):
-    """Scatter ``Peak_flux`` vs LST hour, colored by band.
+    """Scatter ``Peak_flux`` vs LST hour, colored by band, with ``E_Peak_flux`` bars.
 
     Parameters
     ----------
@@ -276,7 +345,6 @@ def plot_peak_flux_vs_lst(
         ax.set_title("Peak_flux vs LST (missing columns)")
         return ax
 
-    # Order hours numerically when labels look like NNh.
     hours = work["lst_hour"].astype(str)
     hour_keys = []
     for h in hours:
@@ -287,30 +355,18 @@ def plot_peak_flux_vs_lst(
     work = work.assign(_hour_key=hour_keys)
     work = work.sort_values(["_hour_key", "band"], kind="mergesort")
 
-    bands = work["band"].astype(str).tolist() if "band" in work.columns else ["?"] * len(work)
-    colors = _band_colors(bands)
     x_labels = work["lst_hour"].astype(str).tolist()
-    # Categorical positions preserving sorted unique order
     unique_hours = list(dict.fromkeys(x_labels))
-    x_pos = [unique_hours.index(h) for h in x_labels]
-    ax.scatter(x_pos, work["Peak_flux"].to_numpy(dtype=float), c=colors, s=36, alpha=0.85)
+    x_pos = np.asarray([unique_hours.index(h) for h in x_labels], dtype=float)
+    y = work["Peak_flux"].to_numpy(dtype=float)
+    yerr = _err_array(work, "E_Peak_flux", len(work))
+
+    _errorbar_by_band(ax, work, x=x_pos, y=y, yerr=yerr)
     ax.set_xticks(range(len(unique_hours)))
     ax.set_xticklabels(unique_hours, rotation=45, ha="right")
     ax.set_xlabel("lst_hour")
     ax.set_ylabel("Peak_flux")
     ax.set_title("Peak_flux vs LST (by band)")
-
-    # Simple legend for bands present
-    if "band" in work.columns:
-        seen: dict[str, str] = {}
-        for band, color in zip(bands, colors, strict=True):
-            seen.setdefault(band, color)
-        handles = [
-            plt.Line2D([0], [0], marker="o", color="none", markerfacecolor=c, markersize=8, label=b)
-            for b, c in seen.items()
-        ]
-        ax.legend(handles=handles, title="band", fontsize=8)
-
     return ax
 
 
@@ -319,9 +375,14 @@ def plot_member_property_scatter(
     *,
     x: str = "Peak_flux",
     y: str = "Total_flux",
+    xerr: str | None = None,
+    yerr: str | None = None,
     ax=None,
 ):
-    """Scatter two member properties, colored by band.
+    """Scatter two member properties, colored by band, with optional error bars.
+
+    Default error columns are ``E_{x}`` / ``E_{y}`` when those fields exist
+    (e.g. ``E_Peak_flux``, ``E_Total_flux``).
 
     Parameters
     ----------
@@ -329,6 +390,8 @@ def plot_member_property_scatter(
         Rematched per-hour detections.
     x, y
         Column names to plot.
+    xerr, yerr
+        Optional absolute-error column names; ``None`` selects library defaults.
     ax
         Optional Matplotlib axes; created if omitted.
 
@@ -353,32 +416,52 @@ def plot_member_property_scatter(
         ax.set_ylabel(y)
         return ax
 
-    bands = (
-        source_matches["band"].astype(str).tolist()
-        if "band" in source_matches.columns
-        else ["?"] * len(source_matches)
-    )
-    colors = _band_colors(bands)
-    ax.scatter(
-        source_matches[x].to_numpy(dtype=float),
-        source_matches[y].to_numpy(dtype=float),
-        c=colors,
-        s=36,
-        alpha=0.85,
-    )
+    if xerr is None:
+        xerr = _DEFAULT_ERR.get(x)
+    if yerr is None:
+        yerr = _DEFAULT_ERR.get(y)
+
+    xv = source_matches[x].to_numpy(dtype=float)
+    yv = source_matches[y].to_numpy(dtype=float)
+    xe = _err_array(source_matches, xerr, len(source_matches))
+    ye = _err_array(source_matches, yerr, len(source_matches))
+    _errorbar_by_band(ax, source_matches, x=xv, y=yv, xerr=xe, yerr=ye)
     ax.set_xlabel(x)
     ax.set_ylabel(y)
     ax.set_title(f"{y} vs {x} (by band)")
-    if "band" in source_matches.columns:
-        seen: dict[str, str] = {}
-        for band, color in zip(bands, colors, strict=True):
-            seen.setdefault(band, color)
-        handles = [
-            plt.Line2D([0], [0], marker="o", color="none", markerfacecolor=c, markersize=8, label=b)
-            for b, c in seen.items()
-        ]
-        ax.legend(handles=handles, title="band", fontsize=8)
     return ax
+
+
+def plot_ra_dec_scatter(
+    source_matches: pd.DataFrame,
+    *,
+    ax=None,
+):
+    """Scatter ``RA`` vs ``DEC`` with ``E_RA`` / ``E_DEC`` error bars."""
+    return plot_member_property_scatter(
+        source_matches,
+        x="RA",
+        y="DEC",
+        xerr="E_RA",
+        yerr="E_DEC",
+        ax=ax,
+    )
+
+
+def plot_maj_min_scatter(
+    source_matches: pd.DataFrame,
+    *,
+    ax=None,
+):
+    """Scatter ``Maj`` vs ``Min`` with ``E_Maj`` / ``E_Min`` error bars."""
+    return plot_member_property_scatter(
+        source_matches,
+        x="Maj",
+        y="Min",
+        xerr="E_Maj",
+        yerr="E_Min",
+        ax=ax,
+    )
 
 
 def preferred_trace_columns(df: pd.DataFrame) -> list[str]:
@@ -387,8 +470,16 @@ def preferred_trace_columns(df: pd.DataFrame) -> list[str]:
         *_KEY_COLUMNS,
         "RA",
         "DEC",
+        "E_RA",
+        "E_DEC",
         "Peak_flux",
+        "E_Peak_flux",
         "Total_flux",
+        "E_Total_flux",
+        "Maj",
+        "E_Maj",
+        "Min",
+        "E_Min",
         "lst_hours",
         "n_lst_contributions",
         "representative_lst",

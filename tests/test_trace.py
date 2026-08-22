@@ -210,21 +210,37 @@ def test_plot_helpers_return_axes() -> None:
     matplotlib.use("Agg")
     from matplotlib.axes import Axes
 
+    from lwa_catalog.analyze import plot_maj_min_scatter, plot_ra_dec_scatter
+
     df = pd.DataFrame(
         {
             "band": ["Full", "Blue", "Full"],
             "lst_hour": ["01h", "01h", "02h"],
             "Peak_flux": [1.0, 0.8, 1.1],
+            "E_Peak_flux": [0.1, 0.05, 0.08],
             "Total_flux": [1.2, 0.9, 1.3],
+            "E_Total_flux": [0.12, 0.06, 0.09],
+            "RA": [10.0, 10.01, 10.02],
+            "DEC": [20.0, 20.01, 20.02],
+            "E_RA": [0.01, 0.01, 0.01],
+            "E_DEC": [0.01, 0.01, 0.01],
+            "Maj": [0.2, 0.18, 0.22],
+            "Min": [0.1, 0.09, 0.11],
+            "E_Maj": [0.02, 0.02, 0.02],
+            "E_Min": [0.01, 0.01, 0.01],
             "Source_id": [1, 2, 3],
         }
     )
     ax1 = plot_peak_flux_vs_lst(df)
     ax2 = plot_member_property_scatter(df)
+    ax3 = plot_ra_dec_scatter(df)
+    ax4 = plot_maj_min_scatter(df)
     assert isinstance(ax1, Axes)
     assert isinstance(ax2, Axes)
-    # Empty frame should not raise
-    ax3 = plot_peak_flux_vs_lst(pd.DataFrame())
-    ax4 = plot_member_property_scatter(pd.DataFrame())
     assert isinstance(ax3, Axes)
     assert isinstance(ax4, Axes)
+    # Empty frame should not raise
+    ax5 = plot_peak_flux_vs_lst(pd.DataFrame())
+    ax6 = plot_member_property_scatter(pd.DataFrame())
+    assert isinstance(ax5, Axes)
+    assert isinstance(ax6, Axes)
