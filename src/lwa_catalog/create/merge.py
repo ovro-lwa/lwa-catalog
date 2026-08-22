@@ -57,6 +57,16 @@ def _elevation_deg(
     return float(90.0 - zenith.separation(source).deg)
 
 
+def _lst_label_column(df: pd.DataFrame) -> str:
+    """Column name for LST hour labels (``lst_hour`` or ``representative_lst``)."""
+    if "lst_hour" in df.columns:
+        return "lst_hour"
+    if "representative_lst" in df.columns:
+        return "representative_lst"
+    msg = "DataFrame needs lst_hour or representative_lst for elevation ranking"
+    raise KeyError(msg)
+
+
 def _pick_highest_elevation_row(
     df: pd.DataFrame,
     *,
@@ -64,22 +74,41 @@ def _pick_highest_elevation_row(
 ) -> pd.Series:
     """Return the row where the source is highest above the OVRO horizon.
 
-    Elevation is evaluated at each detection's ``lst_hour`` assuming a
-    zenith-centered pointing (zenith at RA = LST, Dec = *latitude_deg*).
-    Cluster median RA/DEC are used so position jitter does not flip the pick.
+    Elevation is evaluated at each detection's ``lst_hour`` (or
+    ``representative_lst``) assuming a zenith-centered pointing (zenith at
+    RA = LST, Dec = *latitude_deg*). Cluster median RA/DEC are used so
+    position jitter does not flip the pick.
     """
     if len(df) == 1:
         return df.iloc[0]
     ra = float(np.nanmedian(df["RA"].to_numpy(dtype=float)))
     dec = float(np.nanmedian(df["DEC"].to_numpy(dtype=float)))
+    lst_col = _lst_label_column(df)
     elev = np.asarray(
         [
             _elevation_deg(ra, dec, lst, latitude_deg=latitude_deg)
-            for lst in df["lst_hour"].to_numpy()
+            for lst in df[lst_col].to_numpy()
         ],
         dtype=float,
     )
     return df.iloc[int(np.nanargmax(elev))]
+
+
+def pick_highest_elevation_row(
+    df: pd.DataFrame,
+    *,
+    latitude_deg: float = OVRO_LATITUDE_DEG,
+) -> pd.Series:
+    """Public alias of :func:`_pick_highest_elevation_row` for rematch/analyze."""
+    return _pick_highest_elevation_row(df, latitude_deg=latitude_deg)
+
+
+def associate_catalogs(
+    base_df: pd.DataFrame,
+    band_df: pd.DataFrame,
+) -> tuple[dict[int, list[int]], set[int]]:
+    """Public alias of :func:`_associate_catalogs` for rematch/analyze."""
+    return _associate_catalogs(base_df, band_df)
 
 
 def _flux_std(df: pd.DataFrame, flux_col: str = "Peak_flux") -> float:
@@ -401,7 +430,7 @@ def merge_full_and_blue(
         blues = hits.get(i, [])
         if blues:
             sub = blue_df.iloc[blues]
-            best = _pick_median_flux_row(sub)
+            best = _pick_highest_elevation_row(sub)
             _attach_band_columns(entry, best, "Blue", len(blues), band_fields=band_fields)
             _update_bands_present(entry, "Full", "Blue", color_bands=color_bands)
             entry["BMAJ_match"] = max(float(entry["BMAJ_match"]), float(best["BMAJ"]))
@@ -449,7 +478,7 @@ def associate_band_into_metacatalog(
         band_hits = hits.get(i, [])
         if band_hits:
             sub = band_df.iloc[band_hits]
-            best = _pick_median_flux_row(sub)
+            best = _pick_highest_elevation_row(sub)
             _attach_band_columns(entry, best, band, len(band_hits), band_fields=band_fields)
             _update_bands_present(entry, band, color_bands=color_bands)
             entry["BMAJ_match"] = max(float(entry["BMAJ_match"]), float(best["BMAJ"]))

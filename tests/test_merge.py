@@ -81,6 +81,46 @@ def test_merge_lst_single_detection_has_nan_flux_std() -> None:
     assert np.isnan(float(merged.iloc[0]["Peak_flux_std"]))
 
 
+def test_build_global_picks_highest_elevation_blue_when_multiple_in_beam() -> None:
+    # Source near RA=30° (LST 02h). Brighter Blue at 01h would win under median/
+    # max-flux; elevation at transit prefers the fainter 02h Blue.
+    full = pd.DataFrame(
+        [
+            {
+                **_src(ra=30.0, dec=37.0, peak=2.0, lst_hour="02h", band="Full"),
+                "n_lst_contributions": 1,
+                "lst_hours": "02h",
+                "representative_lst": "02h",
+            }
+        ]
+    )
+    blue = pd.DataFrame(
+        [
+            {
+                **_src(ra=30.05, dec=37.0, peak=3.0, lst_hour="01h", band="Blue"),
+                "n_lst_contributions": 1,
+                "lst_hours": "01h",
+                "representative_lst": "01h",
+            },
+            {
+                **_src(ra=30.08, dec=37.0, peak=1.0, lst_hour="02h", band="Blue"),
+                "n_lst_contributions": 1,
+                "lst_hours": "02h",
+                "representative_lst": "02h",
+            },
+        ]
+    )
+    green = pd.DataFrame([])
+    red = pd.DataFrame([])
+    meta = build_global_metacatalog(
+        {"Full": full, "Blue": blue, "Green": green, "Red": red}
+    )
+    assert len(meta) == 1
+    row = meta.iloc[0]
+    assert int(row["n_assoc_Blue"]) == 2
+    assert float(row["Peak_flux_Blue"]) == 1.0
+
+
 def test_build_global_associates_matching_bands() -> None:
     full = pd.DataFrame(
         [

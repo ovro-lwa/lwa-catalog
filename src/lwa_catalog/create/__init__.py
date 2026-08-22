@@ -14,14 +14,17 @@ from lwa_catalog.create.discover import (
 from lwa_catalog.create.merge import (
     add_spectral_indices,
     associate_band_into_metacatalog,
+    associate_catalogs,
     build_global_metacatalog,
     merge_lst_metacatalog,
+    pick_highest_elevation_row,
 )
 
 __all__ = [
     "FitsMetadata",
     "add_spectral_indices",
     "associate_band_into_metacatalog",
+    "associate_catalogs",
     "build_global_metacatalog",
     "detect_sources",
     "discover_fits_files",
@@ -29,5 +32,6 @@ __all__ = [
     "lst_hours_from_discovery",
     "merge_lst_metacatalog",
     "parse_fits_metadata",
+    "pick_highest_elevation_row",
     "resolve_fits_slot",
 ]
