@@ -112,9 +112,10 @@ def test_rematch_recovers_durable_keys(tmp_path: Path) -> None:
     assert ("Blue", "02h", 202) in keys
 
 
-def test_rematch_picks_highest_elevation_among_blue_lst_rows(tmp_path: Path) -> None:
+def test_rematch_picks_seeded_flux_among_blue_lst_rows(tmp_path: Path) -> None:
     layout = CatalogLayout(tmp_path)
-    # Two distinct Blue LST-merged rows in the Full beam; elevation prefers 02h.
+    # Two Blue LST rows in the Full beam. Merge elevation-seeds Peak_flux_Blue=1.0
+    # (02h); rematch must recover that seeded flux, not the brighter closer 01h row.
     full = pd.DataFrame(
         [
             {
@@ -157,12 +158,63 @@ def test_rematch_picks_highest_elevation_among_blue_lst_rows(tmp_path: Path) -> 
     )
     write_metacatalog(meta, layout)
     mid = int(meta.iloc[0]["meta_id"])
+    assert float(meta.iloc[0]["Peak_flux_Blue"]) == 1.0
     trace = rematch_meta_source(meta, layout, meta_id=mid)
 
     blue_lst = trace.lst_matches[trace.lst_matches["band"] == "Blue"]
     assert len(blue_lst) == 1
     assert float(blue_lst.iloc[0]["Peak_flux"]) == 1.0
     assert int(blue_lst.iloc[0]["Source_id"]) == 11
+
+
+def test_rematch_prefers_seeded_source_over_bright_beam_neighbor(tmp_path: Path) -> None:
+    """Regression: faint seed + bright confused neighbor inside BMAJ (meta_id 17776-like)."""
+    layout = CatalogLayout(tmp_path)
+    seed = {
+        **_src(ra=281.205, dec=9.578, peak=11.81, lst_hour="23h", band="Red", source_id=865, bmaj=0.34),
+        "n_lst_contributions": 1,
+        "lst_hours": "23h",
+        "representative_lst": "23h",
+    }
+    neighbor = {
+        **_src(ra=281.402, dec=9.877, peak=72.98, lst_hour="19h", band="Red", source_id=325, bmaj=0.37),
+        "n_lst_contributions": 9,
+        "lst_hours": "14h,15h,16h,17h,18h,19h,20h,21h,22h",
+        "representative_lst": "19h",
+    }
+    red = pd.DataFrame([seed, neighbor])
+    write_lst_merged(pd.DataFrame(), layout, "Full")
+    write_lst_merged(pd.DataFrame(), layout, "Blue")
+    write_lst_merged(pd.DataFrame(), layout, "Green")
+    write_lst_merged(red, layout, "Red")
+    write_sources_catalog(
+        pd.DataFrame(
+            [_src(ra=281.205, dec=9.578, peak=11.81, lst_hour="23h", band="Red", source_id=865, bmaj=0.34)]
+        ),
+        layout,
+        "23h",
+        "Red",
+    )
+
+    meta = build_global_metacatalog(
+        {
+            "Full": pd.DataFrame(),
+            "Blue": pd.DataFrame(),
+            "Green": pd.DataFrame(),
+            "Red": red,
+        }
+    )
+    # Keep only the Red-only seeded row matching the faint source
+    meta = meta.loc[meta["Peak_flux"].between(11.0, 12.0)].reset_index(drop=True)
+    assert len(meta) == 1
+    meta["meta_id"] = 17776
+    write_metacatalog(meta, layout)
+
+    trace = rematch_meta_source(meta, layout, meta_id=17776)
+    assert len(trace.lst_matches) == 1
+    assert float(trace.lst_matches.iloc[0]["Peak_flux"]) == pytest.approx(11.81, rel=1e-3)
+    assert int(trace.lst_matches.iloc[0]["Source_id"]) == 865
+    assert set(trace.source_matches["Peak_flux"].round(2)) == {11.81}
 
 
 def test_rematch_missing_sources_file_warns(tmp_path: Path) -> None:

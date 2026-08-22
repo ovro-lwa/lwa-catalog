@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from lwa_catalog.create.merge import associate_catalogs, pick_highest_elevation_row
+from lwa_catalog.create.merge import associate_catalogs
 from lwa_catalog.io import read_lst_merged, read_sources_catalog
 from lwa_catalog.paths import CatalogLayout
 
@@ -93,6 +93,64 @@ def _one_row_base(ra: float, dec: float, bmaj: float) -> pd.DataFrame:
     return pd.DataFrame({"RA": [ra], "DEC": [dec], "BMAJ": [bmaj]})
 
 
+def _target_peak_flux(meta_row: pd.Series, band: str) -> float | None:
+    """Seeded Peak_flux for *band* from the metacatalog row, if available."""
+    if band != "Full":
+        col = f"Peak_flux_{band}"
+        if col in meta_row.index:
+            try:
+                val = float(meta_row[col])
+            except (TypeError, ValueError):
+                val = float("nan")
+            if np.isfinite(val):
+                return val
+    try:
+        val = float(meta_row["Peak_flux"])
+    except (TypeError, ValueError, KeyError):
+        return None
+    return val if np.isfinite(val) else None
+
+
+def _pick_rematch_lst_row(
+    hits: pd.DataFrame,
+    meta_row: pd.Series,
+    band: str,
+) -> pd.Series:
+    """Choose the LST-merged hit that recovers the metacatalog seed.
+
+    Beam search can return confused neighbors. Prefer the hit whose
+    ``Peak_flux`` matches the seeded metacatalog value for *band*, then the
+    nearest on-sky neighbor. (Merge uses elevation when *building* the catalog;
+    rematch must recover that seeded row, not re-rank neighbors by elevation.)
+    """
+    if len(hits) == 1:
+        return hits.iloc[0]
+
+    import astropy.units as u
+    from astropy.coordinates import SkyCoord
+
+    meta_sc = SkyCoord(
+        ra=float(meta_row["RA"]) * u.deg,
+        dec=float(meta_row["DEC"]) * u.deg,
+    )
+    hit_sc = SkyCoord(
+        ra=hits["RA"].to_numpy(dtype=float) * u.deg,
+        dec=hits["DEC"].to_numpy(dtype=float) * u.deg,
+    )
+    sep = meta_sc.separation(hit_sc).deg
+    peak = hits["Peak_flux"].to_numpy(dtype=float)
+    target = _target_peak_flux(meta_row, band)
+    if target is None:
+        dpeak = np.zeros(len(hits), dtype=float)
+    else:
+        dpeak = np.abs(peak - target)
+        dpeak = np.where(np.isfinite(dpeak), dpeak, np.inf)
+
+    # lexsort: last key is primary → seeded flux match, then sky separation
+    order = np.lexsort((sep, dpeak))
+    return hits.iloc[int(order[0])]
+
+
 def _ensure_bmaj_column(df: pd.DataFrame) -> pd.DataFrame:
     if "BMAJ" in df.columns:
         out = df.copy()
@@ -137,9 +195,11 @@ def rematch_meta_source(
     """Positionally rematch one metacatalog source to LST and per-hour catalogs.
 
     Step A associates the meta row against each band in ``bands_present`` using
-    the same beam-radius matcher as merge, keeping the highest-elevation hit.
-    Step B expands each LST match across its ``lst_hours`` and keeps all
-    per-hour positional hits (durable key: ``band``, ``lst_hour``, ``Source_id``).
+    the same beam-radius matcher as merge. Among multiple beam hits, the match
+    closest in seeded ``Peak_flux`` (then on-sky separation) is kept so confused
+    neighbors are not preferred over the catalog seed. Step B expands each LST
+    match across its ``lst_hours`` and keeps all per-hour positional hits
+    (durable key: ``band``, ``lst_hour``, ``Source_id``).
 
     Parameters
     ----------
@@ -182,7 +242,7 @@ def rematch_meta_source(
             warnings.append(f"No LST-merged positional match for band {band}")
             continue
         sub = lst_df.iloc[idxs]
-        best = pick_highest_elevation_row(sub)
+        best = _pick_rematch_lst_row(sub, row, band)
         entry = best.copy()
         entry["meta_id"] = mid
         entry["band"] = band
