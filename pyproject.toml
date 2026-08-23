@@ -42,12 +42,16 @@ viz = [
     "ipywidgets>=8.0",
     "astrowidget>=0.1.1",
 ]
+analyze = [
+    "healpy>=1.16",
+    "lwa-healpix",
+]
 dev = [
     "pytest>=7",
     "pytest-cov",
     "ruff>=0.4",
 ]
-all = ["lwa-catalog[detect,viz,dev]"]
+all = ["lwa-catalog[detect,viz,analyze,dev]"]
 
 [project.urls]
 Homepage = "https://github.com/ovro-lwa/lwa-catalog"

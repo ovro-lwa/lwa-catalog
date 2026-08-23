@@ -1,4 +1,4 @@
-"""Tests for catalog HEALPix map helpers."""
+"""Tests for catalog HEALPix / HiPS helpers."""
 
 from __future__ import annotations
 
@@ -9,13 +9,17 @@ import pandas as pd
 import pytest
 
 healpy = pytest.importorskip("healpy")
+pytest.importorskip("lwa_healpix")
 
-from lwa_catalog.analyze.healpix_map import metacatalog_to_healpix, write_healpix_fits  # noqa: E402
+from lwa_catalog.analyze.healpix_map import (  # noqa: E402
+    metacatalog_to_healpix,
+    metacatalog_to_hips,
+    write_healpix_hips,
+)
 
 
 def test_metacatalog_to_healpix_weighted() -> None:
     nside = 8
-    # Two sources in same pixel → weights sum
     ra0, dec0 = 0.0, 0.0
     cat = pd.DataFrame(
         {
@@ -37,11 +41,32 @@ def test_metacatalog_to_healpix_counts() -> None:
     assert m.sum() == pytest.approx(2.0)
 
 
-def test_write_healpix_fits_roundtrip(tmp_path: Path) -> None:
-    nside = 4
+def test_write_healpix_hips(tmp_path: Path) -> None:
+    nside = 8
     cat = pd.DataFrame({"RA": [45.0], "DEC": [30.0], "Peak_flux": [4.0]})
     m = metacatalog_to_healpix(cat, nside=nside)
-    path = write_healpix_fits(m, tmp_path / "map.fits", nside=nside)
-    assert path.is_file()
-    m2 = healpy.read_map(str(path))
-    assert np.allclose(m, m2)
+    out = write_healpix_hips(
+        m,
+        tmp_path / "hips_map",
+        nest=False,
+        coord_frame="equatorial",
+        threads=False,
+    )
+    assert out.is_dir()
+    assert (out / "properties").is_file()
+    assert (out / "index.html").is_file()
+    assert list(out.glob("Norder*"))
+
+
+def test_metacatalog_to_hips(tmp_path: Path) -> None:
+    cat = pd.DataFrame({"RA": [10.0, 20.0], "DEC": [5.0, -5.0], "Peak_flux": [1.0, 2.0]})
+    out = metacatalog_to_hips(
+        cat,
+        tmp_path / "hips_cat",
+        nside=8,
+        threads=False,
+        properties={"obs_title": "test catalog HiPS"},
+    )
+    assert (out / "properties").is_file()
+    props = (out / "properties").read_text()
+    assert "hips_pixel_cut" in props or "obs_title" in props

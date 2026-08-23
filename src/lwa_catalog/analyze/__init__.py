@@ -6,7 +6,11 @@ workflows (band coverage, association stats, sky selection helpers).
 
 from __future__ import annotations
 
-from lwa_catalog.analyze.healpix_map import metacatalog_to_healpix, write_healpix_fits
+from lwa_catalog.analyze.healpix_map import (
+    metacatalog_to_healpix,
+    metacatalog_to_hips,
+    write_healpix_hips,
+)
 from lwa_catalog.analyze.reliability import (
     ReliabilityConfig,
     ReliabilityResult,
@@ -36,6 +40,7 @@ __all__ = [
     "filter_metacatalog_include",
     "filter_metacatalog_reliability",
     "metacatalog_to_healpix",
+    "metacatalog_to_hips",
     "plot_maj_min_scatter",
     "plot_member_property_scatter",
     "plot_peak_flux_vs_lst",
@@ -43,5 +48,5 @@ __all__ = [
     "preferred_trace_columns",
     "rematch_meta_source",
     "summarize_metacatalog",
-    "write_healpix_fits",
+    "write_healpix_hips",
 ]

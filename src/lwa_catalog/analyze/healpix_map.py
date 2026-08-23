@@ -1,4 +1,4 @@
-"""Catalog → HEALPix map helpers (optional ``healpy`` dependency)."""
+"""Catalog → HEALPix map helpers, with HiPS export via ``lwa-healpix``."""
 
 from __future__ import annotations
 
@@ -20,6 +20,19 @@ def _require_healpy():
     return hp
 
 
+def _require_lwa_healpix():
+    try:
+        from lwa_healpix import healpix_to_hips
+    except ImportError as exc:  # pragma: no cover
+        msg = (
+            "lwa-healpix is required for HiPS export; "
+            "install with: pip install 'lwa-catalog[analyze]' "
+            "(or pip install /path/to/lwa-healpix)"
+        )
+        raise ImportError(msg) from exc
+    return healpix_to_hips
+
+
 def metacatalog_to_healpix(
     catalog: pd.DataFrame,
     *,
@@ -28,6 +41,9 @@ def metacatalog_to_healpix(
     nest: bool = False,
 ) -> np.ndarray:
     """Bin metacatalog rows into a Peak_flux-weighted (or count) HEALPix map.
+
+    The map is in **equatorial** (RA/Dec) RING ordering by default (``nest=False``),
+    suitable for :func:`write_healpix_hips` with ``coord_frame="equatorial"``.
 
     Parameters
     ----------
@@ -77,26 +93,79 @@ def metacatalog_to_healpix(
     return out
 
 
-def write_healpix_fits(
+def write_healpix_hips(
     m: np.ndarray,
-    path: str | Path,
+    output_directory: str | Path,
     *,
-    nside: int,
     nest: bool = False,
-    coord: str = "C",
+    coord_frame: str = "equatorial",
+    threads: bool = True,
+    cut_percentiles: tuple[float, float] | None = (1.0, 99.0),
+    properties: dict[str, str] | None = None,
 ) -> Path:
-    """Write a HEALPix map to FITS via healpy."""
-    hp = _require_healpy()
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    hp.write_map(
-        str(path),
-        m,
-        nest=bool(nest),
-        coord=coord,
-        column_names=["SIGNAL"],
-        dtype=np.float64,
-        overwrite=True,
-        extra_header=[("NSIDE", int(nside), "HEALPix NSIDE")],
+    """Write a HEALPix map as a HiPS tile set via :func:`lwa_healpix.healpix_to_hips`.
+
+    Catalog maps from :func:`metacatalog_to_healpix` use equatorial RA/Dec, so the
+    default ``coord_frame`` is ``\"equatorial\"``.
+
+    Parameters
+    ----------
+    m
+        1-D HEALPix map.
+    output_directory
+        Directory for HiPS tiles, ``properties``, and Aladin Lite ``index.html``.
+    nest
+        If True, *m* uses NESTED ordering.
+    coord_frame
+        Coordinate frame of *m* (``\"equatorial\"``, ``\"galactic\"``, …).
+    threads
+        Multi-threaded reprojection (set ``False`` in tests).
+    cut_percentiles, properties
+        Forwarded to :func:`lwa_healpix.healpix_to_hips`.
+
+    Returns
+    -------
+    Path
+        Resolved HiPS output directory.
+    """
+    healpix_to_hips = _require_lwa_healpix()
+    out = Path(output_directory)
+    # reproject_to_hips creates the directory itself (exist_ok=False)
+    if out.exists() and any(out.iterdir()):
+        msg = f"HiPS output directory is not empty: {out}"
+        raise FileExistsError(msg)
+    healpix_to_hips(
+        np.asarray(m, dtype=float),
+        coord_frame=coord_frame,
+        output_directory=out,
+        nested=bool(nest),
+        threads=bool(threads),
+        cut_percentiles=cut_percentiles,
+        properties=properties,
     )
-    return path.resolve()
+    return out.resolve()
+
+
+def metacatalog_to_hips(
+    catalog: pd.DataFrame,
+    output_directory: str | Path,
+    *,
+    nside: int = 64,
+    weight_col: str | None = "Peak_flux",
+    nest: bool = False,
+    coord_frame: str = "equatorial",
+    threads: bool = True,
+    properties: dict[str, str] | None = None,
+) -> Path:
+    """Bin a metacatalog to HEALPix and write a HiPS tile set in one step."""
+    m = metacatalog_to_healpix(
+        catalog, nside=nside, weight_col=weight_col, nest=nest
+    )
+    return write_healpix_hips(
+        m,
+        output_directory,
+        nest=nest,
+        coord_frame=coord_frame,
+        threads=threads,
+        properties=properties,
+    )
