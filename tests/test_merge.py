@@ -81,6 +81,29 @@ def test_merge_lst_single_detection_has_nan_flux_std() -> None:
     assert np.isnan(float(merged.iloc[0]["Peak_flux_std"]))
 
 
+def test_merge_lst_merges_beam_chain_transitively() -> None:
+    # A—B and B—C each within BMAJ=0.5°; A—C is not. Connected components
+    # still form one cluster (unlike a 1-hop-only matcher).
+    catalogs = [
+        pd.DataFrame([_src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")]),
+        pd.DataFrame([_src(ra=10.4, dec=20.0, peak=1.1, lst_hour="02h", band="Full")]),
+        pd.DataFrame([_src(ra=10.8, dec=20.0, peak=0.9, lst_hour="03h", band="Full")]),
+    ]
+    merged = merge_lst_metacatalog(catalogs, band="Full")
+    assert len(merged) == 1
+    assert int(merged.iloc[0]["n_lst_contributions"]) == 3
+
+
+def test_merge_lst_keeps_well_separated_sources_apart() -> None:
+    catalogs = [
+        pd.DataFrame([_src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")]),
+        pd.DataFrame([_src(ra=12.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")]),
+    ]
+    merged = merge_lst_metacatalog(catalogs, band="Full")
+    assert len(merged) == 2
+    assert (merged["n_lst_contributions"] == 1).all()
+
+
 def test_build_global_picks_highest_elevation_blue_when_multiple_in_beam() -> None:
     # Source near RA=30° (LST 02h). Brighter Blue at 01h would win under median/
     # max-flux; elevation at transit prefers the fainter 02h Blue.

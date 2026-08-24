@@ -20,17 +20,6 @@ from lwa_catalog.constants import (
 from lwa_catalog.coords import normalize_ra_columns
 
 
-def _pick_median_flux_row(df: pd.DataFrame, flux_col: str = "Peak_flux") -> pd.Series:
-    """Return the row whose flux is closest to the median over *df*."""
-    flux = df[flux_col].to_numpy(dtype=float)
-    finite = np.isfinite(flux)
-    if not finite.any():
-        return df.iloc[0]
-    med = float(np.nanmedian(flux[finite]))
-    idx = int(np.nanargmin(np.abs(flux - med)))
-    return df.iloc[idx]
-
-
 def _lst_hour_to_deg(lst_hour: str | float | int) -> float:
     """Convert an ``NNh`` (or numeric hour) label to RA degrees at that LST."""
     if isinstance(lst_hour, str):
@@ -186,59 +175,67 @@ def _associate_catalogs(
     return hits_by_base, matched
 
 
+def _union_find_roots(n: int, pairs_a: np.ndarray, pairs_b: np.ndarray) -> np.ndarray:
+    """Return root id for each node after unioning undirected *pairs_* edges."""
+    parent = np.arange(n, dtype=np.intp)
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = int(parent[i])
+        return i
+
+    for a, b in zip(pairs_a.tolist(), pairs_b.tolist(), strict=True):
+        ra, rb = find(int(a)), find(int(b))
+        if ra != rb:
+            parent[rb] = ra
+    return np.asarray([find(i) for i in range(n)], dtype=np.intp)
+
+
 def _cluster_by_sky_position(
     df: pd.DataFrame,
     *,
-    sort_col: str = "Peak_flux",
     bmaj_col: str = "BMAJ",
 ) -> list[pd.DataFrame]:
-    """Greedy beam-sized clustering; return one member DataFrame per cluster."""
+    """Beam-sized clustering via ``search_around_sky`` + connected components.
+
+    Detections are linked when their separation is within ``max(BMAJ_i, BMAJ_j)``.
+    Transitive links form one cluster (order-independent; no running centroid).
+    """
     if df.empty:
         return []
 
-    work = df[np.isfinite(df["RA"]) & np.isfinite(df["DEC"])].copy()
-    work = work.sort_values(sort_col, ascending=False, na_position="last")
+    work = df[np.isfinite(df["RA"]) & np.isfinite(df["DEC"])].reset_index(drop=True)
+    if work.empty:
+        return []
+    if len(work) == 1:
+        return [work]
 
-    cluster_ra: list[float] = []
-    cluster_dec: list[float] = []
-    cluster_bmaj: list[float] = []
-    cluster_members: list[list[dict]] = []
+    if bmaj_col in work.columns:
+        bmaj = np.nan_to_num(
+            work[bmaj_col].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0
+        )
+    else:
+        bmaj = np.zeros(len(work), dtype=float)
+    coords = _skycoord_from_columns(work)
+    search_radius = float(max(float(bmaj.max()), 0.0)) * u.deg
+    idx_a, idx_b, sep2d, _ = coords.search_around_sky(coords, search_radius)
 
-    for row in work.itertuples(index=False):
-        rd = row._asdict()
-        ra_row = float(rd["RA"])
-        dec_row = float(rd["DEC"])
-        bmaj_row = float(rd.get(bmaj_col, np.nan))
-        if not np.isfinite(bmaj_row):
-            bmaj_row = 0.0
+    if len(idx_a) == 0:
+        return [work.iloc[[i]].copy() for i in range(len(work))]
 
-        best_idx: int | None = None
-        if cluster_ra:
-            sc = SkyCoord(ra=ra_row * u.deg, dec=dec_row * u.deg)
-            cluster_sc = SkyCoord(
-                ra=np.asarray(cluster_ra, dtype=float) * u.deg,
-                dec=np.asarray(cluster_dec, dtype=float) * u.deg,
-            )
-            seps = sc.separation(cluster_sc).deg
-            radii = np.maximum(bmaj_row, np.asarray(cluster_bmaj, dtype=float))
-            within = seps <= radii
-            if within.any():
-                candidates = np.where(within)[0]
-                best_idx = int(candidates[np.argmin(seps[candidates])])
+    sep_deg = sep2d.to(u.deg).value
+    limits = np.maximum(bmaj[idx_a], bmaj[idx_b])
+    keep = (idx_a < idx_b) & (sep_deg <= limits)
+    idx_a = idx_a[keep]
+    idx_b = idx_b[keep]
 
-        if best_idx is None:
-            cluster_ra.append(ra_row)
-            cluster_dec.append(dec_row)
-            cluster_bmaj.append(bmaj_row)
-            cluster_members.append([rd])
-        else:
-            cluster_members[best_idx].append(rd)
-            rep = _pick_median_flux_row(pd.DataFrame(cluster_members[best_idx]))
-            cluster_ra[best_idx] = float(rep["RA"])
-            cluster_dec[best_idx] = float(rep["DEC"])
-            cluster_bmaj[best_idx] = max(cluster_bmaj[best_idx], bmaj_row)
-
-    return [pd.DataFrame(members) for members in cluster_members]
+    roots = _union_find_roots(len(work), idx_a, idx_b)
+    clusters: list[pd.DataFrame] = []
+    for root in np.unique(roots):
+        members = np.flatnonzero(roots == root)
+        clusters.append(work.iloc[members].copy())
+    return clusters
 
 
 def merge_lst_metacatalog(catalogs: Iterable[pd.DataFrame], *, band: str) -> pd.DataFrame:
