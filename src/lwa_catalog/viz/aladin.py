@@ -131,10 +131,18 @@ def _overlay_names(name_prefix: str) -> list[str]:
 
 
 def _remove_overlays(aladin: Aladin, name_prefix: str) -> None:
+    remove = getattr(aladin, "remove_overlay", None)
+    if remove is None:
+        msg = (
+            "ipyaladin>=0.8 is required for catalog overlay refresh; "
+            "install with: pip install 'lwa-catalog[viz]'"
+        )
+        raise ImportError(msg)
     for name in _overlay_names(name_prefix):
         try:
-            aladin.remove_overlay(name)
-        except (TypeError, ValueError):
+            remove(name)
+        except ValueError:
+            # Overlay layer was not present from a prior draw.
             continue
 
 
