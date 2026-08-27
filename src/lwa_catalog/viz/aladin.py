@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from ipyaladin import Aladin
 
 _SHAPE_COLUMNS = ("Maj", "Min", "PA")
-_DEFAULT_TABLE_COLUMNS = (
+_OVERLAY_TABLE_COLUMNS = (
     "RA",
     "DEC",
     "Maj",
@@ -55,9 +55,7 @@ def catalog_to_astropy_table(
         msg = f"catalog missing position columns {ra_col!r} and/or {dec_col!r}"
         raise ValueError(msg)
     if columns is None:
-        use_cols = [c for c in _DEFAULT_TABLE_COLUMNS if c in df.columns]
-        extras = [c for c in df.columns if c not in use_cols]
-        use_cols = [*use_cols, *extras]
+        use_cols = [c for c in _OVERLAY_TABLE_COLUMNS if c in df.columns]
     else:
         use_cols = list(columns)
         for required in (ra_col, dec_col):
@@ -132,7 +130,9 @@ def _cap_rows_by_center(
 
 def _overlay_names(name_prefix: str) -> list[str]:
     names = [f"{name_prefix}_selection"]
-    names.extend(f"{name_prefix}_{band}" for band in (*COLOR_BANDS, "unknown"))
+    for band in (*COLOR_BANDS, "unknown"):
+        names.append(f"{name_prefix}_{band}")
+        names.append(f"{name_prefix}_{band}_cross")
     return names
 
 
@@ -152,13 +152,57 @@ def _remove_overlays(aladin: Aladin, name_prefix: str) -> None:
             continue
 
 
-def _ellipse_shape():
-    from ipyaladin import EllipseError
+def _catalog_pa_to_regions_angle(pa_deg: float) -> u.Quantity:
+    """Map catalog PA (major axis N→E) to ``regions.EllipseSkyRegion.angle``.
 
-    return EllipseError("Maj", "Min", "PA", default_shape="cross")
+    Aladin Lite ``rotationDeg`` uses the same N→E convention as our HiPS
+    painting. ipyaladin subtracts 90° when converting regions ellipses, so we
+    add it here to cancel that offset.
+    """
+    return (pa_deg + 90.0) * u.deg
 
 
-def _add_table_overlay(
+def _dataframe_to_ellipse_regions(df: pd.DataFrame) -> list[Any]:
+    """Build ``regions.EllipseSkyRegion`` footprints from beam columns.
+
+    ``Maj`` / ``Min`` are FWHM in degrees; ``PA`` is major-axis position angle
+    from North toward East (PyBDSF convention).
+    """
+    from regions import EllipseSkyRegion
+
+    regions: list[Any] = []
+    ra = pd.to_numeric(df["RA"], errors="coerce").to_numpy(dtype=float)
+    dec = pd.to_numeric(df["DEC"], errors="coerce").to_numpy(dtype=float)
+    maj = pd.to_numeric(df["Maj"], errors="coerce").to_numpy(dtype=float)
+    min_ = pd.to_numeric(df["Min"], errors="coerce").to_numpy(dtype=float)
+    pa = pd.to_numeric(df["PA"], errors="coerce").to_numpy(dtype=float)
+
+    for ra_i, dec_i, maj_i, min_i, pa_i in zip(ra, dec, maj, min_, pa, strict=True):
+        if not (
+            np.isfinite(ra_i)
+            and np.isfinite(dec_i)
+            and np.isfinite(maj_i)
+            and np.isfinite(min_i)
+            and np.isfinite(pa_i)
+            and maj_i > 0
+            and min_i > 0
+        ):
+            continue
+        if min_i > maj_i:
+            maj_i, min_i = min_i, maj_i
+        center = SkyCoord(ra=ra_i * u.deg, dec=dec_i * u.deg, frame="icrs")
+        regions.append(
+            EllipseSkyRegion(
+                center=center,
+                width=maj_i * u.deg,
+                height=min_i * u.deg,
+                angle=_catalog_pa_to_regions_angle(pa_i),
+            )
+        )
+    return regions
+
+
+def _add_cross_table_overlay(
     aladin: Aladin,
     df: pd.DataFrame,
     *,
@@ -170,9 +214,11 @@ def _add_table_overlay(
     if df.empty:
         return 0
 
-    table = catalog_to_astropy_table(df, attach_beam_units=True)
+    preferred = ["RA", "DEC", "Peak_flux", "meta_id", "origin_band", "band"]
+    use_cols = [col for col in preferred if col in df.columns]
+    table = catalog_to_astropy_table(df, columns=use_cols)
     options: dict[str, Any] = {
-        "shape": _ellipse_shape(),
+        "shape": "cross",
         "color": color,
         "source_size": source_size,
         "name": overlay_name,
@@ -181,6 +227,65 @@ def _add_table_overlay(
         options["line_width"] = line_width
     aladin.add_table(table, **options)
     return len(df)
+
+
+def _add_ellipse_overlay(
+    aladin: Aladin,
+    df: pd.DataFrame,
+    *,
+    overlay_name: str,
+    color: str,
+    line_width: int | None = None,
+) -> int:
+    if df.empty:
+        return 0
+
+    regions = _dataframe_to_ellipse_regions(df)
+    if not regions:
+        return 0
+
+    options: dict[str, Any] = {"color": color, "name": overlay_name}
+    if line_width is not None:
+        options["line_width"] = line_width
+    aladin.add_graphic_overlay_from_region(regions, **options)
+    return len(regions)
+
+
+def _add_band_overlay(
+    aladin: Aladin,
+    df: pd.DataFrame,
+    *,
+    overlay_name: str,
+    color: str,
+    source_size: int,
+    line_width: int | None = None,
+    cross_suffix: bool = True,
+) -> int:
+    if df.empty:
+        return 0
+
+    complete = shape_complete_mask(df)
+    ellipse_df = df.loc[complete]
+    cross_df = df.loc[~complete]
+    drawn = 0
+    drawn += _add_ellipse_overlay(
+        aladin,
+        ellipse_df,
+        overlay_name=overlay_name,
+        color=color,
+        line_width=line_width,
+    )
+    if not cross_df.empty:
+        cross_name = f"{overlay_name}_cross" if cross_suffix else overlay_name
+        drawn += _add_cross_table_overlay(
+            aladin,
+            cross_df,
+            overlay_name=cross_name,
+            color=color,
+            source_size=source_size,
+            line_width=line_width,
+        )
+    return drawn
 
 
 def _draw_band_colored_overlays(
@@ -202,7 +307,7 @@ def _draw_band_colored_overlays(
         band_mask = band_labels.loc[df.index].astype(str) == band
         band_df = df.loc[band_mask]
         color = color_override or band_overlay_color(band)
-        count = _add_table_overlay(
+        count = _add_band_overlay(
             aladin,
             band_df,
             overlay_name=f"{name_prefix}_{band}",
@@ -231,10 +336,10 @@ def overlay_catalog_by_band(
     source_size: int = 8,
     selection_source_size: int = 12,
 ) -> OverlayResult:
-    """FOV-filter, cap, and draw band-colored ellipse overlays (cross fallback).
+    """FOV-filter, cap, and draw band-colored beam ellipses (cross fallback).
 
-    Rows with incomplete ``Maj``/``Min``/``PA`` fall back to crosses via ipyaladin
-    ``EllipseError(..., default_shape=\"cross\")``.
+    Rows with complete ``Maj``/``Min``/``PA`` are drawn as ellipses via
+    ``add_graphic_overlay_from_region``; incomplete rows use cross markers.
 
     Parameters
     ----------
@@ -263,13 +368,14 @@ def overlay_catalog_by_band(
         row = df.iloc[selection_idx : selection_idx + 1]
         row_labels = resolve_band_labels(row, catalog_name)
         sel_color = band_overlay_color(str(row_labels.iloc[0]))
-        _add_table_overlay(
+        _add_band_overlay(
             aladin,
             row,
             overlay_name=f"{name_prefix}_selection",
             color=sel_color,
             source_size=selection_source_size,
             line_width=3,
+            cross_suffix=False,
         )
 
     return OverlayResult(

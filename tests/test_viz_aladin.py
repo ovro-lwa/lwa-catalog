@@ -12,6 +12,8 @@ from astropy.coordinates import SkyCoord
 
 from lwa_catalog.constants import BAND_OVERLAY_COLORS
 from lwa_catalog.viz.aladin import (
+    _catalog_pa_to_regions_angle,
+    _dataframe_to_ellipse_regions,
     catalog_to_astropy_table,
     filter_catalog_fov,
     overlay_catalog_by_band,
@@ -86,6 +88,24 @@ def test_filter_catalog_fov() -> None:
     assert set(in_view["RA"].tolist()) == {0.0, 0.5}
 
 
+def test_catalog_to_astropy_table_ignores_source_file_columns() -> None:
+    df = pd.DataFrame(
+        {
+            "RA": [10.0],
+            "DEC": [20.0],
+            "Maj": [0.2],
+            "Min": [0.1],
+            "PA": [30.0],
+            "source_file_Blue": [np.array(b"path/to/fits", dtype=object)],
+        }
+    )
+    table = catalog_to_astropy_table(df, attach_beam_units=True)
+    assert "source_file_Blue" not in table.colnames
+    from io import BytesIO
+
+    table.write(BytesIO(), format="votable")
+
+
 def test_catalog_to_astropy_table_beam_units() -> None:
     df = pd.DataFrame(
         {
@@ -102,6 +122,27 @@ def test_catalog_to_astropy_table_beam_units() -> None:
     assert table["PA"].unit == u.deg
 
 
+def test_catalog_pa_to_regions_angle_offsets_ipyaladin() -> None:
+    assert _catalog_pa_to_regions_angle(0.0).to_value(u.deg) == pytest.approx(90.0)
+    assert _catalog_pa_to_regions_angle(30.0).to_value(u.deg) == pytest.approx(120.0)
+
+
+def test_ellipse_regions_use_catalog_pa_offset() -> None:
+    pytest.importorskip("regions")
+    df = pd.DataFrame(
+        {
+            "RA": [10.0],
+            "DEC": [20.0],
+            "Maj": [0.2],
+            "Min": [0.1],
+            "PA": [30.0],
+        }
+    )
+    regions = _dataframe_to_ellipse_regions(df)
+    assert len(regions) == 1
+    assert regions[0].angle.to_value(u.deg) == pytest.approx(120.0)
+
+
 def test_overlay_catalog_by_band_mock_aladin() -> None:
     center = SkyCoord(ra=0.0 * u.deg, dec=0.0 * u.deg, frame="icrs")
     df = pd.DataFrame(
@@ -116,6 +157,7 @@ def test_overlay_catalog_by_band_mock_aladin() -> None:
     )
 
     aladin = MagicMock()
+    aladin.remove_overlay = MagicMock()
     aladin.overlays = []
 
     result = overlay_catalog_by_band(
@@ -133,13 +175,26 @@ def test_overlay_catalog_by_band_mock_aladin() -> None:
     assert result.truncated is False
     assert result.per_band == {"Red": 1, "Blue": 1}
     assert aladin.remove_overlay.call_count >= 1
-    assert aladin.add_table.call_count >= 3
+    assert aladin.add_graphic_overlay_from_region.call_count >= 1
+    assert aladin.add_table.call_count >= 2
 
-    names = [call.kwargs.get("name") for call in aladin.add_table.call_args_list]
-    assert "catalog_Red" in names
-    assert "catalog_Blue" in names
-    assert "catalog_selection" in names
+    ellipse_names = [
+        call.kwargs.get("name")
+        for call in aladin.add_graphic_overlay_from_region.call_args_list
+    ]
+    assert "catalog_Red" in ellipse_names
 
-    colors = {call.kwargs.get("color") for call in aladin.add_table.call_args_list}
+    table_names = [call.kwargs.get("name") for call in aladin.add_table.call_args_list]
+    assert "catalog_Blue_cross" in table_names
+    assert "catalog_selection" in table_names
+
+    shapes = {call.kwargs.get("shape") for call in aladin.add_table.call_args_list}
+    assert shapes == {"cross"}
+
+    colors = {
+        call.kwargs.get("color")
+        for call in aladin.add_graphic_overlay_from_region.call_args_list
+    }
+    colors |= {call.kwargs.get("color") for call in aladin.add_table.call_args_list}
     assert BAND_OVERLAY_COLORS["Red"] in colors
     assert BAND_OVERLAY_COLORS["Blue"] in colors
