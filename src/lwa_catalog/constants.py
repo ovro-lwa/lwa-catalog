@@ -5,6 +5,15 @@ from __future__ import annotations
 COLOR_BANDS: tuple[str, ...] = ("Full", "Blue", "Green", "Red")
 ASSOC_BANDS: tuple[str, ...] = ("Blue", "Green", "Red")
 
+# HiPS / Aladin overlay colors (dark-sky friendly).
+BAND_OVERLAY_COLORS: dict[str, str] = {
+    "Red": "#ff5252",
+    "Green": "#66bb6a",
+    "Blue": "#42a5f5",
+    "Full": "#fdd835",
+}
+BAND_OVERLAY_COLOR_UNKNOWN = "#bdbdbd"
+
 # Owens Valley Radio Observatory / OVRO-LWA (geodetic latitude, degrees).
 OVRO_LATITUDE_DEG: float = 37.239777
 
