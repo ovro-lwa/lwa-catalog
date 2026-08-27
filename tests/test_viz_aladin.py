@@ -86,6 +86,22 @@ def test_filter_catalog_fov() -> None:
     assert set(in_view["RA"].tolist()) == {0.0, 0.5}
 
 
+def test_catalog_to_astropy_table_beam_units() -> None:
+    df = pd.DataFrame(
+        {
+            "RA": [10.0],
+            "DEC": [20.0],
+            "Maj": [0.2],
+            "Min": [0.1],
+            "PA": [30.0],
+        }
+    )
+    table = catalog_to_astropy_table(df, attach_beam_units=True)
+    assert table["Maj"].unit == u.deg
+    assert table["Min"].unit == u.deg
+    assert table["PA"].unit == u.deg
+
+
 def test_overlay_catalog_by_band_mock_aladin() -> None:
     center = SkyCoord(ra=0.0 * u.deg, dec=0.0 * u.deg, frame="icrs")
     df = pd.DataFrame(

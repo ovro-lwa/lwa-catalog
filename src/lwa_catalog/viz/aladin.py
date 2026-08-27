@@ -48,6 +48,7 @@ def catalog_to_astropy_table(
     ra_col: str = "RA",
     dec_col: str = "DEC",
     columns: Sequence[str] | None = None,
+    attach_beam_units: bool = False,
 ) -> Table:
     """Build an Astropy ``Table`` from a catalog DataFrame for ipyaladin."""
     if ra_col not in df.columns or dec_col not in df.columns:
@@ -62,7 +63,12 @@ def catalog_to_astropy_table(
         for required in (ra_col, dec_col):
             if required not in use_cols:
                 use_cols.insert(0, required)
-    return Table.from_pandas(df.loc[:, use_cols].copy())
+    table = Table.from_pandas(df.loc[:, use_cols].copy())
+    if attach_beam_units:
+        for col in _SHAPE_COLUMNS:
+            if col in table.colnames and table[col].unit is None:
+                table[col].unit = u.deg
+    return table
 
 
 def shape_complete_mask(df: pd.DataFrame) -> pd.Series:
@@ -164,7 +170,7 @@ def _add_table_overlay(
     if df.empty:
         return 0
 
-    table = catalog_to_astropy_table(df)
+    table = catalog_to_astropy_table(df, attach_beam_units=True)
     options: dict[str, Any] = {
         "shape": _ellipse_shape(),
         "color": color,
