@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -17,6 +18,8 @@ from lwa_catalog.viz.bands import band_overlay_color, resolve_band_labels
 
 if TYPE_CHECKING:
     from ipyaladin import Aladin
+
+_TRACE_OVERLAY_PREFIXES = ("trace_lst", "trace_src")
 
 _SHAPE_COLUMNS = ("Maj", "Min", "PA")
 _OVERLAY_TABLE_COLUMNS = (
@@ -384,3 +387,57 @@ def overlay_catalog_by_band(
         truncated=truncated,
         per_band=per_band,
     )
+
+
+def catalog_name_from_file(catalog_file: str) -> str:
+    """Map a Parquet filename to the catalog name used for band resolution."""
+    return Path(catalog_file).stem
+
+
+def clear_trace_overlays(aladin: Aladin) -> None:
+    """Remove rematch-member overlay layers from the Aladin widget."""
+    for prefix in _TRACE_OVERLAY_PREFIXES:
+        _remove_overlays(aladin, prefix)
+
+
+def overlay_trace_members(
+    aladin: Aladin,
+    lst_matches: pd.DataFrame,
+    source_matches: pd.DataFrame,
+    center: SkyCoord,
+    fov_deg: float,
+    *,
+    catalog_name: str = "metacatalog",
+    max_rows: int = 500,
+    margin_deg: float = 0.1,
+) -> dict[str, OverlayResult]:
+    """Draw LST-merged and per-hour rematch members on the HiPS view."""
+    clear_trace_overlays(aladin)
+    results: dict[str, OverlayResult] = {}
+    if not lst_matches.empty:
+        results["trace_lst"] = overlay_catalog_by_band(
+            aladin,
+            lst_matches,
+            catalog_name,
+            center,
+            fov_deg,
+            name_prefix="trace_lst",
+            max_rows=max_rows,
+            margin_deg=margin_deg,
+            replace=True,
+            source_size=10,
+        )
+    if not source_matches.empty:
+        results["trace_src"] = overlay_catalog_by_band(
+            aladin,
+            source_matches,
+            catalog_name,
+            center,
+            fov_deg,
+            name_prefix="trace_src",
+            max_rows=max_rows,
+            margin_deg=margin_deg,
+            replace=True,
+            source_size=6,
+        )
+    return results
