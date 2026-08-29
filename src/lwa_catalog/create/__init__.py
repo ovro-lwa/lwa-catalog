@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from lwa_catalog.create.detect import detect_sources
+from lwa_catalog.create.detect import detect_sources, detect_sources_many
 from lwa_catalog.create.discover import (
     FitsMetadata,
     discover_fits_files,
@@ -27,6 +27,7 @@ __all__ = [
     "associate_catalogs",
     "build_global_metacatalog",
     "detect_sources",
+    "detect_sources_many",
     "discover_fits_files",
     "discovered_slots",
     "lst_hours_from_discovery",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -24,8 +25,37 @@ DEFAULT_BDSF_KW: dict[str, Any] = {
     "atrous_do": False,
     "psf_vary_do": False,
     "quiet": True,
-    "ncores": 16,
+    "ncores": 1,
 }
+
+
+def _available_cpu_count() -> int:
+    try:
+        return len(os.sched_getaffinity(0))
+    except AttributeError:
+        import multiprocessing
+
+        return multiprocessing.cpu_count()
+
+
+def _detect_sources_task(
+    meta: FitsMetadata,
+    bdsf_kw: Mapping[str, Any] | None,
+    gaul_columns: Sequence[str],
+    upsample_factor: int,
+    process_kw: Mapping[str, Any],
+) -> pd.DataFrame:
+    return detect_sources(
+        meta,
+        bdsf_kw=bdsf_kw,
+        gaul_columns=gaul_columns,
+        upsample_factor=upsample_factor,
+        **process_kw,
+    )
+
+
+def _detect_sources_packed(task: tuple[Any, ...]) -> pd.DataFrame:
+    return _detect_sources_task(*task)
 
 
 def _restfreq_hz(header: fits.Header) -> float | None:
@@ -228,3 +258,52 @@ def detect_sources(
     df["BMIN"] = bmin
     df["BPA"] = bpa
     return normalize_ra_columns(df)
+
+
+def detect_sources_many(
+    metas: Sequence[FitsMetadata],
+    *,
+    n_jobs: int | None = None,
+    bdsf_kw: Mapping[str, Any] | None = None,
+    gaul_columns: Sequence[str] = GAUL_COLUMNS,
+    upsample_factor: int = 1,
+    **process_kw: Any,
+) -> list[pd.DataFrame]:
+    """Detect sources in many FITS images, parallelizing across images.
+
+    Each image runs PyBDSF in its own worker process. Use ``ncores=1`` in
+    ``bdsf_kw`` (the library default) so workers do not compete for CPUs.
+
+    Parameters
+    ----------
+    metas
+        One ``FitsMetadata`` per image to process.
+    n_jobs
+        Number of worker processes. ``None`` uses all CPUs available to this
+        process. ``1`` runs serially in the current process.
+    bdsf_kw, gaul_columns, upsample_factor, **process_kw
+        Forwarded to :func:`detect_sources` for every image.
+
+    Returns
+    -------
+    list[pd.DataFrame]
+        Catalogs in the same order as ``metas``.
+    """
+    if not metas:
+        return []
+
+    if n_jobs is None:
+        n_jobs = _available_cpu_count()
+    n_jobs = max(1, min(n_jobs, len(metas)))
+
+    gaul_cols = tuple(gaul_columns)
+    proc_kw = dict(process_kw)
+    tasks = [
+        (meta, bdsf_kw, gaul_cols, upsample_factor, proc_kw) for meta in metas
+    ]
+
+    if n_jobs == 1:
+        return [_detect_sources_packed(task) for task in tasks]
+
+    with ProcessPoolExecutor(max_workers=n_jobs) as pool:
+        return list(pool.map(_detect_sources_packed, tasks))

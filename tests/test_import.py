@@ -61,10 +61,12 @@ def test_analyze_vlssr_exports() -> None:
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
         detect_sources,
+        detect_sources_many,
         discover_fits_files,
         merge_lst_metacatalog,
     )
 
     assert callable(detect_sources)
+    assert callable(detect_sources_many)
     assert callable(discover_fits_files)
     assert merge_lst_metacatalog([], band="Full").empty
