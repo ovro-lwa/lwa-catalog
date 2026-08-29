@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib
 import os
+import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -36,6 +38,56 @@ def _available_cpu_count() -> int:
         import multiprocessing
 
         return multiprocessing.cpu_count()
+
+
+def _clear_pybdsf_modules() -> None:
+    for mod in list(sys.modules):
+        if mod == "bdsf" or mod.startswith("bdsf."):
+            del sys.modules[mod]
+
+
+def _import_pybdsf_safely() -> Any:
+    """Import PyBDSF, tolerating a pre-set multiprocessing start method.
+
+    PyBDSF unconditionally calls ``multiprocessing.set_start_method('fork')``
+    at import time, which raises in Jupyter/IPython where the context is
+    already ``spawn``.
+    """
+    if "bdsf" in sys.modules:
+        return sys.modules["bdsf"]
+
+    try:
+        return importlib.import_module("bdsf")
+    except RuntimeError as exc:
+        if "context has already been set" not in str(exc):
+            raise
+        import multiprocessing
+
+        orig = multiprocessing.set_start_method
+
+        def _ignore_start_method(method: str, force: bool = False) -> None:
+            try:
+                orig(method, force=force)
+            except RuntimeError:
+                return None
+
+        multiprocessing.set_start_method = _ignore_start_method  # type: ignore[method-assign]
+        _clear_pybdsf_modules()
+        try:
+            return importlib.import_module("bdsf")
+        finally:
+            multiprocessing.set_start_method = orig
+
+
+def _fork_process_pool(max_workers: int) -> ProcessPoolExecutor:
+    """Return a process pool that forks workers (required for PyBDSF)."""
+    import multiprocessing as mp
+
+    try:
+        ctx = mp.get_context("fork")
+    except ValueError:
+        ctx = mp.get_context()
+    return ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx)
 
 
 def _detect_sources_task(
@@ -172,7 +224,7 @@ def run_pybdsf_on_hdu(
 ) -> Table | None:
     """Run PyBDSF on an in-memory HDU and return the Gaussian catalog table."""
     try:
-        import bdsf
+        bdsf = _import_pybdsf_safely()
     except ImportError as exc:  # pragma: no cover
         msg = "PyBDSF (bdsf) is required for detect_sources; pip install 'lwa-catalog[detect]'"
         raise ImportError(msg) from exc
@@ -305,5 +357,9 @@ def detect_sources_many(
     if n_jobs == 1:
         return [_detect_sources_packed(task) for task in tasks]
 
-    with ProcessPoolExecutor(max_workers=n_jobs) as pool:
+    # Load PyBDSF in the parent before forking so workers inherit the module
+    # without re-running PyBDSF's ``set_start_method('fork')`` import hook.
+    _import_pybdsf_safely()
+
+    with _fork_process_pool(n_jobs) as pool:
         return list(pool.map(_detect_sources_packed, tasks))

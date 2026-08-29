@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import multiprocessing as mp
 from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
 
-from lwa_catalog.create.detect import DEFAULT_BDSF_KW, detect_sources_many
+from lwa_catalog.create.detect import (
+    DEFAULT_BDSF_KW,
+    _clear_pybdsf_modules,
+    _import_pybdsf_safely,
+    detect_sources_many,
+)
 from lwa_catalog.create.discover import FitsMetadata
 
 
@@ -41,3 +48,16 @@ def test_detect_sources_many_preserves_order() -> None:
 
 def test_default_bdsf_kw_uses_single_core() -> None:
     assert DEFAULT_BDSF_KW["ncores"] == 1
+
+
+def test_import_pybdsf_safely_after_spawn_context() -> None:
+    pytest.importorskip("bdsf")
+    _clear_pybdsf_modules()
+    try:
+        mp.set_start_method("spawn", force=True)
+    except RuntimeError:
+        pytest.skip("multiprocessing context cannot be reset in this process")
+
+    bdsf = _import_pybdsf_safely()
+    assert bdsf.__name__ == "bdsf"
+    assert _import_pybdsf_safely() is bdsf
