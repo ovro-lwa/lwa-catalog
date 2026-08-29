@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from lwa_catalog.analyze.vlssr import (
+    VlssrMatchConfig,
     _catalog_match_frame,
     _footprint_filter_vlssr,
     load_vlssr_catalog,
+    match_catalog_to_vlssr,
     select_blue_associated_rows,
+    summarize_vlssr_match,
 )
 from lwa_catalog.constants import VLSSR_BMAJ_DEG
 
@@ -20,6 +24,40 @@ def _write_mini_vlssr(path) -> None:
         "10.0 20.0 1.5\n"
         "10.01 20.0 0.8\n"
         "nan 30.0 0.5\n"
+    )
+
+
+def _meta_row(
+    *,
+    meta_id: int = 0,
+    ra: float = 10.0,
+    dec: float = 20.0,
+    bmaj: float = 0.5,
+    bands_present: str = "Full,Blue",
+) -> dict:
+    return {
+        "meta_id": meta_id,
+        "RA": ra,
+        "DEC": dec,
+        "BMAJ_match": bmaj,
+        "bands_present": bands_present,
+        "Peak_flux": 1.0,
+        "origin_band": "Full",
+    }
+
+
+def _vlssr_rows(rows: list[tuple[float, float]]) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "RA": ra,
+                "DEC": dec,
+                "Peak_flux": 1.0,
+                "BMAJ": VLSSR_BMAJ_DEG,
+                "BMIN": VLSSR_BMAJ_DEG,
+            }
+            for ra, dec in rows
+        ]
     )
 
 
@@ -94,3 +132,84 @@ def test_footprint_filter_vlssr() -> None:
     filtered = _footprint_filter_vlssr(vlssr, lwa)
     assert len(filtered) == 1
     assert filtered.iloc[0]["DEC"] == pytest.approx(5.0)
+
+
+def test_match_completeness_single_hit() -> None:
+    meta = pd.DataFrame([_meta_row(meta_id=7)])
+    vlssr = _vlssr_rows([(10.0, 20.0)])
+    result = match_catalog_to_vlssr(meta, vlssr=vlssr)
+    assert result.summary["blue_completeness"] == pytest.approx(1.0)
+    assert int(result.meta_flags.iloc[0]["n_vlssr"]) == 1
+    assert int(result.meta_flags.iloc[0]["meta_id"]) == 7
+    assert int(result.summary["n_vlssr_matched"]) == 1
+    assert result.summary["vlssr_recovery"] == pytest.approx(1.0)
+
+
+def test_match_multi_vlssr_per_meta() -> None:
+    meta = pd.DataFrame([_meta_row()])
+    vlssr = _vlssr_rows([(10.0, 20.0), (10.01, 20.0)])
+    result = match_catalog_to_vlssr(meta, vlssr=vlssr)
+    assert result.summary["blue_completeness"] == pytest.approx(1.0)
+    assert int(result.meta_flags.iloc[0]["n_vlssr"]) == 2
+    assert int(result.summary["n_meta_multi_vlssr"]) == 1
+
+
+def test_match_oversplit_two_meta_one_vlssr() -> None:
+    meta = pd.DataFrame(
+        [
+            _meta_row(meta_id=0, ra=10.0, dec=20.0),
+            _meta_row(meta_id=1, ra=10.05, dec=20.0),
+        ]
+    )
+    vlssr = _vlssr_rows([(10.02, 20.0)])
+    result = match_catalog_to_vlssr(meta, vlssr=vlssr)
+    assert int(result.summary["n_vlssr_oversplit"]) == 1
+    assert bool(result.vlssr_flags.iloc[0]["oversplit"])
+
+
+def test_match_completeness_no_vlssr_in_beam() -> None:
+    meta = pd.DataFrame([_meta_row()])
+    vlssr = _vlssr_rows([(50.0, 50.0)])
+    result = match_catalog_to_vlssr(meta, vlssr=vlssr)
+    assert result.summary["blue_completeness"] == pytest.approx(0.0)
+    assert not bool(result.meta_flags.iloc[0]["matched"])
+
+
+def test_empty_lwa_catalog_returns_empty_summary() -> None:
+    meta = pd.DataFrame(
+        [{"meta_id": 0, "RA": 10.0, "DEC": 20.0, "bands_present": "Full"}]
+    )
+    vlssr = _vlssr_rows([(10.0, 20.0)])
+    result = match_catalog_to_vlssr(meta, vlssr=vlssr)
+    assert int(result.summary["n_lwa_target"]) == 0
+    assert np.isnan(float(result.summary["blue_completeness"]))
+    assert result.warnings
+
+
+def test_summarize_vlssr_match_includes_key_metrics() -> None:
+    meta = pd.DataFrame([_meta_row()])
+    vlssr = _vlssr_rows([(10.0, 20.0)])
+    result = match_catalog_to_vlssr(meta, vlssr=vlssr)
+    text = summarize_vlssr_match(result)
+    assert "Blue completeness:" in text
+    assert "VLSSR over-split" in text
+    assert "Meta multi-VLSSR" in text
+
+
+def test_match_lst_merged_blue_target() -> None:
+    lst_blue = pd.DataFrame(
+        [
+            {
+                "RA": 10.0,
+                "DEC": 20.0,
+                "BMAJ": 0.5,
+                "Peak_flux": 1.0,
+                "band": "Blue",
+            }
+        ]
+    )
+    vlssr = _vlssr_rows([(10.0, 20.0)])
+    config = VlssrMatchConfig(target="lst_merged_blue")
+    result = match_catalog_to_vlssr(lst_blue, vlssr=vlssr, config=config)
+    assert int(result.summary["n_lwa_target"]) == 1
+    assert result.summary["blue_completeness"] == pytest.approx(1.0)

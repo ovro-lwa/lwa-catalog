@@ -29,6 +29,14 @@ from lwa_catalog.analyze.trace import (
     preferred_trace_columns,
     rematch_meta_source,
 )
+from lwa_catalog.analyze.vlssr import (
+    VlssrMatchConfig,
+    VlssrMatchResult,
+    load_vlssr_catalog,
+    match_catalog_to_vlssr,
+    select_blue_associated_rows,
+    summarize_vlssr_match,
+)
 
 __all__ = [
     "ReliabilityConfig",
@@ -48,5 +56,11 @@ __all__ = [
     "preferred_trace_columns",
     "rematch_meta_source",
     "summarize_metacatalog",
+    "summarize_vlssr_match",
     "write_healpix_hips",
+    "VlssrMatchConfig",
+    "VlssrMatchResult",
+    "load_vlssr_catalog",
+    "match_catalog_to_vlssr",
+    "select_blue_associated_rows",
 ]

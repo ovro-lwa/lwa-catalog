@@ -40,6 +40,24 @@ def test_analyze_summary() -> None:
     assert int(counts["Full"]) == 1
 
 
+def test_analyze_vlssr_exports() -> None:
+    from lwa_catalog.analyze import (
+        VlssrMatchConfig,
+        VlssrMatchResult,
+        load_vlssr_catalog,
+        match_catalog_to_vlssr,
+        select_blue_associated_rows,
+        summarize_vlssr_match,
+    )
+
+    assert callable(load_vlssr_catalog)
+    assert callable(match_catalog_to_vlssr)
+    assert callable(select_blue_associated_rows)
+    assert callable(summarize_vlssr_match)
+    assert VlssrMatchConfig().target == "metacatalog_blue"
+    assert hasattr(VlssrMatchResult, "__dataclass_fields__")
+
+
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
         detect_sources,
