@@ -63,6 +63,51 @@ def prepare_hdu(path: Path) -> fits.PrimaryHDU:
     return fits.PrimaryHDU(data=data, header=header)
 
 
+def upsample_hdu(hdu: fits.PrimaryHDU, *, factor: int = 2) -> fits.PrimaryHDU:
+    """Upsample a 2D image HDU by an integer factor, updating WCS pixel keywords.
+
+    Non-finite pixels are blanked in the upsampled array. ``BMAJ`` / ``BMIN`` /
+    ``BPA`` are unchanged (physical beam size is independent of pixel grid).
+    """
+    if factor == 1:
+        return hdu
+    if factor < 1 or factor != int(factor):
+        msg = f"upsample factor must be a positive integer, got {factor!r}"
+        raise ValueError(msg)
+    factor = int(factor)
+
+    try:
+        from scipy.ndimage import zoom
+    except ImportError as exc:  # pragma: no cover
+        msg = "scipy is required for upsample_hdu; pip install 'lwa-catalog[detect]'"
+        raise ImportError(msg) from exc
+
+    data = np.asarray(hdu.data, dtype=np.float32)
+    if data.ndim != 2:
+        msg = f"Expected 2D image, got shape {data.shape}"
+        raise ValueError(msg)
+
+    mask = ~np.isfinite(data)
+    filled = np.where(mask, 0.0, data)
+    upsampled = zoom(filled, factor, order=1).astype(np.float32, copy=False)
+    mask_up = zoom(mask.astype(np.float32), factor, order=0) > 0.5
+    upsampled[mask_up] = np.nan
+
+    header = hdu.header.copy()
+    for axis in (1, 2):
+        naxis_key = f"NAXIS{axis}"
+        cdelt_key = f"CDELT{axis}"
+        crpix_key = f"CRPIX{axis}"
+        if naxis_key in header:
+            header[naxis_key] = int(header[naxis_key]) * factor
+        if cdelt_key in header:
+            header[cdelt_key] = float(header[cdelt_key]) / factor
+        if crpix_key in header:
+            header[crpix_key] = (float(header[crpix_key]) - 1.0) * factor + 1.0
+
+    return fits.PrimaryHDU(data=upsampled, header=header)
+
+
 def beam_from_header(header: fits.Header) -> tuple[float, float, float]:
     """Return ``(BMAJ, BMIN, BPA)`` from a FITS header."""
     if "BMAJ" not in header or "BMIN" not in header:
@@ -137,6 +182,7 @@ def detect_sources(
     *,
     bdsf_kw: Mapping[str, Any] | None = None,
     gaul_columns: Sequence[str] = GAUL_COLUMNS,
+    upsample_factor: int = 1,
     **process_kw: Any,
 ) -> pd.DataFrame:
     """Detect sources in one FITS image; return a catalog DataFrame.
@@ -149,11 +195,17 @@ def detect_sources(
         Base PyBDSF ``process_image`` keywords (merged with library defaults).
     gaul_columns
         Gaussian catalog columns to keep when present.
+    upsample_factor
+        Integer upsampling factor applied to the image before PyBDSF (``1`` =
+        native pixels). WCS ``CDELT*`` / ``CRPIX*`` are updated; ``BMAJ`` /
+        ``BMIN`` / ``BPA`` are taken from the native image header.
     **process_kw
         Extra keywords forwarded to ``bdsf.process_image``.
     """
     hdu = prepare_hdu(meta.path)
     bmaj, bmin, bpa = beam_from_header(hdu.header)
+    if upsample_factor != 1:
+        hdu = upsample_hdu(hdu, factor=upsample_factor)
     table = run_pybdsf_on_hdu(hdu, bdsf_kw=bdsf_kw, **process_kw)
     if table is None or len(table) == 0:
         return empty_sources_dataframe(
