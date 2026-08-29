@@ -209,7 +209,15 @@ def match_catalog_to_vlssr(
                 columns=["meta_id", "RA", "DEC", "n_vlssr", "matched"]
             ),
             vlssr_flags=pd.DataFrame(
-                columns=["vlssr_pos", "RA", "DEC", "n_meta", "oversplit"]
+                columns=[
+                    "vlssr_pos",
+                    "RA",
+                    "DEC",
+                    "Peak_flux",
+                    "n_meta",
+                    "meta_ids",
+                    "oversplit",
+                ]
             ),
             warnings=warnings,
         )
@@ -225,6 +233,8 @@ def match_catalog_to_vlssr(
         vlssr_hits, _ = associate_catalogs(vlssr_footprint, lwa_match)
 
     index_to_match_pos = {idx: pos for pos, idx in enumerate(lwa_match.index.tolist())}
+    match_pos_to_index = {pos: idx for idx, pos in index_to_match_pos.items()}
+    has_meta_id = "meta_id" in target.columns
 
     meta_records: list[dict] = []
     for idx, row in target.iterrows():
@@ -251,6 +261,12 @@ def match_catalog_to_vlssr(
         row = vlssr_footprint.iloc[pos]
         hit_meta = vlssr_hits.get(pos, [])
         n_meta = len(hit_meta)
+        meta_ids: list[object] = []
+        if has_meta_id:
+            for match_pos in hit_meta:
+                idx = match_pos_to_index.get(match_pos)
+                if idx is not None:
+                    meta_ids.append(target.loc[idx, "meta_id"])
         vlssr_records.append(
             {
                 "vlssr_pos": pos,
@@ -258,10 +274,26 @@ def match_catalog_to_vlssr(
                 "DEC": row["DEC"],
                 "Peak_flux": row.get("Peak_flux", np.nan),
                 "n_meta": n_meta,
+                "meta_ids": meta_ids,
                 "oversplit": n_meta > 1,
             }
         )
-    vlssr_flags = pd.DataFrame(vlssr_records)
+
+    vlssr_cols = [
+        "vlssr_pos",
+        "RA",
+        "DEC",
+        "Peak_flux",
+        "n_meta",
+        "meta_ids",
+        "oversplit",
+    ]
+    if not has_meta_id:
+        vlssr_cols = [c for c in vlssr_cols if c != "meta_ids"]
+    if vlssr_records:
+        vlssr_flags = pd.DataFrame(vlssr_records)[vlssr_cols]
+    else:
+        vlssr_flags = pd.DataFrame(columns=vlssr_cols)
 
     n_meta_matched = int(meta_flags["matched"].sum()) if not meta_flags.empty else 0
     n_vlssr_matched = int((vlssr_flags["n_meta"] > 0).sum()) if not vlssr_flags.empty else 0

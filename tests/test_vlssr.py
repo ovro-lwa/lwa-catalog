@@ -165,6 +165,7 @@ def test_match_oversplit_two_meta_one_vlssr() -> None:
     result = match_catalog_to_vlssr(meta, vlssr=vlssr)
     assert int(result.summary["n_vlssr_oversplit"]) == 1
     assert bool(result.vlssr_flags.iloc[0]["oversplit"])
+    assert result.vlssr_flags.iloc[0]["meta_ids"] == [0, 1]
 
 
 def test_match_completeness_no_vlssr_in_beam() -> None:
