@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 COLOR_BANDS: tuple[str, ...] = ("Full", "Blue", "Green", "Red")
 ASSOC_BANDS: tuple[str, ...] = ("Blue", "Green", "Red")
 
@@ -16,6 +18,11 @@ BAND_OVERLAY_COLOR_UNKNOWN = "#bdbdbd"
 
 # Owens Valley Radio Observatory / OVRO-LWA (geodetic latitude, degrees).
 OVRO_LATITUDE_DEG: float = 37.239777
+
+# VLSSR reference catalog (external; circular 80″ PSF, peak flux in Jy).
+VLSSR_BMAJ_ARCSEC: float = 80.0
+VLSSR_BMAJ_DEG: float = VLSSR_BMAJ_ARCSEC / 3600.0
+VLSSR_DEFAULT_PATH: Path = Path("/fast/claw/vlssr_radecpeak.txt")
 
 # Rest-frame center frequencies (Hz) from RESTFRQ on OVRO-LWA deep color products.
 BAND_FREQ_HZ: dict[str, float] = {
