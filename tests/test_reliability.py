@@ -21,6 +21,7 @@ from lwa_catalog.analyze.reliability import (
     passes_multi_image,
     seed_lst_rows,
 )
+from lwa_catalog.constants import CLUSTER_JITTER_RMS_COL
 from lwa_catalog.create.merge import build_global_metacatalog, merge_lst_metacatalog
 from lwa_catalog.io import write_lst_merged, write_metacatalog, write_sources_catalog
 from lwa_catalog.paths import CatalogLayout
@@ -187,6 +188,50 @@ def _reliability_layout(tmp_path: Path) -> tuple[CatalogLayout, pd.DataFrame, di
     meta = build_global_metacatalog(lst_merged)
     write_metacatalog(meta, layout)
     return layout, meta, lst_merged
+
+
+def test_reliability_uses_merge_time_jitter_without_source_rematch(tmp_path: Path) -> None:
+    """Merge-time jitter avoids per-hour source Parquet reads."""
+    layout = CatalogLayout(tmp_path)
+    full_01 = pd.DataFrame(
+        [_src(ra=30.0, dec=37.0, peak=2.0, lst_hour="01h", band="Full", source_id=101)]
+    )
+    full_02 = pd.DataFrame(
+        [_src(ra=30.02, dec=37.0, peak=1.8, lst_hour="02h", band="Full", source_id=102)]
+    )
+    blue_01 = pd.DataFrame(
+        [_src(ra=30.01, dec=37.0, peak=1.5, lst_hour="01h", band="Blue", source_id=201)]
+    )
+    lst_full = merge_lst_metacatalog([full_01, full_02], band="Full")
+    lst_blue = merge_lst_metacatalog([blue_01], band="Blue")
+    write_lst_merged(lst_full, layout, "Full")
+    write_lst_merged(lst_blue, layout, "Blue")
+    write_lst_merged(pd.DataFrame(), layout, "Green")
+    write_lst_merged(pd.DataFrame(), layout, "Red")
+    meta = build_global_metacatalog(
+        {"Full": lst_full, "Blue": lst_blue, "Green": pd.DataFrame(), "Red": pd.DataFrame()}
+    )
+    assert CLUSTER_JITTER_RMS_COL in meta.columns
+    write_metacatalog(meta, layout)
+
+    lst_merged = {
+        "Full": lst_full,
+        "Blue": lst_blue,
+        "Green": pd.DataFrame(),
+        "Red": pd.DataFrame(),
+    }
+    cleaned, gold = filter_metacatalog_reliability(
+        meta,
+        layout,
+        lst_merged=lst_merged,
+        config=ReliabilityConfig(strict=True),
+    )
+    assert any("merge-time cluster jitter" in w for w in cleaned.warnings)
+    assert len(cleaned.flags) == len(meta)
+    assert cleaned.flags["jitter_rms_deg"].notna().any()
+    assert int(cleaned.flags["n_rematch"].max()) >= 2
+    meta_jitter = pd.to_numeric(meta[CLUSTER_JITTER_RMS_COL], errors="coerce").iloc[0]
+    assert cleaned.flags["jitter_rms_deg"].iloc[0] == pytest.approx(float(meta_jitter))
 
 
 def test_seed_lst_and_filters_nesting(tmp_path: Path) -> None:

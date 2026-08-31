@@ -39,6 +39,9 @@ def lst_merged_schema() -> pa.Schema:
         pa.field("lst_hours", pa.string(), nullable=True),
         pa.field("representative_lst", pa.string(), nullable=True),
         pa.field("Peak_flux_std", pa.float64(), nullable=True),
+        pa.field("cluster_jitter_rms_deg", pa.float64(), nullable=True),
+        pa.field("Resid_Isl_rms", pa.float64(), nullable=True),
+        pa.field("Resid_Isl_mean", pa.float64(), nullable=True),
     ]
     existing = {f.name for f in base}
     for field in extra:
@@ -68,6 +71,11 @@ def metacatalog_schema() -> pa.Schema:
         pa.field("lst_hours", pa.string(), nullable=True),
         pa.field("representative_lst", pa.string(), nullable=True),
         pa.field("Peak_flux_std", pa.float64(), nullable=True),
+        pa.field("cluster_jitter_rms_deg", pa.float64(), nullable=True),
+        pa.field("Resid_Isl_rms", pa.float64(), nullable=True),
+        pa.field("Resid_Isl_mean", pa.float64(), nullable=True),
+        pa.field("E_Peak_flux", pa.float64(), nullable=True),
+        pa.field("E_Total_flux", pa.float64(), nullable=True),
         pa.field("source_file_Full", pa.string(), nullable=True),
     ]
     for band in ASSOC_BANDS:

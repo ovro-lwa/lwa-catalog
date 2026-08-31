@@ -95,6 +95,16 @@ METACATALOG_REQUIRED_COLUMNS: frozenset[str] = frozenset(
 
 SOURCES_REQUIRED_COLUMNS: frozenset[str] = frozenset({"RA", "DEC"})
 
+# LST-merge QA columns propagated to metacatalog (origin-band row).
+CLUSTER_JITTER_RMS_COL: str = "cluster_jitter_rms_deg"
+LST_MERGE_QA_COLUMNS: tuple[str, ...] = (
+    CLUSTER_JITTER_RMS_COL,
+    "Resid_Isl_rms",
+    "Resid_Isl_mean",
+    "E_Peak_flux",
+    "E_Total_flux",
+)
+
 SOURCES_PROVENANCE_COLUMNS: tuple[str, ...] = (
     "lst_hour",
     "band",

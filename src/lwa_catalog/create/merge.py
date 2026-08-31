@@ -13,7 +13,9 @@ from lwa_catalog.constants import (
     ASSOC_BANDS,
     BAND_FIELDS,
     BAND_FREQ_HZ,
+    CLUSTER_JITTER_RMS_COL,
     COLOR_BANDS,
+    LST_MERGE_QA_COLUMNS,
     OVRO_LATITUDE_DEG,
     SPECTRAL_INDEX_PAIRS,
 )
@@ -98,6 +100,30 @@ def associate_catalogs(
 ) -> tuple[dict[int, list[int]], set[int]]:
     """Public alias of :func:`_associate_catalogs` for rematch/analyze."""
     return _associate_catalogs(base_df, band_df)
+
+
+def _lst_cluster_qa_fields(members: pd.DataFrame, rep: pd.Series) -> dict[str, float]:
+    """QA metrics from true LST cluster members and the representative row."""
+    from lwa_catalog.analyze.reliability import cluster_radec_jitter_rms
+
+    out: dict[str, float] = {CLUSTER_JITTER_RMS_COL: cluster_radec_jitter_rms(members)}
+    for col in LST_MERGE_QA_COLUMNS:
+        if col == CLUSTER_JITTER_RMS_COL:
+            continue
+        if col in rep.index:
+            try:
+                val = float(rep[col])
+            except (TypeError, ValueError):
+                val = float("nan")
+            out[col] = val
+    return out
+
+
+def _copy_lst_merge_qa(entry: dict, band_row: pd.Series) -> None:
+    """Copy merge-time QA columns from an LST-merged band row into *entry*."""
+    for col in LST_MERGE_QA_COLUMNS:
+        if col in band_row.index:
+            entry[col] = band_row[col]
 
 
 def _flux_std(df: pd.DataFrame, flux_col: str = "Peak_flux") -> float:
@@ -257,6 +283,7 @@ def merge_lst_metacatalog(catalogs: Iterable[pd.DataFrame], *, band: str) -> pd.
         entry["lst_hours"] = ",".join(sorted(members["lst_hour"].astype(str).unique()))
         entry["representative_lst"] = rep["lst_hour"]
         entry["Peak_flux_std"] = _flux_std(members)
+        entry.update(_lst_cluster_qa_fields(members, rep))
         rows.append(entry)
 
     meta = pd.DataFrame(rows)
@@ -426,6 +453,7 @@ def _seed_row_from_band(
     else:
         entry["BMAJ_full"] = np.nan
         _attach_band_columns(entry, band_row, band, 1, band_fields=band_fields)
+    _copy_lst_merge_qa(entry, band_row)
     return entry
 
 

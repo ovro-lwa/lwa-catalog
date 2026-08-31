@@ -20,6 +20,7 @@ from lwa_catalog.analyze.trace import (
     _parse_lst_hours,
     _pick_rematch_lst_row,
 )
+from lwa_catalog.constants import CLUSTER_JITTER_RMS_COL
 from lwa_catalog.create.merge import associate_catalogs
 from lwa_catalog.io import read_sources_catalog
 from lwa_catalog.paths import CatalogLayout
@@ -484,6 +485,10 @@ def _build_context(
     warn.extend(seed_warn)
 
     n = len(meta)
+    use_merge_jitter = CLUSTER_JITTER_RMS_COL in meta.columns
+    if use_merge_jitter:
+        warn.append("using merge-time cluster jitter (skipping per-hour rematch)")
+
     seed_matched = np.zeros(n, dtype=bool)
     flux_sigma = np.full(n, np.nan)
     unphys_soft = np.zeros(n, dtype=bool)
@@ -499,6 +504,18 @@ def _build_context(
 
     mid_to_i = {int(m): i for i, m in enumerate(meta["meta_id"].tolist())}
 
+    if use_merge_jitter:
+        jitter_vals = pd.to_numeric(meta[CLUSTER_JITTER_RMS_COL], errors="coerce")
+        if "n_lst_contributions" in meta.columns:
+            n_lst_vals = pd.to_numeric(meta["n_lst_contributions"], errors="coerce")
+        else:
+            n_lst_vals = pd.Series(np.nan, index=meta.index)
+        for i in range(n):
+            jitter_rms[i] = float(jitter_vals.iloc[i])
+            if pd.notna(n_lst_vals.iloc[i]):
+                n_rematch[i] = int(n_lst_vals.iloc[i])
+                n_lst_seed[i] = float(n_lst_vals.iloc[i])
+
     if not seed.empty:
         for mid, srow in seed.iterrows():
             mid_i = int(mid) if not isinstance(mid, (int, np.integer)) else int(mid)
@@ -512,7 +529,12 @@ def _build_context(
             seed_matched[i] = matched
             if not matched:
                 continue
-            s_df = pd.DataFrame([srow])
+            qa_row = meta.iloc[i]
+            if "Resid_Isl_rms" not in qa_row.index or not np.isfinite(
+                float(pd.to_numeric(qa_row.get("Resid_Isl_rms"), errors="coerce"))
+            ):
+                qa_row = srow
+            s_df = pd.DataFrame([qa_row])
             sig = flux_sigma_total_minus_peak(s_df).iloc[0]
             flux_sigma[i] = sig
             sigma_finite[i] = bool(np.isfinite(sig))
@@ -525,21 +547,22 @@ def _build_context(
                 mean_thresh_jy=config.resid_mean_thresh_jy,
             )
             resid_fail_soft[i] = bool(rf["resid_fail"].iloc[0])
-            if "Resid_Isl_rms" in srow.index:
-                resid_rms[i] = float(pd.to_numeric(srow["Resid_Isl_rms"], errors="coerce"))
-            if "Resid_Isl_mean" in srow.index:
-                resid_mean[i] = float(pd.to_numeric(srow["Resid_Isl_mean"], errors="coerce"))
+            if "Resid_Isl_rms" in qa_row.index:
+                resid_rms[i] = float(pd.to_numeric(qa_row["Resid_Isl_rms"], errors="coerce"))
+            if "Resid_Isl_mean" in qa_row.index:
+                resid_mean[i] = float(pd.to_numeric(qa_row["Resid_Isl_mean"], errors="coerce"))
             resid_finite[i] = np.isfinite(resid_rms[i]) and np.isfinite(resid_mean[i])
-            try:
-                n_lst_seed[i] = float(srow.get("n_lst_contributions", np.nan))
-            except (TypeError, ValueError):
-                n_lst_seed[i] = np.nan
+            if not np.isfinite(n_lst_seed[i]):
+                try:
+                    n_lst_seed[i] = float(srow.get("n_lst_contributions", np.nan))
+                except (TypeError, ValueError):
+                    n_lst_seed[i] = np.nan
 
-            # jitter from seed-band sources
-            sources, src_warn = expand_seed_source_matches(srow, meta.iloc[i], layout)
-            warn.extend(src_warn)
-            n_rematch[i] = len(sources)
-            jitter_rms[i] = cluster_radec_jitter_rms(sources)
+            if not use_merge_jitter:
+                sources, src_warn = expand_seed_source_matches(srow, meta.iloc[i], layout)
+                warn.extend(src_warn)
+                n_rematch[i] = len(sources)
+                jitter_rms[i] = cluster_radec_jitter_rms(sources)
 
             bmaj[i] = resolve_bmaj(meta.iloc[i])
             if not np.isfinite(bmaj[i]) and "BMAJ" in srow.index:
