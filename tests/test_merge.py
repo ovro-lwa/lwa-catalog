@@ -347,3 +347,80 @@ def test_build_global_computes_alpha_when_rgb_associated() -> None:
     assert np.isfinite(float(row["E_alpha_RG"]))
     assert float(row["Total_flux_Red"]) == 8.0
     assert float(row["E_Total_flux_Green"]) == 1.0
+
+
+def test_build_global_metacatalog_forwards_band_freq_hz() -> None:
+    """Override band_freq_hz so subband-mapped α uses those centers."""
+    catalogs = {
+        band: pd.DataFrame(
+            [
+                {
+                    **_src(
+                        ra=10.0 + 0.01 * i,
+                        dec=20.0,
+                        peak=2.0 - 0.1 * i,
+                        total=12.0 - i,
+                        lst_hour="01h",
+                        band=band,
+                    ),
+                    "n_lst_contributions": 1,
+                    "lst_hours": "01h",
+                    "representative_lst": "01h",
+                }
+            ]
+        )
+        for i, band in enumerate(("Full", "Blue", "Green", "Red"))
+    }
+    default = build_global_metacatalog(catalogs)
+    doubled_red = {**BAND_FREQ_HZ, "Red": BAND_FREQ_HZ["Red"] * 2.0}
+    custom = build_global_metacatalog(catalogs, band_freq_hz=doubled_red)
+    assert float(default.iloc[0]["alpha_RG"]) != float(custom.iloc[0]["alpha_RG"])
+    assert float(default.iloc[0]["alpha_GB"]) == float(custom.iloc[0]["alpha_GB"])
+
+
+def test_build_global_metacatalog_frequency_subbands() -> None:
+    """Sequential association works for frequency-labeled subbands (not RGBF)."""
+    bands = ("18MHz", "23MHz", "27MHz")
+    catalogs = {
+        band: pd.DataFrame(
+            [
+                {
+                    **_src(
+                        ra=10.0 + 0.01 * i,
+                        dec=20.0,
+                        peak=2.0 - 0.1 * i,
+                        total=12.0 - i,
+                        lst_hour="01h",
+                        band=band,
+                    ),
+                    "n_lst_contributions": 1,
+                    "lst_hours": "01h",
+                    "representative_lst": "01h",
+                }
+            ]
+        )
+        for i, band in enumerate(bands)
+    }
+    freq = {b: float(b.removesuffix("MHz")) * 1e6 for b in bands}
+    pairs = (
+        ("18_23", "18MHz", "23MHz"),
+        ("23_27", "23MHz", "27MHz"),
+    )
+    meta = build_global_metacatalog(
+        catalogs,
+        seed_band="18MHz",
+        assoc_bands=("23MHz", "27MHz"),
+        color_bands=bands,
+        band_freq_hz=freq,
+        spectral_index_pairs=pairs,
+    )
+    assert len(meta) == 1
+    row = meta.iloc[0]
+    assert row["origin_band"] == "18MHz"
+    assert "23MHz" in str(row["bands_present"])
+    assert "27MHz" in str(row["bands_present"])
+    assert int(row["n_assoc_23MHz"]) >= 1
+    assert int(row["n_assoc_27MHz"]) >= 1
+    assert "alpha_18_23" in meta.columns
+    assert np.isfinite(float(row["alpha_18_23"]))
+    assert np.isfinite(float(row["alpha_23_27"]))

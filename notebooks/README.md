@@ -3,7 +3,7 @@
 | Notebook | Role |
 | -------- | ---- |
 | `ovro_lwa_metacatalog.ipynb` | Discover FITS → PyBDSF → LST merge → global metacatalog (Parquet) |
-| `ovro_lwa_metacatalog_subband.ipynb` | Discover FITS → PyBDSF → LST merge within a frequency subband (Parquet) |
+| `ovro_lwa_metacatalog_subband.ipynb` | Same pipeline on 15 frequency subbands (18–82 MHz) |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd hourly Full-band FITS to one SIN mosaic → PyBDSF → compare to LST-merged catalog |
 | `metacatalog_sky_view.ipynb` | Load `metacatalog.parquet` and explore on the sky |
 | `metacatalog_query.ipynb` | Browse all Parquet catalogs, sortable table, nearest-source coordinate query |

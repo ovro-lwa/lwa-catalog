@@ -433,6 +433,7 @@ def _seed_row_from_band(
     *,
     assoc_bands: Sequence[str] = ASSOC_BANDS,
     band_fields: Sequence[str] = BAND_FIELDS,
+    seed_band: str = "Full",
 ) -> dict:
     """One metacatalog row seeded from a single-band LST-merged detection."""
     n_lst, lst_hours, rep_lst, peak_std = _lst_meta_from_band_row(band_row)
@@ -447,9 +448,11 @@ def _seed_row_from_band(
         "Peak_flux_std": peak_std,
     }
     entry.update(_empty_band_cols(assoc_bands=assoc_bands, band_fields=band_fields))
-    if band == "Full":
+    if band == seed_band:
         entry["BMAJ_full"] = float(band_row["BMAJ"])
-        entry["source_file_Full"] = band_row.get("source_file", "")
+        entry[f"source_file_{band}"] = band_row.get("source_file", "")
+        for field in band_fields:
+            entry[f"{field}_{band}"] = band_row.get(field, np.nan)
     else:
         entry["BMAJ_full"] = np.nan
         _attach_band_columns(entry, band_row, band, 1, band_fields=band_fields)
@@ -458,39 +461,42 @@ def _seed_row_from_band(
 
 
 def merge_full_and_blue(
-    full_df: pd.DataFrame,
-    blue_df: pd.DataFrame,
+    seed_df: pd.DataFrame,
+    assoc_df: pd.DataFrame,
     *,
+    seed_band: str = "Full",
+    assoc_band: str = "Blue",
     assoc_bands: Sequence[str] = ASSOC_BANDS,
     band_fields: Sequence[str] = BAND_FIELDS,
     color_bands: Sequence[str] = COLOR_BANDS,
 ) -> pd.DataFrame:
-    """Cross-match Blue onto Full; one row per deduplicated sky position."""
-    full_df = full_df.reset_index(drop=True)
-    blue_df = blue_df.reset_index(drop=True)
-    hits, matched_blue = _associate_catalogs(full_df, blue_df)
+    """Cross-match *assoc_band* onto *seed_band*; one row per deduplicated sky position."""
+    seed_df = seed_df.reset_index(drop=True)
+    assoc_df = assoc_df.reset_index(drop=True)
+    hits, matched_assoc = _associate_catalogs(seed_df, assoc_df)
+    seed_kw = dict(
+        assoc_bands=assoc_bands, band_fields=band_fields, seed_band=seed_band
+    )
 
     rows: list[dict] = []
-    for i, frow in full_df.iterrows():
-        entry = _seed_row_from_band(
-            frow, "Full", assoc_bands=assoc_bands, band_fields=band_fields
-        )
-        blues = hits.get(i, [])
-        if blues:
-            sub = blue_df.iloc[blues]
+    for i, srow in seed_df.iterrows():
+        entry = _seed_row_from_band(srow, seed_band, **seed_kw)
+        assoc_hits = hits.get(i, [])
+        if assoc_hits:
+            sub = assoc_df.iloc[assoc_hits]
             best = _pick_highest_elevation_row(sub)
-            _attach_band_columns(entry, best, "Blue", len(blues), band_fields=band_fields)
-            _update_bands_present(entry, "Full", "Blue", color_bands=color_bands)
+            _attach_band_columns(
+                entry, best, assoc_band, len(assoc_hits), band_fields=band_fields
+            )
+            _update_bands_present(
+                entry, seed_band, assoc_band, color_bands=color_bands
+            )
             entry["BMAJ_match"] = max(float(entry["BMAJ_match"]), float(best["BMAJ"]))
         rows.append(entry)
 
-    for j, brow in blue_df.iterrows():
-        if j not in matched_blue:
-            rows.append(
-                _seed_row_from_band(
-                    brow, "Blue", assoc_bands=assoc_bands, band_fields=band_fields
-                )
-            )
+    for j, arow in assoc_df.iterrows():
+        if j not in matched_assoc:
+            rows.append(_seed_row_from_band(arow, assoc_band, **seed_kw))
     return pd.DataFrame(rows)
 
 
@@ -502,17 +508,16 @@ def associate_band_into_metacatalog(
     assoc_bands: Sequence[str] = ASSOC_BANDS,
     band_fields: Sequence[str] = BAND_FIELDS,
     color_bands: Sequence[str] = COLOR_BANDS,
+    seed_band: str = "Full",
 ) -> pd.DataFrame:
-    """Cross-match one color band onto the current metacatalog; append unmatched band rows."""
+    """Cross-match one band onto the current metacatalog; append unmatched band rows."""
     band_df = band_df.reset_index(drop=True)
+    seed_kw = dict(
+        assoc_bands=assoc_bands, band_fields=band_fields, seed_band=seed_band
+    )
     if meta_df.empty:
         return pd.DataFrame(
-            [
-                _seed_row_from_band(
-                    brow, band, assoc_bands=assoc_bands, band_fields=band_fields
-                )
-                for _, brow in band_df.iterrows()
-            ]
+            [_seed_row_from_band(brow, band, **seed_kw) for _, brow in band_df.iterrows()]
         )
 
     meta_df = meta_df.reset_index(drop=True)
@@ -534,20 +539,19 @@ def associate_band_into_metacatalog(
 
     for j, brow in band_df.iterrows():
         if j not in matched_band:
-            rows.append(
-                _seed_row_from_band(
-                    brow, band, assoc_bands=assoc_bands, band_fields=band_fields
-                )
-            )
+            rows.append(_seed_row_from_band(brow, band, **seed_kw))
     return pd.DataFrame(rows)
 
 
 def build_global_metacatalog(
     lst_merged: dict[str, pd.DataFrame],
     *,
+    seed_band: str = "Full",
     assoc_bands: Sequence[str] = ASSOC_BANDS,
     band_fields: Sequence[str] = BAND_FIELDS,
     color_bands: Sequence[str] = COLOR_BANDS,
+    band_freq_hz: Mapping[str, float] = BAND_FREQ_HZ,
+    spectral_index_pairs: Sequence[tuple[str, str, str]] = SPECTRAL_INDEX_PAIRS,
 ) -> pd.DataFrame:
     """Fuse LST-merged per-band catalogs via sequential cross-matching.
 
@@ -555,32 +559,57 @@ def build_global_metacatalog(
     ----------
     lst_merged
         Mapping of band name → LST-merged catalog DataFrame. Must include
-        ``Full`` and each name in *assoc_bands*.
+        *seed_band* and each name in *assoc_bands*.
+    seed_band
+        Band that seeds metacatalog rows (default ``Full``). Remaining bands
+        in *assoc_bands* are associated onto these rows in order.
     assoc_bands
-        Color bands associated onto Full (default Blue, Green, Red).
+        Bands associated onto the seed (default Blue, Green, Red).
     band_fields
         Per-band measurement columns copied into ``{field}_{band}``.
     color_bands
         Canonical band order for ``bands_present``.
+    band_freq_hz
+        Rest-frame center frequencies (Hz) keyed by band name. Override for
+        frequency-labeled subbands (e.g. ``18MHz``).
+    spectral_index_pairs
+        ``(label, band_a, band_b)`` triples forwarded to
+        :func:`add_spectral_indices`.
     """
-    seed_assoc = assoc_bands[0] if assoc_bands else "Blue"
-    temp = merge_full_and_blue(
-        lst_merged["Full"],
-        lst_merged[seed_assoc],
-        assoc_bands=assoc_bands,
-        band_fields=band_fields,
-        color_bands=color_bands,
+    seed_kw = dict(
+        assoc_bands=assoc_bands, band_fields=band_fields, seed_band=seed_band
     )
-    for band in assoc_bands[1:]:
-        temp = associate_band_into_metacatalog(
-            temp,
-            lst_merged[band],
-            band,
+    if not assoc_bands:
+        temp = pd.DataFrame(
+            [
+                _seed_row_from_band(row, seed_band, **seed_kw)
+                for _, row in lst_merged[seed_band].iterrows()
+            ]
+        )
+    else:
+        first_assoc = assoc_bands[0]
+        temp = merge_full_and_blue(
+            lst_merged[seed_band],
+            lst_merged[first_assoc],
+            seed_band=seed_band,
+            assoc_band=first_assoc,
             assoc_bands=assoc_bands,
             band_fields=band_fields,
             color_bands=color_bands,
         )
-    meta = add_spectral_indices(temp)
+        for band in assoc_bands[1:]:
+            temp = associate_band_into_metacatalog(
+                temp,
+                lst_merged[band],
+                band,
+                assoc_bands=assoc_bands,
+                band_fields=band_fields,
+                color_bands=color_bands,
+                seed_band=seed_band,
+            )
+    meta = add_spectral_indices(
+        temp, band_freq_hz=band_freq_hz, pairs=spectral_index_pairs
+    )
     meta = normalize_ra_columns(meta)
     meta.insert(0, "meta_id", range(len(meta)))
     return meta.sort_values("Peak_flux", ascending=False, na_position="last").reset_index(
