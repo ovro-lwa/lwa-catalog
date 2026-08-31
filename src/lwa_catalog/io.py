@@ -20,6 +20,7 @@ from astropy.io import fits
 
 from lwa_catalog.constants import (
     COLOR_BANDS,
+    DROPPED_GAUL_COLUMNS,
     METACATALOG_REQUIRED_COLUMNS,
     SOURCES_REQUIRED_COLUMNS,
 )
@@ -298,6 +299,55 @@ def lst_merged_cache_complete(
 ) -> bool:
     """True when every band has an LST-merged Parquet file."""
     return all(layout.lst_merged(band).is_file() for band in bands)
+
+
+def _layout_catalog_parquet_files(layout: CatalogLayout) -> list[tuple[Path, pa.Schema]]:
+    """Return ``(path, schema)`` for sources / LST-merged / metacatalog Parquet files."""
+    root = layout.root
+    items: list[tuple[Path, pa.Schema]] = []
+    if not root.is_dir():
+        return items
+    for path in sorted(root.glob("sources_*.parquet")):
+        items.append((path, sources_schema()))
+    for path in sorted(root.glob("metacatalog_lst_*.parquet")):
+        items.append((path, lst_merged_schema()))
+    meta = layout.metacatalog()
+    if meta.is_file():
+        items.append((meta, metacatalog_schema()))
+    return items
+
+
+def rewrite_output_dir_gaul_columns(
+    layout: CatalogLayout,
+    *,
+    drop: Iterable[str] = DROPPED_GAUL_COLUMNS,
+    dry_run: bool = False,
+) -> list[Path]:
+    """Drop retired GAUL columns from catalog Parquet files under *layout.root*.
+
+    Rewrites ``sources_*.parquet``, ``metacatalog_lst_*.parquet``, and
+    ``metacatalog.parquet`` so on-disk tables match the current detection
+    default (:data:`lwa_catalog.constants.GAUL_COLUMNS`). Files that already
+    lack *drop* columns are left untouched.
+
+    Returns
+    -------
+    list of Path
+        Files that were rewritten (or would be, when *dry_run* is true).
+    """
+    drop_set = frozenset(drop)
+    rewritten: list[Path] = []
+    for path, schema in _layout_catalog_parquet_files(layout):
+        table = pq.read_table(path)
+        present = [name for name in table.column_names if name in drop_set]
+        if not present:
+            continue
+        rewritten.append(path)
+        if dry_run:
+            continue
+        table = table.drop_columns(present)
+        write_table(table, path, schema=schema, include_extras=True)
+    return rewritten
 
 
 def empty_sources_table(

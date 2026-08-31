@@ -15,10 +15,6 @@ def sources_schema() -> pa.Schema:
     ]
     fields.extend(
         [
-            pa.field("S_Code", pa.string(), nullable=True),
-            pa.field("Gaus_id", pa.int64(), nullable=True),
-            pa.field("Isl_id", pa.int64(), nullable=True),
-            pa.field("Source_id", pa.int64(), nullable=True),
             pa.field("lst_hour", pa.string(), nullable=True),
             pa.field("band", pa.string(), nullable=True),
             pa.field("source_file", pa.string(), nullable=True),

@@ -20,6 +20,7 @@ from lwa_catalog.io import (
     read_metacatalog,
     read_sources_catalog,
     read_table,
+    rewrite_output_dir_gaul_columns,
     sources_cache_complete,
     validate_metacatalog,
     write_lst_merged,
@@ -166,3 +167,41 @@ def test_write_table_rejects_csv_suffix(tmp_path: Path) -> None:
         write_table(pd.DataFrame({"RA": [1.0]}), tmp_path / "x.csv")
     with pytest.raises(ValueError, match="Parquet"):
         read_table(tmp_path / "x.fits")
+
+
+def test_rewrite_output_dir_gaul_columns_drops_retired_fields(tmp_path: Path) -> None:
+    layout = CatalogLayout(tmp_path)
+    rows = pd.DataFrame(
+        {
+            "RA": [10.0],
+            "DEC": [20.0],
+            "Peak_flux": [1.0],
+            "E_RA": [0.01],
+            "S_Code": ["S"],
+            "Source_id": [7],
+            "keep_me": ["x"],
+            "n_lst_contributions": [1],
+            "lst_hours": ["01h"],
+            "representative_lst": ["01h"],
+        }
+    )
+    write_sources_catalog(rows, layout, "01h", "Full")
+    write_lst_merged(rows, layout, "Full")
+    planned = rewrite_output_dir_gaul_columns(layout, dry_run=True)
+    assert layout.sources("01h", "Full") in planned
+    assert layout.lst_merged("Full") in planned
+
+    done = rewrite_output_dir_gaul_columns(layout)
+    assert set(done) == set(planned)
+
+    sources = read_sources_catalog(layout, "01h", "Full")
+    assert isinstance(sources, pd.DataFrame)
+    assert "E_RA" not in sources.columns
+    assert "S_Code" not in sources.columns
+    assert "Source_id" not in sources.columns
+    assert sources.iloc[0]["keep_me"] == "x"
+
+    lst = read_lst_merged(layout, "Full")
+    assert isinstance(lst, pd.DataFrame)
+    assert "E_RA" not in lst.columns
+    assert rewrite_output_dir_gaul_columns(layout) == []

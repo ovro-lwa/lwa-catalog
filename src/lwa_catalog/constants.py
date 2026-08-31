@@ -41,32 +41,36 @@ SPECTRAL_INDEX_PAIRS: tuple[tuple[str, str, str], ...] = (
 GAUL_COLUMNS: tuple[str, ...] = (
     "RA",
     "DEC",
-    "E_RA",
-    "E_DEC",
     "Total_flux",
     "E_Total_flux",
     "Peak_flux",
     "E_Peak_flux",
     "Maj",
-    "E_Maj",
     "Min",
-    "E_Min",
     "PA",
-    "E_PA",
     "DC_Maj",
     "DC_Min",
     "DC_PA",
-    "S_Code",
-    "Gaus_id",
-    "Isl_id",
-    "Source_id",
     "Resid_Isl_rms",
     "Resid_Isl_mean",
 )
 
-# PyBDSF Gaussian numeric columns (everything in GAUL except codes/ids).
-GAUL_FLOAT_COLUMNS: tuple[str, ...] = tuple(
-    c for c in GAUL_COLUMNS if c not in {"S_Code", "Gaus_id", "Isl_id", "Source_id"}
+# PyBDSF Gaussian numeric columns (currently the full GAUL list).
+GAUL_FLOAT_COLUMNS: tuple[str, ...] = tuple(GAUL_COLUMNS)
+
+# Former GAUL columns dropped from the detection default; rewrite helpers strip these.
+DROPPED_GAUL_COLUMNS: frozenset[str] = frozenset(
+    {
+        "E_RA",
+        "E_DEC",
+        "E_Maj",
+        "E_Min",
+        "E_PA",
+        "S_Code",
+        "Gaus_id",
+        "Isl_id",
+        "Source_id",
+    }
 )
 
 BAND_FIELDS: tuple[str, ...] = (

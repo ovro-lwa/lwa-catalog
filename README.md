@@ -67,8 +67,9 @@ Legacy CSV/FITS catalog trees can be converted once with
 ```text
 lwa-catalog/
 ├── notebooks/
-│   ├── ovro_lwa_metacatalog.ipynb   # discover → detect → merge → Parquet
-│   └── metacatalog_sky_view.ipynb   # explore metacatalog.parquet
+│   ├── ovro_lwa_metacatalog.ipynb           # discover → detect → merge → Parquet
+│   ├── ovro_lwa_metacatalog_subband.ipynb   # same pipeline on 15 frequency subbands
+│   └── metacatalog_sky_view.ipynb           # explore metacatalog.parquet
 ├── src/lwa_catalog/
 │   ├── create/                      # discover, PyBDSF detect, merge
 │   ├── analyze/                     # catalog QA / summary helpers
@@ -104,6 +105,10 @@ Requires Python 3.11+.
 
 - `ovro_lwa_metacatalog.ipynb` needs the `detect` extra (`bdsf`) and local FITS
   paths configured in the notebook. Catalog I/O uses Parquet under `OUTPUT_DIR`.
+- `ovro_lwa_metacatalog_subband.ipynb` is the same detect → LST-merge → global
+  fusion flow on **15 frequency-labeled subbands** (18–82 MHz). The lowest
+  subband seeds sequential association; adjacent-channel spectral indices use
+  those MHz centers. Detection parameters match `ovro_lwa_metacatalog.ipynb`.
 - `metacatalog_sky_view.ipynb` loads `metacatalog.parquet` via
   `read_metacatalog`. It may also use helpers from `ovro-lwa-portal` (HiPS URL /
   astrowidget WCS patch) until those pieces stabilize here.

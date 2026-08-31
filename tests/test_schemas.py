@@ -18,6 +18,9 @@ def test_sources_schema_includes_gaul_and_provenance() -> None:
     names = set(sources_schema().names)
     assert set(GAUL_COLUMNS) <= names
     assert {"lst_hour", "band", "source_file", "BMAJ", "BMIN", "BPA", "time_key"} <= names
+    from lwa_catalog.constants import DROPPED_GAUL_COLUMNS
+
+    assert names.isdisjoint(DROPPED_GAUL_COLUMNS)
 
 
 def test_lst_merged_schema_extends_sources() -> None:

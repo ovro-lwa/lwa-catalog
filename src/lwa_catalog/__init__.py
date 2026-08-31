@@ -7,6 +7,7 @@ from lwa_catalog.io import (
     migrate_output_dir,
     read_metacatalog,
     read_sources_catalog,
+    rewrite_output_dir_gaul_columns,
     write_metacatalog,
     write_sources_catalog,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "migrate_output_dir",
     "read_metacatalog",
     "read_sources_catalog",
+    "rewrite_output_dir_gaul_columns",
     "write_metacatalog",
     "write_sources_catalog",
 ]
