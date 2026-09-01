@@ -12,6 +12,7 @@ from astropy.io import fits
 
 from lwa_catalog.constants import COLOR_BANDS
 from lwa_catalog.io import (
+    discover_lst_merged_bands,
     ensure_beam_columns,
     lst_merged_cache_complete,
     read_all_lst_merged,
@@ -133,6 +134,50 @@ def test_lst_merged_and_cache_gates(tmp_path: Path) -> None:
     one = read_lst_merged(layout, "Full")
     assert isinstance(one, pd.DataFrame)
     assert len(one) == 1
+
+
+def test_discover_lst_merged_bands_rgb_and_frequency(tmp_path: Path) -> None:
+    layout = CatalogLayout(tmp_path)
+    assert discover_lst_merged_bands(layout) == COLOR_BANDS
+
+    for band in ("Full", "Blue"):
+        write_lst_merged(
+            pd.DataFrame(
+                {
+                    "RA": [1.0],
+                    "DEC": [2.0],
+                    "Peak_flux": [1.0],
+                    "band": [band],
+                    "n_lst_contributions": [1],
+                    "lst_hours": ["01h"],
+                    "representative_lst": ["01h"],
+                }
+            ),
+            layout,
+            band,
+        )
+    assert discover_lst_merged_bands(layout) == ("Full", "Blue")
+
+    sub = tmp_path / "subband"
+    sub.mkdir()
+    sub_layout = CatalogLayout(sub)
+    for band in ("82MHz", "18MHz", "55MHz"):
+        write_lst_merged(
+            pd.DataFrame(
+                {
+                    "RA": [1.0],
+                    "DEC": [2.0],
+                    "Peak_flux": [1.0],
+                    "band": [band],
+                    "n_lst_contributions": [1],
+                    "lst_hours": ["01h"],
+                    "representative_lst": ["01h"],
+                }
+            ),
+            sub_layout,
+            band,
+        )
+    assert discover_lst_merged_bands(sub_layout) == ("18MHz", "55MHz", "82MHz")
 
 
 def test_metacatalog_write_read_preserves_string_and_float(tmp_path: Path) -> None:

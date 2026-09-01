@@ -33,6 +33,8 @@ from lwa_catalog.schemas import (
 )
 
 _PARQUET_SUFFIXES = {".parquet", ".pq"}
+_LST_MERGED_BAND_RE = re.compile(r"^metacatalog_lst_(?P<band>.+)\.parquet$", re.IGNORECASE)
+_FREQ_BAND_RE = re.compile(r"^(\d+)MHz$", re.IGNORECASE)
 
 
 def _ensure_parquet_path(path: Path) -> Path:
@@ -236,6 +238,31 @@ def read_lst_merged(
     if not path.is_file():
         raise FileNotFoundError(f"Missing LST-merged catalog: {path}")
     return read_table(path, as_pandas=as_pandas)
+
+
+def _sort_discovered_bands(bands: list[str]) -> list[str]:
+    """Order RGB/Full catalogs canonically; frequency subbands low→high."""
+    if bands and all(_FREQ_BAND_RE.match(b) for b in bands):
+        return sorted(bands, key=lambda b: int(_FREQ_BAND_RE.match(b).group(1)))  # type: ignore[union-attr]
+    order = {band: index for index, band in enumerate(COLOR_BANDS)}
+    return sorted(bands, key=lambda band: (order.get(band, len(COLOR_BANDS)), band))
+
+
+def discover_lst_merged_bands(layout: CatalogLayout) -> tuple[str, ...]:
+    """Return band labels for existing ``metacatalog_lst_*.parquet`` files.
+
+    Supports RGB/Full catalogs (``Full``, ``Blue``, ``Green``, ``Red``) and
+    frequency-labeled subbands (e.g. ``18MHz``). When no LST-merged files exist,
+    falls back to :data:`lwa_catalog.constants.COLOR_BANDS`.
+    """
+    bands: list[str] = []
+    for path in sorted(layout.root.glob("metacatalog_lst_*.parquet")):
+        match = _LST_MERGED_BAND_RE.match(path.name)
+        if match is not None:
+            bands.append(match.group("band"))
+    if bands:
+        return tuple(_sort_discovered_bands(bands))
+    return COLOR_BANDS
 
 
 def read_all_lst_merged(
