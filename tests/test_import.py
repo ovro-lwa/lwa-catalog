@@ -63,10 +63,12 @@ def test_create_apis_importable() -> None:
         detect_sources,
         detect_sources_many,
         discover_fits_files,
+        iter_detect_sources,
         merge_lst_metacatalog,
     )
 
     assert callable(detect_sources)
     assert callable(detect_sources_many)
+    assert callable(iter_detect_sources)
     assert callable(discover_fits_files)
     assert merge_lst_metacatalog([], band="Full").empty

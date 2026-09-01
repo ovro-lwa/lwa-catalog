@@ -14,6 +14,7 @@ from lwa_catalog.create.detect import (
     _clear_pybdsf_modules,
     _import_pybdsf_safely,
     detect_sources_many,
+    iter_detect_sources,
 )
 from lwa_catalog.create.discover import FitsMetadata
 
@@ -22,8 +23,38 @@ def _meta(name: str) -> FitsMetadata:
     return FitsMetadata(path=Path(name), lst_hour="01h", band="Blue")
 
 
+class _ImmediateFuture:
+    def __init__(self, value: pd.DataFrame) -> None:
+        self._value = value
+
+    def result(self) -> pd.DataFrame:
+        return self._value
+
+
+class _FakePool:
+    """Run submitted callables immediately; used to test as_completed order."""
+
+    def submit(self, fn, *args):  # type: ignore[no-untyped-def]
+        return _ImmediateFuture(fn(*args))
+
+    def __enter__(self) -> _FakePool:
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+
+def _frames_by_name() -> dict[str, pd.DataFrame]:
+    return {
+        "a.fits": pd.DataFrame({"RA": [0.0]}),
+        "b.fits": pd.DataFrame({"RA": [1.0]}),
+        "c.fits": pd.DataFrame({"RA": [2.0]}),
+    }
+
+
 def test_detect_sources_many_empty() -> None:
     assert detect_sources_many([]) == []
+    assert list(iter_detect_sources([])) == []
 
 
 def test_detect_sources_many_preserves_order() -> None:
@@ -44,6 +75,72 @@ def test_detect_sources_many_preserves_order() -> None:
         "b.fits",
         "c.fits",
     ]
+
+
+def test_iter_detect_sources_serial_yields_then_caller_can_write() -> None:
+    metas = [_meta("a.fits"), _meta("b.fits"), _meta("c.fits")]
+    events: list[tuple[str, str]] = []
+
+    def fake_detect(meta: FitsMetadata, **kwargs: object) -> pd.DataFrame:
+        events.append(("detect", meta.path.name))
+        return pd.DataFrame({"RA": [1.0]})
+
+    with patch("lwa_catalog.create.detect.detect_sources", side_effect=fake_detect):
+        for meta, catalog in iter_detect_sources(metas, n_jobs=1):
+            events.append(("write", meta.path.name))
+            assert len(catalog) == 1
+
+    assert events == [
+        ("detect", "a.fits"),
+        ("write", "a.fits"),
+        ("detect", "b.fits"),
+        ("write", "b.fits"),
+        ("detect", "c.fits"),
+        ("write", "c.fits"),
+    ]
+
+
+def test_iter_detect_sources_yields_as_completed() -> None:
+    metas = [_meta("a.fits"), _meta("b.fits"), _meta("c.fits")]
+    frames = _frames_by_name()
+
+    def fake_detect(meta: FitsMetadata, **kwargs: object) -> pd.DataFrame:
+        return frames[meta.path.name]
+
+    with (
+        patch("lwa_catalog.create.detect.detect_sources", side_effect=fake_detect),
+        patch("lwa_catalog.create.detect._import_pybdsf_safely"),
+        patch("lwa_catalog.create.detect._fork_process_pool", return_value=_FakePool()),
+        patch(
+            "lwa_catalog.create.detect.as_completed",
+            side_effect=lambda fs: reversed(list(fs)),
+        ),
+    ):
+        yielded = list(iter_detect_sources(metas, n_jobs=3))
+
+    assert [meta.path.name for meta, _ in yielded] == ["c.fits", "b.fits", "a.fits"]
+    assert [float(df["RA"].iloc[0]) for _, df in yielded] == [2.0, 1.0, 0.0]
+
+
+def test_detect_sources_many_reorders_when_completion_is_reversed() -> None:
+    metas = [_meta("a.fits"), _meta("b.fits"), _meta("c.fits")]
+    frames = _frames_by_name()
+
+    def fake_detect(meta: FitsMetadata, **kwargs: object) -> pd.DataFrame:
+        return frames[meta.path.name]
+
+    with (
+        patch("lwa_catalog.create.detect.detect_sources", side_effect=fake_detect),
+        patch("lwa_catalog.create.detect._import_pybdsf_safely"),
+        patch("lwa_catalog.create.detect._fork_process_pool", return_value=_FakePool()),
+        patch(
+            "lwa_catalog.create.detect.as_completed",
+            side_effect=lambda fs: reversed(list(fs)),
+        ),
+    ):
+        out = detect_sources_many(metas, n_jobs=3)
+
+    assert [float(df["RA"].iloc[0]) for df in out] == [0.0, 1.0, 2.0]
 
 
 def test_default_bdsf_kw_uses_single_core() -> None:

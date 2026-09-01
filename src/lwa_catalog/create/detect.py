@@ -6,8 +6,8 @@ import importlib
 import os
 import sys
 import tempfile
-from collections.abc import Mapping, Sequence
-from concurrent.futures import ProcessPoolExecutor
+from collections.abc import Iterator, Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -312,6 +312,63 @@ def detect_sources(
     return normalize_ra_columns(df)
 
 
+def iter_detect_sources(
+    metas: Sequence[FitsMetadata],
+    *,
+    n_jobs: int | None = None,
+    bdsf_kw: Mapping[str, Any] | None = None,
+    gaul_columns: Sequence[str] = GAUL_COLUMNS,
+    upsample_factor: int = 1,
+    **process_kw: Any,
+) -> Iterator[tuple[FitsMetadata, pd.DataFrame]]:
+    """Yield ``(meta, catalog)`` as each image finishes.
+
+    Workers only return DataFrames. The caller (parent process) can write
+    Parquet as results arrive — completion order is not ``metas`` order when
+    ``n_jobs > 1``.
+
+    Parameters
+    ----------
+    metas
+        One ``FitsMetadata`` per image to process.
+    n_jobs
+        Number of worker processes. ``None`` uses all CPUs available to this
+        process. ``1`` runs serially in the current process.
+    bdsf_kw, gaul_columns, upsample_factor, **process_kw
+        Forwarded to :func:`detect_sources` for every image.
+    """
+    if not metas:
+        return
+
+    if n_jobs is None:
+        n_jobs = _available_cpu_count()
+    n_jobs = max(1, min(n_jobs, len(metas)))
+
+    gaul_cols = tuple(gaul_columns)
+    proc_kw = dict(process_kw)
+    tasks = [
+        (meta, bdsf_kw, gaul_cols, upsample_factor, proc_kw) for meta in metas
+    ]
+
+    if n_jobs == 1:
+        for meta, task in zip(metas, tasks, strict=True):
+            yield meta, _detect_sources_packed(task)
+        return
+
+    # Load PyBDSF in the parent before forking so workers inherit the module
+    # without re-running PyBDSF's ``set_start_method('fork')`` import hook.
+    _import_pybdsf_safely()
+
+    with _fork_process_pool(n_jobs) as pool:
+        future_to_index = {
+            pool.submit(_detect_sources_packed, task): i
+            for i, task in enumerate(tasks)
+        }
+        for future in as_completed(future_to_index):
+            i = future_to_index[future]
+            yield metas[i], future.result()
+
+
 def detect_sources_many(
     metas: Sequence[FitsMetadata],
     *,
@@ -325,6 +382,10 @@ def detect_sources_many(
 
     Each image runs PyBDSF in its own worker process. Use ``ncores=1`` in
     ``bdsf_kw`` (the library default) so workers do not compete for CPUs.
+
+    Collects :func:`iter_detect_sources` into a list in the same order as
+    ``metas``. Prefer the iterator when the caller should persist each catalog
+    as soon as it finishes.
 
     Parameters
     ----------
@@ -341,25 +402,15 @@ def detect_sources_many(
     list[pd.DataFrame]
         Catalogs in the same order as ``metas``.
     """
-    if not metas:
-        return []
-
-    if n_jobs is None:
-        n_jobs = _available_cpu_count()
-    n_jobs = max(1, min(n_jobs, len(metas)))
-
-    gaul_cols = tuple(gaul_columns)
-    proc_kw = dict(process_kw)
-    tasks = [
-        (meta, bdsf_kw, gaul_cols, upsample_factor, proc_kw) for meta in metas
-    ]
-
-    if n_jobs == 1:
-        return [_detect_sources_packed(task) for task in tasks]
-
-    # Load PyBDSF in the parent before forking so workers inherit the module
-    # without re-running PyBDSF's ``set_start_method('fork')`` import hook.
-    _import_pybdsf_safely()
-
-    with _fork_process_pool(n_jobs) as pool:
-        return list(pool.map(_detect_sources_packed, tasks))
+    by_path = {
+        meta.path: catalog
+        for meta, catalog in iter_detect_sources(
+            metas,
+            n_jobs=n_jobs,
+            bdsf_kw=bdsf_kw,
+            gaul_columns=gaul_columns,
+            upsample_factor=upsample_factor,
+            **process_kw,
+        )
+    }
+    return [by_path[meta.path] for meta in metas]
