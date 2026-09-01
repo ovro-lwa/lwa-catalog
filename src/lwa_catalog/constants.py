@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 COLOR_BANDS: tuple[str, ...] = ("Full", "Blue", "Green", "Red")
@@ -29,6 +30,19 @@ NEDLVS_DEFAULT_PATH: Path = Path("/fast/claw/NEDLVS_current.fits")
 # Fallback angular radius when ``Diam`` is missing (arcsec; NED-LVS median ~20″).
 NEDLVS_DEFAULT_BMAJ_ARCSEC: float = 20.0
 NEDLVS_DEFAULT_BMAJ_DEG: float = NEDLVS_DEFAULT_BMAJ_ARCSEC / 3600.0
+
+_SUBBAND_FREQ_RE = re.compile(r"^(\d+)MHz$", re.IGNORECASE)
+
+
+def band_frequency_hz(band: str) -> float:
+    """Return rest-frame center frequency (Hz) for a color or subband label."""
+    key = str(band).strip()
+    if key in BAND_FREQ_HZ:
+        return float(BAND_FREQ_HZ[key])
+    match = _SUBBAND_FREQ_RE.match(key)
+    if match:
+        return float(match.group(1)) * 1e6
+    return float("nan")
 
 # Rest-frame center frequencies (Hz) from RESTFRQ on OVRO-LWA deep color products.
 BAND_FREQ_HZ: dict[str, float] = {

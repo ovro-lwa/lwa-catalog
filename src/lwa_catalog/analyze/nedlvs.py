@@ -8,6 +8,9 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
+from astropy import units as u
+from astropy.coordinates import SkyCoord
+from astropy.cosmology import Planck18
 from astropy.table import Table
 
 from lwa_catalog.analyze.reliability import parse_bands_present, resolve_bmaj
@@ -16,10 +19,19 @@ from lwa_catalog.constants import (
     NEDLVS_DEFAULT_BMAJ_ARCSEC,
     NEDLVS_DEFAULT_BMAJ_DEG,
     NEDLVS_DEFAULT_PATH,
+    band_frequency_hz,
 )
 from lwa_catalog.create.merge import associate_catalogs
+from lwa_catalog.io import read_table
+from lwa_catalog.paths import CatalogLayout
 
 NedlvsTarget = Literal["metacatalog", "metacatalog_blue", "lst_merged_blue"]
+MetacatalogSelection = Literal[
+    "full",
+    "blue",
+    "quality_all_clear",
+    "query",
+]
 
 NEDLVS_LOAD_COLUMNS: tuple[str, ...] = (
     "objname",
@@ -30,6 +42,8 @@ NEDLVS_LOAD_COLUMNS: tuple[str, ...] = (
     "DistMpc",
     "Diam",
     "Mstar",
+    "SFR_hybrid",
+    "SFR_W4",
 )
 
 
@@ -38,7 +52,7 @@ class NedlvsMatchConfig:
     """Configuration for :func:`match_catalog_to_nedlvs`."""
 
     catalog_path: Path = NEDLVS_DEFAULT_PATH
-    target: NedlvsTarget = "metacatalog_blue"
+    target: NedlvsTarget = "metacatalog"
     default_bmaj_arcsec: float = NEDLVS_DEFAULT_BMAJ_ARCSEC
 
 
@@ -49,7 +63,117 @@ class NedlvsMatchResult:
     summary: dict[str, float | int]
     meta_flags: pd.DataFrame
     nedlvs_flags: pd.DataFrame
+    nedlvs_footprint: pd.DataFrame
     warnings: list[str] = field(default_factory=list)
+
+
+def select_metacatalog(
+    metacatalog: pd.DataFrame,
+    *,
+    selection: MetacatalogSelection = "full",
+    layout: CatalogLayout | None = None,
+    query: str | None = None,
+) -> pd.DataFrame:
+    """Return a metacatalog subset before NED-LVS cross-matching.
+
+    Parameters
+    ----------
+    metacatalog
+        Full global metacatalog table.
+    selection
+        ``full`` — all rows; ``blue`` — rows with ``Blue`` in ``bands_present``;
+        ``quality_all_clear`` — rows with ``quality_flag == 0`` from cached
+        ``metacatalog_quality.parquet`` when *layout* is provided;
+        ``query`` — pandas ``DataFrame.query`` on *metacatalog* (requires *query*).
+    layout
+        Catalog tree root for loading cached quality flags.
+    query
+        Pandas query string used when ``selection == "query"``.
+    """
+    if selection == "full":
+        out = metacatalog
+    elif selection == "blue":
+        out = select_blue_associated_rows(metacatalog)
+    elif selection == "quality_all_clear":
+        if layout is None:
+            msg = "layout is required for selection='quality_all_clear'"
+            raise ValueError(msg)
+        quality_path = layout.root / "metacatalog_quality.parquet"
+        if not quality_path.is_file():
+            msg = f"quality catalog not found: {quality_path}"
+            raise FileNotFoundError(msg)
+        quality = read_table(quality_path)
+        if "quality_flag" not in quality.columns:
+            msg = f"{quality_path} missing quality_flag column"
+            raise ValueError(msg)
+        clear_ids = quality.loc[quality["quality_flag"] == 0, "meta_id"]
+        if "meta_id" not in metacatalog.columns:
+            msg = "metacatalog missing meta_id column for quality join"
+            raise ValueError(msg)
+        out = metacatalog.loc[metacatalog["meta_id"].isin(clear_ids)]
+    elif selection == "query":
+        if not query:
+            msg = "query is required for selection='query'"
+            raise ValueError(msg)
+        out = metacatalog.query(query, engine="python")
+    else:
+        msg = f"unsupported selection: {selection!r}"
+        raise ValueError(msg)
+
+    return out.reset_index(drop=True)
+
+
+def resolve_highest_frequency_peak_flux(row: pd.Series) -> tuple[float, float, str]:
+    """Return ``(peak_flux_jy, frequency_hz, band_name)`` for the highest-frequency band.
+
+    Checks ``Peak_flux_{band}`` columns in descending frequency order, then falls
+    back to primary ``Peak_flux`` when the highest-frequency band is ``origin_band``.
+  """
+    bands = parse_bands_present(row)
+    if not bands:
+        return float("nan"), float("nan"), ""
+
+    ranked = sorted(bands, key=band_frequency_hz, reverse=True)
+    for band in ranked:
+        freq = band_frequency_hz(band)
+        if not np.isfinite(freq) or freq <= 0.0:
+            continue
+        col = f"Peak_flux_{band}"
+        if col in row.index:
+            flux = pd.to_numeric(row[col], errors="coerce")
+            if np.isfinite(flux) and float(flux) > 0.0:
+                return float(flux), float(freq), band
+        if band == row.get("origin_band") and "Peak_flux" in row.index:
+            flux = pd.to_numeric(row["Peak_flux"], errors="coerce")
+            if np.isfinite(flux) and float(flux) > 0.0:
+                return float(flux), float(freq), band
+
+    return float("nan"), float("nan"), ""
+
+
+def radio_luminosity_nu(
+    flux_jy: float | np.ndarray,
+    z: float | np.ndarray,
+    frequency_hz: float | np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute monochromatic and ``nu*L_nu`` radio luminosities.
+
+    Uses :data:`astropy.cosmology.Planck18` luminosity distance and observed
+    frequency *frequency_hz*. Returns ``(L_nu, nu_L_nu)`` in erg/s/Hz and erg/s.
+    """
+    flux = np.asarray(flux_jy, dtype=float)
+    redshift = np.asarray(z, dtype=float)
+    freq = np.asarray(frequency_hz, dtype=float)
+
+    d_l = Planck18.luminosity_distance(redshift)
+    f_nu = flux * u.Jy
+    l_nu_q = (4 * np.pi * d_l**2 * f_nu).to(u.erg / u.s / u.Hz)
+    nu_l_nu_q = (freq * u.Hz * l_nu_q).to(u.erg / u.s)
+    l_nu = np.atleast_1d(l_nu_q.value)
+    nu_l_nu = np.atleast_1d(nu_l_nu_q.value)
+    if l_nu.size == 1:
+        return float(l_nu[0]), float(nu_l_nu[0])
+    return l_nu, nu_l_nu
 
 
 def _diam_to_bmaj_deg(diam_arcsec: np.ndarray, *, default_bmaj_deg: float) -> np.ndarray:
@@ -69,7 +193,8 @@ def load_nedlvs_catalog(
 
     Returns columns ``RA``, ``DEC``, ``BMAJ`` (degrees, from ``Diam`` when
     available), plus ``objname``, ``objtype``, ``z``, ``DistMpc``, ``Diam_arcsec``,
-    and ``Mstar``. Rows with non-finite ``RA``/``DEC`` are dropped.
+    ``Mstar``, ``SFR_hybrid``, and ``SFR_W4``. Rows with non-finite ``RA``/``DEC``
+    are dropped.
 
     Parameters
     ----------
@@ -153,6 +278,125 @@ def _empty_summary() -> dict[str, float | int]:
     }
 
 
+def _pick_closest_nedlvs_position(
+    meta_row: pd.Series,
+    nedlvs_footprint: pd.DataFrame,
+    positions: list[int],
+) -> int | None:
+    if not positions:
+        return None
+    if len(positions) == 1:
+        return positions[0]
+
+    try:
+        meta_ra = float(meta_row["RA"])
+        meta_dec = float(meta_row["DEC"])
+    except (KeyError, TypeError, ValueError):
+        return positions[0]
+    if not np.isfinite(meta_ra) or not np.isfinite(meta_dec):
+        return positions[0]
+
+    meta_sc = SkyCoord(ra=meta_ra * u.deg, dec=meta_dec * u.deg)
+    best_pos = positions[0]
+    best_sep = float("inf")
+    for pos in positions:
+        nrow = nedlvs_footprint.iloc[pos]
+        ned_ra = float(nrow["RA"])
+        ned_dec = float(nrow["DEC"])
+        if not np.isfinite(ned_ra) or not np.isfinite(ned_dec):
+            continue
+        sep = meta_sc.separation(SkyCoord(ra=ned_ra * u.deg, dec=ned_dec * u.deg)).deg
+        if sep < best_sep:
+            best_sep = sep
+            best_pos = pos
+    return best_pos
+
+
+def _resolve_sfr(row: pd.Series) -> tuple[float, str]:
+    for col in ("SFR_hybrid", "SFR_W4"):
+        if col not in row.index:
+            continue
+        val = pd.to_numeric(row[col], errors="coerce")
+        if np.isfinite(val) and float(val) > 0.0:
+            return float(val), col
+    return float("nan"), ""
+
+
+def build_sfr_radio_luminosity_table(
+    metacatalog: pd.DataFrame,
+    nedlvs_footprint: pd.DataFrame,
+    meta_flags: pd.DataFrame,
+) -> pd.DataFrame:
+    """Pair cross-matched rows and compute radio ``nu*L_nu`` vs NED-LVS SFR.
+
+    Uses the highest-frequency positive ``Peak_flux`` from each metacatalog row,
+    NED-LVS redshift for luminosity distance, and ``SFR_hybrid`` with fallback to
+    ``SFR_W4``. When multiple NED-LVS galaxies match one meta row, the closest
+    angular separation is chosen.
+    """
+    if meta_flags.empty or "meta_id" not in meta_flags.columns:
+        return pd.DataFrame(
+            columns=[
+                "meta_id",
+                "objname",
+                "z",
+                "SFR",
+                "SFR_column",
+                "radio_band",
+                "radio_freq_hz",
+                "Peak_flux_jy",
+                "L_nu_erg_s_hz",
+                "nuL_nu_erg_s",
+            ]
+        )
+
+    meta_by_id = metacatalog.set_index("meta_id", drop=False)
+    records: list[dict] = []
+    for _, flag in meta_flags.iterrows():
+        if not bool(flag.get("matched", False)):
+            continue
+        positions = flag.get("nedlvs_positions", [])
+        if not positions:
+            continue
+        meta_id = flag["meta_id"]
+        if meta_id not in meta_by_id.index:
+            continue
+        meta_row = meta_by_id.loc[meta_id]
+        if isinstance(meta_row, pd.DataFrame):
+            meta_row = meta_row.iloc[0]
+
+        ned_pos = _pick_closest_nedlvs_position(meta_row, nedlvs_footprint, list(positions))
+        if ned_pos is None:
+            continue
+        ned_row = nedlvs_footprint.iloc[ned_pos]
+
+        flux, freq_hz, band = resolve_highest_frequency_peak_flux(meta_row)
+        z = pd.to_numeric(ned_row.get("z"), errors="coerce")
+        sfr, sfr_col = _resolve_sfr(ned_row)
+        if not np.isfinite(flux) or not np.isfinite(freq_hz) or not np.isfinite(z) or z <= 0:
+            continue
+        if not np.isfinite(sfr) or sfr <= 0:
+            continue
+
+        l_nu, nu_l_nu = radio_luminosity_nu(flux, float(z), freq_hz)
+        records.append(
+            {
+                "meta_id": meta_id,
+                "objname": ned_row.get("objname", ""),
+                "z": float(z),
+                "SFR": sfr,
+                "SFR_column": sfr_col,
+                "radio_band": band,
+                "radio_freq_hz": freq_hz,
+                "Peak_flux_jy": flux,
+                "L_nu_erg_s_hz": float(l_nu),
+                "nuL_nu_erg_s": float(nu_l_nu),
+            }
+        )
+
+    return pd.DataFrame.from_records(records)
+
+
 def match_catalog_to_nedlvs(
     lwa_catalog: pd.DataFrame,
     nedlvs: pd.DataFrame | None = None,
@@ -161,15 +405,15 @@ def match_catalog_to_nedlvs(
 ) -> NedlvsMatchResult:
     """Cross-match an LWA catalog against NED-LVS and compute QA metrics.
 
-    Default target is Blue-associated metacatalog rows
-    (``config.target == "metacatalog_blue"``). Matching uses primary ``RA``/``DEC``
-    and beam radii via :func:`~lwa_catalog.create.merge.associate_catalogs`.
-    NED-LVS rows use ``Diam`` (major-axis arcsec) as ``BMAJ`` when available.
+    Matching uses primary ``RA``/``DEC`` and beam radii via
+    :func:`~lwa_catalog.create.merge.associate_catalogs`. NED-LVS rows use
+    ``Diam`` (major-axis arcsec) as ``BMAJ`` when available.
 
     Parameters
     ----------
     lwa_catalog
-        Metacatalog or LST-merged Blue table.
+        Metacatalog or LST-merged table (often pre-filtered via
+        :func:`select_metacatalog`).
     nedlvs
         Pre-loaded NED-LVS catalog. Loaded from ``config.catalog_path`` when omitted.
     config
@@ -178,7 +422,7 @@ def match_catalog_to_nedlvs(
     Returns
     -------
     NedlvsMatchResult
-        Summary fractions, per-meta flags, and per-NED-LVS flags.
+        Summary fractions, per-meta flags, per-NED-LVS flags, and footprint table.
     """
     cfg = config or NedlvsMatchConfig()
     warnings: list[str] = []
@@ -196,7 +440,7 @@ def match_catalog_to_nedlvs(
         return NedlvsMatchResult(
             summary=_empty_summary(),
             meta_flags=pd.DataFrame(
-                columns=["meta_id", "RA", "DEC", "n_nedlvs", "matched"]
+                columns=["meta_id", "RA", "DEC", "n_nedlvs", "nedlvs_positions", "matched"]
             ),
             nedlvs_flags=pd.DataFrame(
                 columns=[
@@ -210,6 +454,7 @@ def match_catalog_to_nedlvs(
                     "oversplit",
                 ]
             ),
+            nedlvs_footprint=pd.DataFrame(),
             warnings=warnings,
         )
 
@@ -236,6 +481,7 @@ def match_catalog_to_nedlvs(
             "RA": row.get("RA", np.nan),
             "DEC": row.get("DEC", np.nan),
             "n_nedlvs": n_nedlvs,
+            "nedlvs_positions": list(hit_nedlvs),
             "matched": n_nedlvs >= 1,
         }
         if "meta_id" in target.columns:
@@ -244,7 +490,7 @@ def match_catalog_to_nedlvs(
 
     meta_flags = pd.DataFrame(meta_records)
     if "meta_id" in meta_flags.columns:
-        cols = ["meta_id", "RA", "DEC", "n_nedlvs", "matched"]
+        cols = ["meta_id", "RA", "DEC", "n_nedlvs", "nedlvs_positions", "matched"]
         meta_flags = meta_flags[cols]
 
     nedlvs_records: list[dict] = []
@@ -312,6 +558,7 @@ def match_catalog_to_nedlvs(
         summary=summary,
         meta_flags=meta_flags,
         nedlvs_flags=nedlvs_flags,
+        nedlvs_footprint=nedlvs_footprint.reset_index(drop=True),
         warnings=warnings,
     )
 

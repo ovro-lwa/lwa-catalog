@@ -41,8 +41,12 @@ from lwa_catalog.analyze.trace import (
 from lwa_catalog.analyze.nedlvs import (
     NedlvsMatchConfig,
     NedlvsMatchResult,
+    build_sfr_radio_luminosity_table,
     load_nedlvs_catalog,
     match_catalog_to_nedlvs,
+    radio_luminosity_nu,
+    resolve_highest_frequency_peak_flux,
+    select_metacatalog,
     summarize_nedlvs_match,
 )
 from lwa_catalog.analyze.vlssr import (
@@ -88,9 +92,13 @@ __all__ = [
     "VlssrMatchResult",
     "NedlvsMatchConfig",
     "NedlvsMatchResult",
+    "build_sfr_radio_luminosity_table",
     "load_nedlvs_catalog",
     "load_vlssr_catalog",
     "match_catalog_to_nedlvs",
     "match_catalog_to_vlssr",
+    "radio_luminosity_nu",
+    "resolve_highest_frequency_peak_flux",
+    "select_metacatalog",
     "select_blue_associated_rows",
 ]

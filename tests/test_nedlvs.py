@@ -13,11 +13,14 @@ from lwa_catalog.analyze.nedlvs import (
     NedlvsMatchConfig,
     _diam_to_bmaj_deg,
     _footprint_filter_nedlvs,
+    build_sfr_radio_luminosity_table,
     load_nedlvs_catalog,
     match_catalog_to_nedlvs,
+    resolve_highest_frequency_peak_flux,
+    select_metacatalog,
     summarize_nedlvs_match,
 )
-from lwa_catalog.constants import NEDLVS_DEFAULT_BMAJ_DEG
+from lwa_catalog.constants import BAND_FREQ_HZ, NEDLVS_DEFAULT_BMAJ_DEG, band_frequency_hz
 
 
 def _write_mini_nedlvs(path: Path) -> None:
@@ -31,6 +34,8 @@ def _write_mini_nedlvs(path: Path) -> None:
             "DistMpc": [40.0, 80.0],
             "Diam": [40.0, np.nan],
             "Mstar": [1e10, 2e10],
+            "SFR_hybrid": [1.5, np.nan],
+            "SFR_W4": [1.0, 2.0],
         }
     )
     table.write(path, overwrite=True)
@@ -65,6 +70,8 @@ def _nedlvs_rows(rows: list[tuple[float, float, float | None]]) -> pd.DataFrame:
                 "DistMpc": 30.0,
                 "Diam_arcsec": diam,
                 "Mstar": 1e10,
+                "SFR_hybrid": 1.0,
+                "SFR_W4": 1.0,
             }
         )
     return pd.DataFrame(records)
@@ -133,3 +140,55 @@ def test_match_lst_merged_blue_target() -> None:
     config = NedlvsMatchConfig(target="lst_merged_blue")
     result = match_catalog_to_nedlvs(lst_blue, nedlvs=nedlvs, config=config)
     assert int(result.summary["n_meta_matched"]) == 1
+
+
+def test_band_frequency_hz() -> None:
+    assert band_frequency_hz("Blue") == pytest.approx(BAND_FREQ_HZ["Blue"])
+    assert band_frequency_hz("82MHz") == pytest.approx(82e6)
+
+
+def test_resolve_highest_frequency_peak_flux() -> None:
+    row = pd.Series(
+        {
+            "bands_present": "Blue,Green,Red",
+            "Peak_flux_Blue": 2.0,
+            "Peak_flux_Green": 3.0,
+            "Peak_flux_Red": 4.0,
+            "origin_band": "Full",
+        }
+    )
+    flux, freq, band = resolve_highest_frequency_peak_flux(row)
+    assert band == "Blue"
+    assert flux == pytest.approx(2.0)
+    assert freq == pytest.approx(BAND_FREQ_HZ["Blue"])
+
+
+def test_select_metacatalog_blue() -> None:
+    meta = pd.DataFrame(
+        {
+            "meta_id": [0, 1],
+            "bands_present": ["Blue", "Red"],
+        }
+    )
+    out = select_metacatalog(meta, selection="blue")
+    assert len(out) == 1
+    assert int(out.iloc[0]["meta_id"]) == 0
+
+
+def test_build_sfr_radio_luminosity_table() -> None:
+    meta = pd.DataFrame(
+        {
+            "meta_id": [0],
+            "RA": [10.0],
+            "DEC": [20.0],
+            "bands_present": ["Blue"],
+            "Peak_flux_Blue": [0.5],
+            "BMAJ_match": [0.05],
+        }
+    )
+    nedlvs = _nedlvs_rows([(10.01, 20.0, 40.0)])
+    result = match_catalog_to_nedlvs(meta, nedlvs=nedlvs)
+    table = build_sfr_radio_luminosity_table(meta, result.nedlvs_footprint, result.meta_flags)
+    assert len(table) == 1
+    assert table.iloc[0]["SFR_column"] == "SFR_hybrid"
+    assert table.iloc[0]["nuL_nu_erg_s"] > 0

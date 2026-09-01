@@ -70,7 +70,7 @@ def test_analyze_nedlvs_exports() -> None:
     assert callable(load_nedlvs_catalog)
     assert callable(match_catalog_to_nedlvs)
     assert callable(summarize_nedlvs_match)
-    assert NedlvsMatchConfig().target == "metacatalog_blue"
+    assert NedlvsMatchConfig().target == "metacatalog"
     assert hasattr(NedlvsMatchResult, "__dataclass_fields__")
 
 
