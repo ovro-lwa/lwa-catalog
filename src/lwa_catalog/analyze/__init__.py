@@ -25,6 +25,7 @@ from lwa_catalog.analyze.reliability import (
     filter_metacatalog_reliability,
     quality_flag_bit_counts,
     quality_flag_legend,
+    quality_flag_mask_from_names,
     quality_flag_names,
 )
 from lwa_catalog.analyze.summary import bands_present_counts, summarize_metacatalog
@@ -69,6 +70,7 @@ __all__ = [
     "preferred_trace_columns",
     "quality_flag_bit_counts",
     "quality_flag_legend",
+    "quality_flag_mask_from_names",
     "quality_flag_names",
     "rematch_meta_source",
     "summarize_metacatalog",
