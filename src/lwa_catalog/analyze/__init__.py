@@ -19,11 +19,13 @@ from lwa_catalog.analyze.reliability import (
     assert_gold_subset_of_cleaned,
     assign_source_quality_flags,
     decode_quality_flag,
+    filter_by_quality_flags,
     filter_metacatalog_exclude,
     filter_metacatalog_include,
     filter_metacatalog_reliability,
     quality_flag_bit_counts,
     quality_flag_legend,
+    quality_flag_names,
 )
 from lwa_catalog.analyze.summary import bands_present_counts, summarize_metacatalog
 from lwa_catalog.analyze.trace import (
@@ -54,6 +56,7 @@ __all__ = [
     "assert_gold_subset_of_cleaned",
     "bands_present_counts",
     "decode_quality_flag",
+    "filter_by_quality_flags",
     "filter_metacatalog_exclude",
     "filter_metacatalog_include",
     "filter_metacatalog_reliability",
@@ -66,6 +69,7 @@ __all__ = [
     "preferred_trace_columns",
     "quality_flag_bit_counts",
     "quality_flag_legend",
+    "quality_flag_names",
     "rematch_meta_source",
     "summarize_metacatalog",
     "summarize_vlssr_match",

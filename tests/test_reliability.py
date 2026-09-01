@@ -16,6 +16,7 @@ from lwa_catalog.analyze.reliability import (
     assign_source_quality_flags,
     cluster_radec_jitter_rms,
     decode_quality_flag,
+    filter_by_quality_flags,
     filter_metacatalog_reliability,
     flag_has_nan,
     flag_jitter_exceeds,
@@ -360,6 +361,28 @@ def test_quality_flag_pack_and_decode() -> None:
     assert decode_quality_flag(0) == []
     assert packed[0] != 0
     assert packed[1] != 0
+
+
+def test_filter_by_quality_flags_any_all_none() -> None:
+    lst = int(SourceQualityFlag.SINGLE_LST)
+    vlssr = int(SourceQualityFlag.NO_VLSSR)
+    both = lst | vlssr
+    df = pd.DataFrame(
+        {
+            "meta_id": [0, 1, 2, 3],
+            "quality_flag": [0, lst, vlssr, both],
+        }
+    )
+    names = ["SINGLE_LST", "NO_VLSSR"]
+    any_hit = filter_by_quality_flags(df, names, match="any")
+    assert set(any_hit["meta_id"]) == {1, 2, 3}
+    all_hit = filter_by_quality_flags(df, names, match="all")
+    assert set(all_hit["meta_id"]) == {3}
+    none_hit = filter_by_quality_flags(df, names, match="none")
+    assert set(none_hit["meta_id"]) == {0}
+    assert len(filter_by_quality_flags(df, [], match="any")) == 4
+    with pytest.raises(ValueError, match="Unknown quality flag"):
+        filter_by_quality_flags(df, ["NOT_A_BIT"])
 
 
 def test_flag_has_nan_core_columns_only() -> None:

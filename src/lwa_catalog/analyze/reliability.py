@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import IntFlag, unique
 from pathlib import Path
+from typing import Literal
 
 import astropy.units as u
 import numpy as np
@@ -413,7 +414,60 @@ def quality_flag_legend() -> pd.DataFrame:
 def decode_quality_flag(value: int) -> list[str]:
     """Return names of bits set in *value* (empty if the mask is 0)."""
     mask = SourceQualityFlag(int(value) & 0xFFFFFFFF)
-    return [flag.name for flag in SourceQualityFlag if flag & mask]
+    return [flag.name for flag in SourceQualityFlag if flag & mask and flag.name]
+
+
+QualityMatchMode = Literal["any", "all", "none"]
+
+
+def quality_flag_names() -> list[str]:
+    """Return defined ``SourceQualityFlag`` member names in bit order."""
+    return [flag.name for flag in SourceQualityFlag if flag.name]
+
+
+def quality_flag_mask_from_names(names: Sequence[str]) -> int:
+    """OR named ``SourceQualityFlag`` members into an integer mask."""
+    mask = 0
+    known = {flag.name: int(flag) for flag in SourceQualityFlag if flag.name}
+    for name in names:
+        key = str(name).strip().upper()
+        if key not in known:
+            msg = f"Unknown quality flag {name!r}; expected one of {sorted(known)}"
+            raise ValueError(msg)
+        mask |= known[key]
+    return mask
+
+
+def filter_by_quality_flags(
+    df: pd.DataFrame,
+    names: Sequence[str],
+    *,
+    match: QualityMatchMode = "any",
+    flag_col: str = "quality_flag",
+) -> pd.DataFrame:
+    """Return rows matching *names* under *match* (any / all / none).
+
+    An empty *names* list returns *df* unchanged (no bit filter). Missing
+    ``quality_flag`` also returns *df* unchanged.
+    """
+    if df.empty or not names:
+        return df
+    if flag_col not in df.columns:
+        return df
+    if match not in {"any", "all", "none"}:
+        msg = f"Unknown match mode {match!r}; expected 'any', 'all', or 'none'"
+        raise ValueError(msg)
+
+    mask = np.uint32(quality_flag_mask_from_names(names))
+    quality = pd.to_numeric(df[flag_col], errors="coerce").to_numpy(dtype=np.uint32)
+    bits = quality & mask
+    if match == "any":
+        keep = bits != 0
+    elif match == "all":
+        keep = bits == mask
+    else:
+        keep = bits == 0
+    return df.loc[keep]
 
 
 def pack_quality_flags(flags: pd.DataFrame) -> np.ndarray:
