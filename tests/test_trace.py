@@ -9,10 +9,12 @@ import pandas as pd
 import pytest
 
 from lwa_catalog.analyze.trace import (
+    _band_palette,
     plot_member_property_scatter,
     plot_peak_flux_vs_lst,
     rematch_meta_source,
 )
+from lwa_catalog.constants import BAND_OVERLAY_COLORS
 from lwa_catalog.create.merge import build_global_metacatalog, merge_lst_metacatalog
 from lwa_catalog.io import write_lst_merged, write_metacatalog, write_sources_catalog
 from lwa_catalog.paths import CatalogLayout
@@ -296,3 +298,10 @@ def test_plot_helpers_return_axes() -> None:
     ax6 = plot_member_property_scatter(pd.DataFrame())
     assert isinstance(ax5, Axes)
     assert isinstance(ax6, Axes)
+
+
+def test_band_palette_subband_red_to_blue() -> None:
+    palette = _band_palette(["18MHz", "55MHz", "82MHz"])
+    assert palette["18MHz"] == BAND_OVERLAY_COLORS["Red"]
+    assert palette["82MHz"] == BAND_OVERLAY_COLORS["Blue"]
+    assert palette["18MHz"] != palette["55MHz"] != palette["82MHz"]

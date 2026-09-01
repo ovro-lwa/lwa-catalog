@@ -9,27 +9,18 @@ import pandas as pd
 from lwa_catalog.constants import (
     BAND_OVERLAY_COLOR_UNKNOWN,
     BAND_OVERLAY_COLORS,
-    COLOR_BANDS,
+    normalize_band_label,
+    subband_frequency_color,
 )
 
 _LST_MERGED_RE = re.compile(
-    r"(?:^|_)lst[_-]?(?P<band>Full|Blue|Green|Red)(?:\.|$|_)",
+    r"(?:^|_)lst[_-]?(?P<band>Full|Blue|Green|Red|\d+MHz)(?:\.|$|_)",
     re.IGNORECASE,
 )
 _METACATALOG_LST_RE = re.compile(
-    r"metacatalog_lst_(?P<band>Full|Blue|Green|Red)",
+    r"metacatalog_lst_(?P<band>Full|Blue|Green|Red|\d+MHz)",
     re.IGNORECASE,
 )
-
-
-def _canonical_band(label: str) -> str | None:
-    text = str(label).strip()
-    if not text:
-        return None
-    for band in COLOR_BANDS:
-        if text.lower() == band.lower():
-            return band
-    return None
 
 
 def infer_band_from_catalog_name(catalog_name: str) -> str | None:
@@ -37,15 +28,18 @@ def infer_band_from_catalog_name(catalog_name: str) -> str | None:
     for pattern in (_METACATALOG_LST_RE, _LST_MERGED_RE):
         match = pattern.search(catalog_name)
         if match is not None:
-            return _canonical_band(match.group("band"))
+            return normalize_band_label(match.group("band"))
     return None
 
 
 def band_overlay_color(band: str) -> str:
     """Return the hex overlay color for a band label."""
-    canonical = _canonical_band(band)
+    canonical = normalize_band_label(band)
     if canonical is None:
         return BAND_OVERLAY_COLOR_UNKNOWN
+    subband_color = subband_frequency_color(canonical)
+    if subband_color is not None:
+        return subband_color
     return BAND_OVERLAY_COLORS.get(canonical, BAND_OVERLAY_COLOR_UNKNOWN)
 
 
@@ -68,7 +62,7 @@ def resolve_band_labels(df: pd.DataFrame, catalog_name: str) -> pd.Series:
         labels = pd.Series([None] * n, index=df.index, dtype=object)
 
     normalized = labels.map(
-        lambda value: _canonical_band(value) if pd.notna(value) else None
+        lambda value: normalize_band_label(value) if pd.notna(value) else None
     )
     if inferred is not None:
         normalized = normalized.fillna(inferred)

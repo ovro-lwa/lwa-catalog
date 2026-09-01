@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from lwa_catalog.constants import BAND_OVERLAY_COLORS, subband_frequency_color
 from lwa_catalog.create.merge import associate_catalogs
 from lwa_catalog.io import read_lst_merged, read_sources_catalog
 from lwa_catalog.paths import CatalogLayout
@@ -302,13 +303,34 @@ def rematch_meta_source(
     )
 
 
-def _band_palette() -> dict[str, str]:
-    return {
+def _band_palette(bands: list[str] | None = None) -> dict[str, str]:
+    palette = {
         "Full": "#4c4c4c",
         "Blue": "#1f77b4",
         "Green": "#2ca02c",
         "Red": "#d62728",
     }
+    if not bands:
+        return palette
+
+    subbands = [band for band in bands if subband_frequency_color(band) is not None]
+    if not subbands:
+        return palette
+
+    freqs_mhz = [float(band.removesuffix("MHz")) for band in subbands]
+    freq_min = min(freqs_mhz)
+    freq_max = max(freqs_mhz)
+    for band in subbands:
+        color = subband_frequency_color(
+            band,
+            freq_mhz_min=freq_min,
+            freq_mhz_max=freq_max,
+            color_low=BAND_OVERLAY_COLORS["Red"],
+            color_high=BAND_OVERLAY_COLORS["Blue"],
+        )
+        if color is not None:
+            palette[band] = color
+    return palette
 
 
 def _err_array(df: pd.DataFrame, err_col: str | None, n: int) -> np.ndarray | None:
@@ -332,10 +354,11 @@ def _errorbar_by_band(
     yerr: np.ndarray | None = None,
 ) -> None:
     """Draw per-band errorbars (colors) so multi-band members stay distinguishable."""
-    palette = _band_palette()
     if "band" in df.columns:
         bands = df["band"].astype(str).to_numpy()
-        for band in dict.fromkeys(bands.tolist()):
+        unique_bands = list(dict.fromkeys(bands.tolist()))
+        palette = _band_palette(unique_bands)
+        for band in unique_bands:
             mask = bands == band
             color = palette.get(band, "#7f7f7f")
             xe = None if xerr is None else xerr[mask]

@@ -46,6 +46,20 @@ def test_band_overlay_color_known_and_unknown() -> None:
     assert band_overlay_color("not_a_band").startswith("#")
 
 
+def test_band_overlay_color_subband_red_to_blue() -> None:
+    low = band_overlay_color("18MHz")
+    high = band_overlay_color("82MHz")
+    assert low == BAND_OVERLAY_COLORS["Red"]
+    assert high == BAND_OVERLAY_COLORS["Blue"]
+    assert low != high
+
+
+def test_resolve_band_labels_mhz_subband() -> None:
+    df = pd.DataFrame({"band": ["55MHz", "18MHz"]})
+    labels = resolve_band_labels(df, "metacatalog")
+    assert labels.tolist() == ["55MHz", "18MHz"]
+
+
 def test_catalog_to_astropy_table_columns() -> None:
     df = pd.DataFrame(
         {
