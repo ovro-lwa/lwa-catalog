@@ -24,6 +24,12 @@ VLSSR_BMAJ_ARCSEC: float = 80.0
 VLSSR_BMAJ_DEG: float = VLSSR_BMAJ_ARCSEC / 3600.0
 VLSSR_DEFAULT_PATH: Path = Path("/fast/claw/vlssr_radecpeak.txt")
 
+# NED Local Volume Sample (Cook et al. 2023; latest FITS from NED-LVS page).
+NEDLVS_DEFAULT_PATH: Path = Path("/fast/claw/NEDLVS_current.fits")
+# Fallback angular radius when ``Diam`` is missing (arcsec; NED-LVS median ~20″).
+NEDLVS_DEFAULT_BMAJ_ARCSEC: float = 20.0
+NEDLVS_DEFAULT_BMAJ_DEG: float = NEDLVS_DEFAULT_BMAJ_ARCSEC / 3600.0
+
 # Rest-frame center frequencies (Hz) from RESTFRQ on OVRO-LWA deep color products.
 BAND_FREQ_HZ: dict[str, float] = {
     "Blue": 73_956_883.683421,

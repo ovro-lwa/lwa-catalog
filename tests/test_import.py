@@ -58,6 +58,22 @@ def test_analyze_vlssr_exports() -> None:
     assert hasattr(VlssrMatchResult, "__dataclass_fields__")
 
 
+def test_analyze_nedlvs_exports() -> None:
+    from lwa_catalog.analyze import (
+        NedlvsMatchConfig,
+        NedlvsMatchResult,
+        load_nedlvs_catalog,
+        match_catalog_to_nedlvs,
+        summarize_nedlvs_match,
+    )
+
+    assert callable(load_nedlvs_catalog)
+    assert callable(match_catalog_to_nedlvs)
+    assert callable(summarize_nedlvs_match)
+    assert NedlvsMatchConfig().target == "metacatalog_blue"
+    assert hasattr(NedlvsMatchResult, "__dataclass_fields__")
+
+
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
         detect_sources,
