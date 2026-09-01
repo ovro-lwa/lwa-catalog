@@ -139,6 +139,23 @@ def _overlay_names(name_prefix: str) -> list[str]:
     return names
 
 
+def _overlay_names_for_prefix(aladin: Aladin, name_prefix: str) -> list[str]:
+    """Return overlay layer names to remove for *name_prefix*.
+
+    Includes our standard band/selection names and any suffixed duplicates
+    (``catalog_Red_1``, …) that ipyaladin creates when a name is still in use.
+    """
+    names = list(_overlay_names(name_prefix))
+    overlays = getattr(aladin, "overlays", None)
+    if overlays is not None:
+        stem = f"{name_prefix}_"
+        for name in list(overlays):
+            if name == name_prefix or name.startswith(stem):
+                if name not in names:
+                    names.append(name)
+    return names
+
+
 def _remove_overlays(aladin: Aladin, name_prefix: str) -> None:
     remove = getattr(aladin, "remove_overlay", None)
     if remove is None:
@@ -147,12 +164,17 @@ def _remove_overlays(aladin: Aladin, name_prefix: str) -> None:
             "install with: pip install 'lwa-catalog[viz]'"
         )
         raise ImportError(msg)
-    for name in _overlay_names(name_prefix):
+    for name in _overlay_names_for_prefix(aladin, name_prefix):
         try:
             remove(name)
         except ValueError:
             # Overlay layer was not present from a prior draw.
             continue
+
+
+def clear_catalog_overlays(aladin: Aladin, name_prefix: str = "catalog") -> None:
+    """Remove catalog overlay layers (ellipses/crosses) from the Aladin widget."""
+    _remove_overlays(aladin, name_prefix)
 
 
 def _catalog_pa_to_regions_angle(pa_deg: float) -> u.Quantity:
