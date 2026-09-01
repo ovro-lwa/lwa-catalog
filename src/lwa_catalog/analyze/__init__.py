@@ -12,12 +12,18 @@ from lwa_catalog.analyze.healpix_map import (
     write_healpix_hips,
 )
 from lwa_catalog.analyze.reliability import (
+    QualityFlagResult,
     ReliabilityConfig,
     ReliabilityResult,
+    SourceQualityFlag,
     assert_gold_subset_of_cleaned,
+    assign_source_quality_flags,
+    decode_quality_flag,
     filter_metacatalog_exclude,
     filter_metacatalog_include,
     filter_metacatalog_reliability,
+    quality_flag_bit_counts,
+    quality_flag_legend,
 )
 from lwa_catalog.analyze.summary import bands_present_counts, summarize_metacatalog
 from lwa_catalog.analyze.trace import (
@@ -39,11 +45,15 @@ from lwa_catalog.analyze.vlssr import (
 )
 
 __all__ = [
+    "QualityFlagResult",
     "ReliabilityConfig",
     "ReliabilityResult",
+    "SourceQualityFlag",
     "SourceTrace",
+    "assign_source_quality_flags",
     "assert_gold_subset_of_cleaned",
     "bands_present_counts",
+    "decode_quality_flag",
     "filter_metacatalog_exclude",
     "filter_metacatalog_include",
     "filter_metacatalog_reliability",
@@ -54,6 +64,8 @@ __all__ = [
     "plot_peak_flux_vs_lst",
     "plot_ra_dec_scatter",
     "preferred_trace_columns",
+    "quality_flag_bit_counts",
+    "quality_flag_legend",
     "rematch_meta_source",
     "summarize_metacatalog",
     "summarize_vlssr_match",

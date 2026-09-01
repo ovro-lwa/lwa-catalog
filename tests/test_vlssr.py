@@ -214,3 +214,12 @@ def test_match_lst_merged_blue_target() -> None:
     result = match_catalog_to_vlssr(lst_blue, vlssr=vlssr, config=config)
     assert int(result.summary["n_lwa_target"]) == 1
     assert result.summary["blue_completeness"] == pytest.approx(1.0)
+
+
+def test_match_full_metacatalog_includes_non_blue() -> None:
+    meta = pd.DataFrame([_meta_row(bands_present="Full,Green")])
+    vlssr = _vlssr_rows([(10.0, 20.0)])
+    config = VlssrMatchConfig(target="metacatalog")
+    result = match_catalog_to_vlssr(meta, vlssr=vlssr, config=config)
+    assert int(result.summary["n_lwa_target"]) == 1
+    assert bool(result.meta_flags["matched"].iloc[0]) is True

@@ -13,7 +13,7 @@ from lwa_catalog.analyze.reliability import parse_bands_present, resolve_bmaj
 from lwa_catalog.constants import VLSSR_BMAJ_DEG, VLSSR_DEFAULT_PATH
 from lwa_catalog.create.merge import associate_catalogs
 
-VlssrTarget = Literal["metacatalog_blue", "lst_merged_blue"]
+VlssrTarget = Literal["metacatalog", "metacatalog_blue", "lst_merged_blue"]
 
 
 @dataclass(frozen=True)
@@ -145,10 +145,10 @@ def _footprint_filter_vlssr(vlssr: pd.DataFrame, lwa: pd.DataFrame) -> pd.DataFr
 
 
 def _select_lwa_target(lwa_catalog: pd.DataFrame, target: VlssrTarget) -> pd.DataFrame:
+    if target in {"metacatalog", "lst_merged_blue"}:
+        return lwa_catalog
     if target == "metacatalog_blue":
         return select_blue_associated_rows(lwa_catalog)
-    if target == "lst_merged_blue":
-        return lwa_catalog
     msg = f"unsupported target: {target!r}"
     raise ValueError(msg)
 
@@ -176,7 +176,8 @@ def match_catalog_to_vlssr(
     """Cross-match an LWA catalog against VLSSR and compute QA metrics.
 
     Default target is Blue-associated metacatalog rows
-    (``config.target == "metacatalog_blue"``). Matching uses primary ``RA``/``DEC``
+    (``config.target == "metacatalog_blue"``). Use ``target="metacatalog"`` to
+    match every input row. Matching uses primary ``RA``/``DEC``
     and beam radii via :func:`~lwa_catalog.create.merge.associate_catalogs`.
 
     Parameters

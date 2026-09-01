@@ -11,14 +11,22 @@ import pytest
 from lwa_catalog.analyze.reliability import (
     ReliabilityConfig,
     ReliabilityResult,
+    SourceQualityFlag,
     assert_gold_subset_of_cleaned,
+    assign_source_quality_flags,
     cluster_radec_jitter_rms,
+    decode_quality_flag,
     filter_metacatalog_reliability,
+    flag_has_nan,
     flag_jitter_exceeds,
     flag_residual_absolute,
+    flag_residual_percentile,
+    flag_scode_complex,
     flag_unphysical_flux,
     flux_sigma_total_minus_peak,
+    pack_quality_flags,
     passes_multi_image,
+    quality_flag_legend,
     seed_lst_rows,
 )
 from lwa_catalog.constants import CLUSTER_JITTER_RMS_COL
@@ -31,6 +39,8 @@ def test_reliability_config_defaults() -> None:
     cfg = ReliabilityConfig()
     assert cfg.resid_rms_thresh_jy == 1.0
     assert cfg.resid_mean_thresh_jy == 1.0
+    assert cfg.resid_percentile_lo == 1.0
+    assert cfg.resid_percentile_hi == 99.0
     assert cfg.jitter_bmaj_frac == 0.3
     assert cfg.require_unique_assoc_include is True
     assert cfg.require_unique_assoc_exclude is False
@@ -320,3 +330,102 @@ def test_assert_gold_subset_warns() -> None:
         assert_gold_subset_of_cleaned(cleaned, gold, strict=False)
     with pytest.raises(ValueError, match="gold"):
         assert_gold_subset_of_cleaned(cleaned, gold, strict=True)
+
+
+def test_quality_flag_pack_and_decode() -> None:
+    legend = quality_flag_legend()
+    assert len(legend) == 12
+    assert set(legend["bit"]) == set(range(12))
+    flags = pd.DataFrame(
+        {
+            "has_nan": [True, False],
+            "invalid": [False, False],
+            "single_lst": [False, True],
+            "single_unique_band": [False, False],
+            "unphysical_soft": [False, False],
+            "resid_fail_soft": [False, False],
+            "resid_pctl_rms": [False, False],
+            "resid_pctl_mean": [False, False],
+            "jitter_fail_soft": [False, False],
+            "confused_assoc": [False, False],
+            "no_vlssr": [False, True],
+            "scode_complex": [False, False],
+        }
+    )
+    packed = pack_quality_flags(flags)
+    assert packed.dtype == np.uint32
+    assert packed[0] == np.uint32(SourceQualityFlag.HAS_NAN)
+    assert packed[1] == np.uint32(SourceQualityFlag.SINGLE_LST | SourceQualityFlag.NO_VLSSR)
+    assert decode_quality_flag(int(packed[0])) == ["HAS_NAN"]
+    assert decode_quality_flag(0) == []
+    assert packed[0] != 0
+    assert packed[1] != 0
+
+
+def test_flag_has_nan_core_columns_only() -> None:
+    df = pd.DataFrame(
+        {
+            "RA": [10.0, np.nan],
+            "DEC": [20.0, 20.0],
+            "Peak_flux": [1.0, 1.0],
+            "Peak_flux_Blue": [np.nan, np.nan],
+        }
+    )
+    flagged = flag_has_nan(df)
+    assert bool(flagged.iloc[0]) is False
+    assert bool(flagged.iloc[1]) is True
+
+
+def test_flag_scode_and_residual_percentile() -> None:
+    scode = flag_scode_complex(pd.Series(["S", "C", "M", np.nan, "s"]))
+    assert scode.tolist() == [False, True, True, False, False]
+
+    rms = np.array([0.1, 0.2, 0.3, 0.4, 10.0])
+    mean = np.array([-5.0, 0.0, 0.01, 0.02, 0.03])
+    pctl = flag_residual_percentile(rms, mean, lo=1.0, hi=99.0)
+    assert bool(pctl["resid_pctl_rms"].iloc[-1]) is True
+    assert bool(pctl["resid_pctl_rms"].iloc[1]) is False
+    assert bool(pctl["resid_pctl_mean"].iloc[0]) is True
+    assert bool(pctl["resid_pctl_mean"].iloc[2]) is False
+
+
+def test_assign_source_quality_flags_keeps_all_rows(tmp_path: Path) -> None:
+    layout, meta, lst_merged = _reliability_layout(tmp_path)
+    vlssr = pd.DataFrame(
+        {
+            "RA": [30.0],
+            "DEC": [37.0],
+            "Peak_flux": [1.0],
+            "BMAJ": [0.5],
+            "BMIN": [0.5],
+        }
+    )
+    result = assign_source_quality_flags(
+        meta,
+        layout,
+        lst_merged=lst_merged,
+        config=ReliabilityConfig(strict=True),
+        vlssr=vlssr,
+    )
+    assert len(result.catalog) == len(meta)
+    assert "quality_flag" in result.catalog.columns
+    assert result.catalog["quality_flag"].to_numpy().dtype == np.uint32
+    assert int((~result.flags["no_vlssr"]).sum()) >= 1
+
+    meta_bad = meta.copy()
+    meta_bad["S_Code"] = "C"
+    meta_bad["n_lst_contributions"] = 1
+    result_bad = assign_source_quality_flags(
+        meta_bad,
+        layout,
+        lst_merged=lst_merged,
+        vlssr=pd.DataFrame(
+            {"RA": [0.0], "DEC": [0.0], "Peak_flux": [1.0], "BMAJ": [0.01], "BMIN": [0.01]}
+        ),
+    )
+    flag = int(result_bad.catalog["quality_flag"].iloc[0])
+    names = set(decode_quality_flag(flag))
+    assert "SCODE_COMPLEX" in names
+    assert "SINGLE_LST" in names
+    assert "NO_VLSSR" in names
+    assert flag != 0

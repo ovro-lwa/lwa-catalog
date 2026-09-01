@@ -1,10 +1,12 @@
-"""Metacatalog reliability tiers: soft exclude (cleaned) and hard include (gold)."""
+"""Metacatalog reliability tiers and per-source 32-bit quality flags."""
 
 from __future__ import annotations
 
 import warnings as py_warnings
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from enum import IntFlag, unique
+from pathlib import Path
 
 import astropy.units as u
 import numpy as np
@@ -28,13 +30,111 @@ from lwa_catalog.paths import CatalogLayout
 _EXCLUDE_TIERS = ("E0", "E1", "E2", "E3", "E4", "E5")
 _INCLUDE_TIERS = ("I0", "I1", "I2", "I3", "I4", "I5")
 
+# Primary measurement columns that should be populated on every merged source.
+# Per-band association fields (e.g. Peak_flux_Blue) are omitted: those NaNs are
+# expected when a band is absent.
+QUALITY_NAN_COLUMNS: tuple[str, ...] = (
+    "RA",
+    "DEC",
+    "Peak_flux",
+    "Total_flux",
+    "Maj",
+    "Min",
+    "PA",
+    "DC_Maj",
+    "DC_Min",
+    "DC_PA",
+    "n_lst_contributions",
+    "origin_band",
+    "bands_present",
+    "Resid_Isl_rms",
+    "Resid_Isl_mean",
+    "E_Peak_flux",
+    "E_Total_flux",
+)
+
+
+@unique
+class SourceQualityFlag(IntFlag):
+    """32-bit per-source quality mask.
+
+    A bit is **0 when that check is good/reliable** and **1 when the property
+    is a quality concern**. ``quality_flag == 0`` means every implemented check
+    passed. Bits 12–31 are reserved (stay 0).
+
+    ====== ===================== =================================================
+    Bit    Name                  Set (1) when
+    ====== ===================== =================================================
+    0      HAS_NAN               a core measurement column is NaN
+    1      INVALID_ASTROMETRY    RA, DEC, or Peak_flux is non-finite (was E0)
+    2      SINGLE_LST            ``n_lst_contributions == 1``
+    3      SINGLE_UNIQUE_BAND    uniquely associated in exactly one band
+    4      UNPHYSICAL_FLUX       ``(Total-Peak)/hypot(E) < -3`` (was E2)
+    5      RESID_ABS_FAIL        island RMS or |mean| above absolute Jy/beam (E3)
+    6      RESID_PCTL_RMS        ``Resid_Isl_rms`` outside the catalog 1–99%
+    7      RESID_PCTL_MEAN       ``Resid_Isl_mean`` outside the catalog 1–99%
+    8      JITTER_FAIL           cluster RMS ``> 0.3 × BMAJ`` (was E4)
+    9      CONFUSED_ASSOC        any ``n_assoc_* > 1`` (was E5)
+    10     NO_VLSSR              no positional match to the VLSSR catalog
+    11     SCODE_COMPLEX         PyBDSF ``S_Code`` is ``C`` or ``M``
+    ====== ===================== =================================================
+    """
+
+    HAS_NAN = 1 << 0
+    INVALID_ASTROMETRY = 1 << 1
+    SINGLE_LST = 1 << 2
+    SINGLE_UNIQUE_BAND = 1 << 3
+    UNPHYSICAL_FLUX = 1 << 4
+    RESID_ABS_FAIL = 1 << 5
+    RESID_PCTL_RMS = 1 << 6
+    RESID_PCTL_MEAN = 1 << 7
+    JITTER_FAIL = 1 << 8
+    CONFUSED_ASSOC = 1 << 9
+    NO_VLSSR = 1 << 10
+    SCODE_COMPLEX = 1 << 11
+
+
+_QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
+    ("has_nan", SourceQualityFlag.HAS_NAN),
+    ("invalid", SourceQualityFlag.INVALID_ASTROMETRY),
+    ("single_lst", SourceQualityFlag.SINGLE_LST),
+    ("single_unique_band", SourceQualityFlag.SINGLE_UNIQUE_BAND),
+    ("unphysical_soft", SourceQualityFlag.UNPHYSICAL_FLUX),
+    ("resid_fail_soft", SourceQualityFlag.RESID_ABS_FAIL),
+    ("resid_pctl_rms", SourceQualityFlag.RESID_PCTL_RMS),
+    ("resid_pctl_mean", SourceQualityFlag.RESID_PCTL_MEAN),
+    ("jitter_fail_soft", SourceQualityFlag.JITTER_FAIL),
+    ("confused_assoc", SourceQualityFlag.CONFUSED_ASSOC),
+    ("no_vlssr", SourceQualityFlag.NO_VLSSR),
+    ("scode_complex", SourceQualityFlag.SCODE_COMPLEX),
+)
+
+_QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
+    SourceQualityFlag.HAS_NAN: "core measurement column is NaN",
+    SourceQualityFlag.INVALID_ASTROMETRY: "RA, DEC, or Peak_flux is non-finite",
+    SourceQualityFlag.SINGLE_LST: "n_lst_contributions == 1",
+    SourceQualityFlag.SINGLE_UNIQUE_BAND: "uniquely associated in exactly one band",
+    SourceQualityFlag.UNPHYSICAL_FLUX: "(Total-Peak)/hypot(E) < -3",
+    SourceQualityFlag.RESID_ABS_FAIL: (
+        "Resid_Isl_rms or |Resid_Isl_mean| above absolute Jy/beam cut"
+    ),
+    SourceQualityFlag.RESID_PCTL_RMS: "Resid_Isl_rms outside catalog 1–99 percentile",
+    SourceQualityFlag.RESID_PCTL_MEAN: "Resid_Isl_mean outside catalog 1–99 percentile",
+    SourceQualityFlag.JITTER_FAIL: "cluster RA/Dec RMS > 0.3 × BMAJ",
+    SourceQualityFlag.CONFUSED_ASSOC: "any n_assoc_* > 1",
+    SourceQualityFlag.NO_VLSSR: "not associated with the VLSSR catalog",
+    SourceQualityFlag.SCODE_COMPLEX: "S_Code is C or M",
+}
+
 
 @dataclass(frozen=True)
 class ReliabilityConfig:
-    """Thresholds and tier depth for reliability filters."""
+    """Thresholds and tier depth for reliability filters and quality flags."""
 
     resid_rms_thresh_jy: float = 1.0
     resid_mean_thresh_jy: float = 1.0
+    resid_percentile_lo: float = 1.0
+    resid_percentile_hi: float = 99.0
     flux_unphysical_nsigma: float = 3.0
     jitter_bmaj_frac: float = 0.3
     min_lst_contributions: int = 2
@@ -53,6 +153,16 @@ class ReliabilityResult:
     meta_ids: np.ndarray
     tier_counts: pd.DataFrame
     flags: pd.DataFrame
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class QualityFlagResult:
+    """Full metacatalog with a uint32 ``quality_flag`` column (no row drops)."""
+
+    catalog: pd.DataFrame
+    flags: pd.DataFrame
+    bit_counts: pd.DataFrame
     warnings: list[str] = field(default_factory=list)
 
 
@@ -218,6 +328,145 @@ def all_bands_unique_assoc(row: pd.Series) -> bool:
         except (TypeError, ValueError):
             return False
     return True
+
+
+def flag_has_nan(
+    df: pd.DataFrame,
+    columns: Sequence[str] = QUALITY_NAN_COLUMNS,
+) -> pd.Series:
+    """True when any listed core column that exists on *df* is NA."""
+    present = [c for c in columns if c in df.columns]
+    if not present:
+        return pd.Series(False, index=df.index, dtype=bool, name="has_nan")
+    return df[present].isna().any(axis=1).rename("has_nan")
+
+
+def flag_single_lst(df: pd.DataFrame) -> pd.Series:
+    """True when ``n_lst_contributions == 1``."""
+    if "n_lst_contributions" not in df.columns:
+        return pd.Series(False, index=df.index, dtype=bool, name="single_lst")
+    n_lst = pd.to_numeric(df["n_lst_contributions"], errors="coerce")
+    return (n_lst == 1).fillna(False).rename("single_lst")
+
+
+def flag_single_unique_band(df: pd.DataFrame) -> pd.Series:
+    """True when exactly one band is uniquely associated (Full counts)."""
+    flags = [unique_assoc_band_count(row)[1] == 1 for _, row in df.iterrows()]
+    return pd.Series(flags, index=df.index, dtype=bool, name="single_unique_band")
+
+
+def flag_scode_complex(codes: pd.Series | np.ndarray) -> pd.Series:
+    """True when PyBDSF ``S_Code`` is ``C`` (in-island) or ``M`` (multi-Gaussian)."""
+    series = pd.Series(codes, dtype=object)
+    text = series.astype("string").str.strip().str.upper()
+    return text.isin(["C", "M"]).fillna(False).rename("scode_complex")
+
+
+def flag_residual_percentile(
+    rms: np.ndarray | pd.Series,
+    mean: np.ndarray | pd.Series,
+    *,
+    lo: float = 1.0,
+    hi: float = 99.0,
+) -> pd.DataFrame:
+    """Flag finite residuals outside the ``[lo, hi]`` percentile range.
+
+    Percentiles are computed independently for RMS and mean among finite values.
+    NaN residuals do not set these bits (use :func:`flag_has_nan` for missingness).
+    """
+    rms_arr = np.asarray(rms, dtype=float)
+    mean_arr = np.asarray(mean, dtype=float)
+    n = rms_arr.size
+    rms_out = np.zeros(n, dtype=bool)
+    mean_out = np.zeros(n, dtype=bool)
+
+    finite_rms = np.isfinite(rms_arr)
+    if int(finite_rms.sum()) >= 2:
+        p_lo, p_hi = np.percentile(rms_arr[finite_rms], [float(lo), float(hi)])
+        rms_out = finite_rms & ((rms_arr < p_lo) | (rms_arr > p_hi))
+
+    finite_mean = np.isfinite(mean_arr)
+    if int(finite_mean.sum()) >= 2:
+        p_lo, p_hi = np.percentile(mean_arr[finite_mean], [float(lo), float(hi)])
+        mean_out = finite_mean & ((mean_arr < p_lo) | (mean_arr > p_hi))
+
+    return pd.DataFrame(
+        {"resid_pctl_rms": rms_out, "resid_pctl_mean": mean_out},
+    )
+
+
+def quality_flag_legend() -> pd.DataFrame:
+    """Return the bit layout as a table (bit index, name, meaning)."""
+    rows = []
+    for flag in SourceQualityFlag:
+        rows.append(
+            {
+                "bit": int(flag.bit_length() - 1),
+                "value": int(flag),
+                "name": flag.name,
+                "meaning": _QUALITY_FLAG_HELP[flag],
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def decode_quality_flag(value: int) -> list[str]:
+    """Return names of bits set in *value* (empty if the mask is 0)."""
+    mask = SourceQualityFlag(int(value) & 0xFFFFFFFF)
+    return [flag.name for flag in SourceQualityFlag if flag & mask]
+
+
+def pack_quality_flags(flags: pd.DataFrame) -> np.ndarray:
+    """Pack boolean flag columns into a uint32 ``quality_flag`` array."""
+    n = len(flags)
+    out = np.zeros(n, dtype=np.uint32)
+    for col, bit in _QUALITY_FLAG_COLUMNS:
+        if col not in flags.columns:
+            continue
+        out |= np.where(
+            flags[col].to_numpy(dtype=bool),
+            np.uint32(bit),
+            np.uint32(0),
+        )
+    return out
+
+
+def quality_flag_bit_counts(flags: pd.DataFrame) -> pd.DataFrame:
+    """Per-bit set counts for a flags table that includes ``quality_flag``."""
+    n = len(flags)
+    rows = []
+    quality = (
+        flags["quality_flag"].to_numpy(dtype=np.uint32)
+        if "quality_flag" in flags.columns
+        else pack_quality_flags(flags)
+    )
+    for col, bit in _QUALITY_FLAG_COLUMNS:
+        if col in flags.columns:
+            n_set = int(flags[col].to_numpy(dtype=bool).sum())
+        elif n:
+            n_set = int(((quality & np.uint32(bit)) != 0).sum())
+        else:
+            n_set = 0
+        rows.append(
+            {
+                "bit": int(bit.bit_length() - 1),
+                "name": bit.name,
+                "n_set": n_set,
+                "fraction": (n_set / n) if n else float("nan"),
+                "meaning": _QUALITY_FLAG_HELP[bit],
+            }
+        )
+    n_clear = int((quality == 0).sum()) if n else 0
+    rows.append(
+        {
+            "bit": -1,
+            "name": "ALL_CLEAR",
+            "n_set": n_clear,
+            "fraction": (n_clear / n) if n else float("nan"),
+            "meaning": "quality_flag == 0 (every check passed)",
+        }
+    )
+    return pd.DataFrame(rows)
 
 
 def cluster_radec_jitter_rms(source_matches: pd.DataFrame) -> float:
@@ -501,6 +750,10 @@ def _build_context(
     n_rematch = np.zeros(n, dtype=int)
     n_lst_seed = np.full(n, np.nan)
     bmaj = np.full(n, np.nan)
+    if "S_Code" in meta.columns:
+        s_code = meta["S_Code"].astype(object).to_numpy()
+    else:
+        s_code = np.array([pd.NA] * n, dtype=object)
 
     mid_to_i = {int(m): i for i, m in enumerate(meta["meta_id"].tolist())}
 
@@ -570,6 +823,8 @@ def _build_context(
                     bmaj[i] = float(srow["BMAJ"])
                 except (TypeError, ValueError):
                     pass
+            if pd.isna(s_code[i]) and "S_Code" in srow.index:
+                s_code[i] = srow["S_Code"]
 
     # BMAJ from meta even without seed
     for i, row in meta.iterrows():
@@ -612,6 +867,7 @@ def _build_context(
             "n_lst_seed": n_lst_seed,
             "confused_assoc": confused,
             "all_bands_unique": unique_ok,
+            "s_code": s_code,
         }
     )
     return flags, warn
@@ -785,4 +1041,129 @@ def filter_metacatalog_reliability(
     gold = _include_from_flags(metacatalog, flags, cfg, warn)
     assert_gold_subset_of_cleaned(cleaned, gold, strict=cfg.strict)
     return cleaned, gold
+
+
+def _match_vlssr_unmatched(
+    meta: pd.DataFrame,
+    *,
+    vlssr: pd.DataFrame | None,
+    vlssr_config: object | None,
+    warn: list[str],
+) -> np.ndarray:
+    """Return a boolean array: True when the row has no VLSSR match.
+
+    If the VLSSR catalog cannot be loaded, the check is skipped (all False)
+    so missing reference data does not flag every source.
+    """
+    from lwa_catalog.analyze.vlssr import (
+        VlssrMatchConfig,
+        load_vlssr_catalog,
+        match_catalog_to_vlssr,
+    )
+    from lwa_catalog.constants import VLSSR_DEFAULT_PATH
+
+    n = len(meta)
+    none_unmatched = np.zeros(n, dtype=bool)
+    cfg = vlssr_config if vlssr_config is not None else VlssrMatchConfig(target="metacatalog")
+    cfg = replace(cfg, target="metacatalog")
+
+    catalog = vlssr
+    if catalog is None:
+        path = Path(getattr(cfg, "catalog_path", VLSSR_DEFAULT_PATH))
+        if not path.is_file():
+            warn.append(f"VLSSR catalog not found at {path}; skipping NO_VLSSR bit")
+            return none_unmatched
+        try:
+            catalog = load_vlssr_catalog(path)
+        except FileNotFoundError:
+            warn.append(f"VLSSR catalog not found at {path}; skipping NO_VLSSR bit")
+            return none_unmatched
+
+    result = match_catalog_to_vlssr(meta, catalog, config=cfg)
+    warn.extend(result.warnings)
+    matched_flags = result.meta_flags
+    unmatched = np.ones(n, dtype=bool)
+    if matched_flags.empty:
+        return unmatched
+    if "meta_id" in matched_flags.columns and "meta_id" in meta.columns:
+        id_to_matched = {
+            int(mid): bool(is_match)
+            for mid, is_match in zip(
+                matched_flags["meta_id"],
+                matched_flags["matched"],
+                strict=True,
+            )
+            if pd.notna(mid)
+        }
+        for i, mid in enumerate(meta["meta_id"].tolist()):
+            try:
+                unmatched[i] = not id_to_matched.get(int(mid), False)
+            except (TypeError, ValueError):
+                unmatched[i] = True
+        return unmatched
+    n_copy = min(n, len(matched_flags))
+    unmatched[:n_copy] = ~matched_flags["matched"].to_numpy(dtype=bool)[:n_copy]
+    return unmatched
+
+
+def assign_source_quality_flags(
+    metacatalog: pd.DataFrame,
+    layout: CatalogLayout,
+    *,
+    config: ReliabilityConfig | None = None,
+    lst_merged: Mapping[str, pd.DataFrame] | None = None,
+    vlssr: pd.DataFrame | None = None,
+    vlssr_config: object | None = None,
+) -> QualityFlagResult:
+    """Attach a uint32 ``quality_flag`` to every metacatalog row (no filtering).
+
+    Reuses the reliability context (seed LST residuals, unphysical flux, jitter,
+    confused association) and adds NaN, single-LST, single-band association,
+    residual-percentile, VLSSR, and ``S_Code`` bits. Bit 0 on each flag means
+    that check is good/reliable; ``quality_flag == 0`` means all checks passed.
+    """
+    cfg = config or ReliabilityConfig()
+    if metacatalog is None or metacatalog.empty:
+        empty = metacatalog if metacatalog is not None else pd.DataFrame()
+        empty = empty.copy()
+        if "quality_flag" not in empty.columns:
+            empty["quality_flag"] = pd.Series(dtype=np.uint32)
+        return QualityFlagResult(
+            catalog=empty,
+            flags=pd.DataFrame(),
+            bit_counts=quality_flag_bit_counts(pd.DataFrame()),
+        )
+
+    flags, warn = _build_context(metacatalog, layout, config=cfg, lst_merged=lst_merged)
+    meta = metacatalog.reset_index(drop=True).copy()
+    if "meta_id" not in meta.columns:
+        meta["meta_id"] = flags["meta_id"]
+
+    flags = flags.copy()
+    flags["has_nan"] = flag_has_nan(meta).to_numpy()
+    flags["single_lst"] = flag_single_lst(meta).to_numpy()
+    flags["single_unique_band"] = flag_single_unique_band(meta).to_numpy()
+    flags["scode_complex"] = flag_scode_complex(flags["s_code"]).to_numpy()
+
+    pctl = flag_residual_percentile(
+        flags["resid_rms"].to_numpy(dtype=float),
+        flags["resid_mean"].to_numpy(dtype=float),
+        lo=cfg.resid_percentile_lo,
+        hi=cfg.resid_percentile_hi,
+    )
+    flags["resid_pctl_rms"] = pctl["resid_pctl_rms"].to_numpy()
+    flags["resid_pctl_mean"] = pctl["resid_pctl_mean"].to_numpy()
+    flags["no_vlssr"] = _match_vlssr_unmatched(
+        meta, vlssr=vlssr, vlssr_config=vlssr_config, warn=warn
+    )
+
+    quality = pack_quality_flags(flags)
+    flags["quality_flag"] = quality
+    meta["quality_flag"] = quality
+    return QualityFlagResult(
+        catalog=meta,
+        flags=flags,
+        bit_counts=quality_flag_bit_counts(flags),
+        warnings=list(warn),
+    )
 
