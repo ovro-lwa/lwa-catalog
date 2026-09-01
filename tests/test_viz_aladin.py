@@ -15,6 +15,7 @@ from lwa_catalog.viz.aladin import (
     _catalog_pa_to_regions_angle,
     _dataframe_to_ellipse_regions,
     catalog_to_astropy_table,
+    clear_catalog_overlays,
     filter_catalog_fov,
     overlay_catalog_by_band,
     shape_complete_mask,
@@ -198,3 +199,17 @@ def test_overlay_catalog_by_band_mock_aladin() -> None:
     colors |= {call.kwargs.get("color") for call in aladin.add_table.call_args_list}
     assert BAND_OVERLAY_COLORS["Red"] in colors
     assert BAND_OVERLAY_COLORS["Blue"] in colors
+
+
+def test_clear_catalog_overlays_removes_suffixed_layers() -> None:
+    aladin = MagicMock()
+    aladin.overlays = ["catalog_Red", "catalog_Red_1", "catalog_selection", "trace_lst_Full"]
+    aladin.remove_overlay = MagicMock()
+
+    clear_catalog_overlays(aladin)
+
+    removed = {call.args[0] for call in aladin.remove_overlay.call_args_list}
+    assert "catalog_Red" in removed
+    assert "catalog_Red_1" in removed
+    assert "catalog_selection" in removed
+    assert "trace_lst_Full" not in removed

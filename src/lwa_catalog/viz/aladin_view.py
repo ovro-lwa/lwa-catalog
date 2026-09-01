@@ -32,12 +32,16 @@ class DebouncedAladinViewRefresh:
         self._handler = self._on_view_trait
         aladin.observe(self._handler, names=["_target", "_fov"])
 
-    def detach(self) -> None:
-        """Stop observing and cancel any pending refresh."""
+    def cancel_pending(self) -> None:
+        """Cancel a scheduled debounced refresh without detaching observers."""
         timer = self._timer
         if timer is not None:
             timer.cancel()
             self._timer = None
+
+    def detach(self) -> None:
+        """Stop observing and cancel any pending refresh."""
+        self.cancel_pending()
         try:
             self._aladin.unobserve(self._handler, names=["_target", "_fov"])
         except (ValueError, KeyError, TypeError):
