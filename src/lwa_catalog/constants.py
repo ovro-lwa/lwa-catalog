@@ -157,10 +157,15 @@ DROPPED_GAUL_COLUMNS: frozenset[str] = frozenset(
     }
 )
 
-BAND_FIELDS: tuple[str, ...] = (
+BAND_FLUX_FIELDS: tuple[str, ...] = (
     "Peak_flux",
     "Total_flux",
+    "E_Peak_flux",
     "E_Total_flux",
+    "Peak_flux_std",
+)
+
+BAND_SHAPE_FIELDS: tuple[str, ...] = (
     "RA",
     "DEC",
     "Maj",
@@ -170,6 +175,8 @@ BAND_FIELDS: tuple[str, ...] = (
     "DC_Min",
     "DC_PA",
 )
+
+BAND_FIELDS: tuple[str, ...] = BAND_FLUX_FIELDS + BAND_SHAPE_FIELDS
 
 METACATALOG_REQUIRED_COLUMNS: frozenset[str] = frozenset(
     {

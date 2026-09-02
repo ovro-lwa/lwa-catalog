@@ -349,6 +349,55 @@ def test_build_global_computes_alpha_when_rgb_associated() -> None:
     assert float(row["E_Total_flux_Green"]) == 1.0
 
 
+def test_build_global_preserves_per_band_flux_fields() -> None:
+    full = pd.DataFrame(
+        [
+            {
+                **_src(ra=10.0, dec=20.0, peak=2.0, lst_hour="01h", band="Full"),
+                "n_lst_contributions": 2,
+                "lst_hours": "01h,02h",
+                "representative_lst": "01h",
+                "Peak_flux_std": 0.2,
+                "E_Peak_flux": 0.08,
+            }
+        ]
+    )
+    blue = pd.DataFrame(
+        [
+            {
+                **_src(
+                    ra=10.05,
+                    dec=20.0,
+                    peak=1.5,
+                    total=12.0,
+                    e_total=1.2,
+                    lst_hour="01h",
+                    band="Blue",
+                ),
+                "n_lst_contributions": 1,
+                "lst_hours": "01h",
+                "representative_lst": "01h",
+                "Peak_flux_std": float("nan"),
+                "E_Peak_flux": 0.15,
+            }
+        ]
+    )
+    meta = build_global_metacatalog(
+        {
+            "Full": full,
+            "Blue": blue,
+            "Green": pd.DataFrame(),
+            "Red": pd.DataFrame(),
+        }
+    )
+    row = meta.iloc[0]
+    assert float(row["Peak_flux_Full"]) == 2.0
+    assert float(row["Peak_flux_Blue"]) == 1.5
+    assert float(row["E_Peak_flux_Blue"]) == 0.15
+    assert float(row["E_Total_flux_Blue"]) == 1.2
+    assert np.isnan(float(row["Peak_flux_std_Blue"]))
+
+
 def test_build_global_metacatalog_forwards_band_freq_hz() -> None:
     """Override band_freq_hz so subband-mapped α uses those centers."""
     catalogs = {
