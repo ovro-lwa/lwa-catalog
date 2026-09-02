@@ -180,6 +180,58 @@ def test_discover_lst_merged_bands_rgb_and_frequency(tmp_path: Path) -> None:
     assert discover_lst_merged_bands(sub_layout) == ("18MHz", "55MHz", "82MHz")
 
 
+def test_write_subband_metacatalog_does_not_inject_primary_flux(tmp_path: Path) -> None:
+    from lwa_catalog.constants import SUBBAND_METACATALOG_REQUIRED_COLUMNS
+    from lwa_catalog.create.merge import build_subband_metacatalog
+
+    layout = CatalogLayout(tmp_path)
+    catalogs = {
+        "82MHz": pd.DataFrame(
+            [
+                {
+                    "RA": 10.0,
+                    "DEC": 20.0,
+                    "Peak_flux": 2.0,
+                    "Total_flux": 2.0,
+                    "E_Peak_flux": 0.2,
+                    "E_Total_flux": 0.2,
+                    "Maj": 0.1,
+                    "Min": 0.05,
+                    "PA": 0.0,
+                    "DC_Maj": 0.1,
+                    "DC_Min": 0.05,
+                    "DC_PA": 0.0,
+                    "BMAJ": 0.5,
+                    "lst_hour": "01h",
+                    "band": "82MHz",
+                    "source_file": "82MHz_01h.fits",
+                    "n_lst_contributions": 1,
+                    "lst_hours": "01h",
+                    "representative_lst": "01h",
+                }
+            ]
+        ),
+        "18MHz": pd.DataFrame([]),
+    }
+    meta = build_subband_metacatalog(
+        catalogs,
+        seed_band="82MHz",
+        assoc_bands=("18MHz",),
+        color_bands=("82MHz", "18MHz"),
+        band_freq_hz={"82MHz": 82e6, "18MHz": 18e6},
+    )
+    write_metacatalog(
+        meta,
+        layout,
+        required=SUBBAND_METACATALOG_REQUIRED_COLUMNS,
+        schema=None,
+    )
+    loaded = read_metacatalog(layout, validate=False)
+    assert "Peak_flux" not in loaded.columns
+    assert "Total_flux" not in loaded.columns
+    assert "Peak_flux_82MHz" in loaded.columns
+
+
 def test_metacatalog_write_read_preserves_string_and_float(tmp_path: Path) -> None:
     layout = CatalogLayout(tmp_path)
     catalog = _minimal_metacatalog_df()

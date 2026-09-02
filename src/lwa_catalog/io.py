@@ -33,6 +33,7 @@ from lwa_catalog.schemas import (
 )
 
 _PARQUET_SUFFIXES = {".parquet", ".pq"}
+_DEFAULT_METACATALOG_SCHEMA = object()
 _LST_MERGED_BAND_RE = re.compile(r"^metacatalog_lst_(?P<band>.+)\.parquet$", re.IGNORECASE)
 _FREQ_BAND_RE = re.compile(r"^(\d+)MHz$", re.IGNORECASE)
 
@@ -283,14 +284,22 @@ def write_metacatalog(
     layout: CatalogLayout,
     *,
     required: set[str] | frozenset[str] | None = None,
+    schema: pa.Schema | None | object = _DEFAULT_METACATALOG_SCHEMA,
     **kwargs: Any,
 ) -> Path:
-    """Write the global metacatalog Parquet file (validates required columns)."""
+    """Write the global metacatalog Parquet file (validates required columns).
+
+  When *schema* is ``None``, the DataFrame columns are written as-is (use for
+  MHz subband metacatalogs that omit top-level ``Peak_flux`` / ``Total_flux``).
+    """
     validate_metacatalog(data, required=required)
+    write_schema = (
+        metacatalog_schema() if schema is _DEFAULT_METACATALOG_SCHEMA else schema
+    )
     return write_table(
         data,
         layout.metacatalog(),
-        schema=metacatalog_schema(),
+        schema=write_schema,
         **kwargs,
     )
 

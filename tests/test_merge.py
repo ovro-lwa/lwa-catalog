@@ -467,17 +467,12 @@ def test_build_subband_metacatalog_flux_only_and_highest_freq_astrometry() -> No
         ),
     }
     freq = {b: float(b.removesuffix("MHz")) * 1e6 for b in bands}
-    pairs = (
-        ("18_23", "18MHz", "23MHz"),
-        ("23_27", "23MHz", "27MHz"),
-    )
     meta = build_subband_metacatalog(
         catalogs,
         seed_band="27MHz",
         assoc_bands=("23MHz", "18MHz"),
         color_bands=bands,
         band_freq_hz=freq,
-        spectral_index_pairs=pairs,
     )
     assert len(meta) == 1
     row = meta.iloc[0]
@@ -492,7 +487,7 @@ def test_build_subband_metacatalog_flux_only_and_highest_freq_astrometry() -> No
     assert float(row["Peak_flux_27MHz"]) == 2.0
     assert float(row["Peak_flux_18MHz"]) == 1.0
     assert float(row["E_Peak_flux_18MHz"]) == 0.1
-    assert np.isfinite(float(row["alpha_23_27"]))
+    assert "alpha_23_27" not in meta.columns
 
 
 def test_build_subband_metacatalog_low_freq_only_row() -> None:
@@ -516,7 +511,6 @@ def test_build_subband_metacatalog_low_freq_only_row() -> None:
         assoc_bands=("18MHz",),
         color_bands=("27MHz", "18MHz"),
         band_freq_hz=freq,
-        spectral_index_pairs=(),
     )
     assert len(meta) == 1
     row = meta.iloc[0]
@@ -549,17 +543,12 @@ def test_build_global_metacatalog_frequency_subbands() -> None:
         for i, band in enumerate(bands)
     }
     freq = {b: float(b.removesuffix("MHz")) * 1e6 for b in bands}
-    pairs = (
-        ("18_23", "18MHz", "23MHz"),
-        ("23_27", "23MHz", "27MHz"),
-    )
     meta = build_subband_metacatalog(
         catalogs,
         seed_band="27MHz",
         assoc_bands=("23MHz", "18MHz"),
         color_bands=bands,
         band_freq_hz=freq,
-        spectral_index_pairs=pairs,
     )
     assert len(meta) == 1
     row = meta.iloc[0]
@@ -568,6 +557,4 @@ def test_build_global_metacatalog_frequency_subbands() -> None:
     assert "18MHz" in str(row["bands_present"])
     assert int(row["n_assoc_23MHz"]) >= 1
     assert int(row["n_assoc_18MHz"]) >= 1
-    assert "alpha_18_23" in meta.columns
-    assert np.isfinite(float(row["alpha_18_23"]))
-    assert np.isfinite(float(row["alpha_23_27"]))
+    assert "alpha_18_23" not in meta.columns

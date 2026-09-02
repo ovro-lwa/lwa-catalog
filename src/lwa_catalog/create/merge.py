@@ -756,13 +756,14 @@ def build_subband_metacatalog(
     assoc_bands: Sequence[str],
     color_bands: Sequence[str],
     band_freq_hz: Mapping[str, float],
-    spectral_index_pairs: Sequence[tuple[str, str, str]],
     band_fields: Sequence[str] = SUBBAND_METACATALOG_FLUX_FIELDS,
 ) -> pd.DataFrame:
     """Fuse MHz-subband LST catalogs into a flux-only, wide metacatalog.
 
     Top-level ``RA``/``DEC``/shape come from the highest-frequency subband
     present on each row. Flux is stored only in ``{field}_{subband}`` columns.
+    No merge-time spectral indices (``alpha_*``); use post-hoc spectral modeling
+    in ``lwa_catalog.analyze`` instead.
     """
     return build_global_metacatalog(
         lst_merged,
@@ -771,7 +772,7 @@ def build_subband_metacatalog(
         band_fields=band_fields,
         color_bands=color_bands,
         band_freq_hz=band_freq_hz,
-        spectral_index_pairs=spectral_index_pairs,
+        spectral_index_pairs=(),
         primary_flux=False,
         astrometry_from_highest_frequency=True,
     )
