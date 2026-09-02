@@ -177,6 +177,12 @@ GAUL_COLUMNS: tuple[str, ...] = (
     "Resid_Isl_mean",
 )
 
+# PyBDSF Gaussian string columns kept alongside numeric GAUL fields.
+GAUL_STRING_COLUMNS: tuple[str, ...] = ("S_Code",)
+
+# Default columns requested from PyBDSF Gaussian catalogs.
+GAUL_DETECTION_COLUMNS: tuple[str, ...] = GAUL_COLUMNS + GAUL_STRING_COLUMNS
+
 # PyBDSF Gaussian numeric columns (currently the full GAUL list).
 GAUL_FLOAT_COLUMNS: tuple[str, ...] = tuple(GAUL_COLUMNS)
 
@@ -188,7 +194,6 @@ DROPPED_GAUL_COLUMNS: frozenset[str] = frozenset(
         "E_Maj",
         "E_Min",
         "E_PA",
-        "S_Code",
         "Gaus_id",
         "Isl_id",
         "Source_id",
@@ -274,6 +279,7 @@ LST_MERGE_QA_COLUMNS: tuple[str, ...] = (
     "Resid_Isl_mean",
     "E_Peak_flux",
     "E_Total_flux",
+    "S_Code",
 )
 
 SOURCES_PROVENANCE_COLUMNS: tuple[str, ...] = (

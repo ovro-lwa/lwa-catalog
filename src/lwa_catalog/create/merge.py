@@ -15,6 +15,7 @@ from lwa_catalog.constants import (
     BAND_FREQ_HZ,
     CLUSTER_JITTER_RMS_COL,
     COLOR_BANDS,
+    GAUL_STRING_COLUMNS,
     LST_MERGE_QA_COLUMNS,
     OVRO_LATITUDE_DEG,
     SPECTRAL_INDEX_PAIRS,
@@ -22,6 +23,7 @@ from lwa_catalog.constants import (
     band_frequency_hz,
 )
 from lwa_catalog.coords import normalize_ra_columns
+from lwa_catalog.gaul import cast_s_code_value
 
 
 def _lst_hour_to_deg(lst_hour: str | float | int) -> float:
@@ -104,27 +106,35 @@ def associate_catalogs(
     return _associate_catalogs(base_df, band_df)
 
 
-def _lst_cluster_qa_fields(members: pd.DataFrame, rep: pd.Series) -> dict[str, float]:
+def _lst_cluster_qa_fields(members: pd.DataFrame, rep: pd.Series) -> dict[str, float | str]:
     """QA metrics from true LST cluster members and the representative row."""
     from lwa_catalog.analyze.reliability import cluster_radec_jitter_rms
 
-    out: dict[str, float] = {CLUSTER_JITTER_RMS_COL: cluster_radec_jitter_rms(members)}
+    out: dict[str, float | str] = {CLUSTER_JITTER_RMS_COL: cluster_radec_jitter_rms(members)}
     for col in LST_MERGE_QA_COLUMNS:
         if col == CLUSTER_JITTER_RMS_COL:
             continue
-        if col in rep.index:
-            try:
-                val = float(rep[col])
-            except (TypeError, ValueError):
-                val = float("nan")
-            out[col] = val
+        if col not in rep.index:
+            continue
+        if col in GAUL_STRING_COLUMNS:
+            out[col] = cast_s_code_value(rep[col])
+            continue
+        try:
+            val = float(rep[col])
+        except (TypeError, ValueError):
+            val = float("nan")
+        out[col] = val
     return out
 
 
 def _copy_lst_merge_qa(entry: dict, band_row: pd.Series) -> None:
     """Copy merge-time QA columns from an LST-merged band row into *entry*."""
     for col in LST_MERGE_QA_COLUMNS:
-        if col in band_row.index:
+        if col not in band_row.index:
+            continue
+        if col in GAUL_STRING_COLUMNS:
+            entry[col] = cast_s_code_value(band_row[col])
+        else:
             entry[col] = band_row[col]
 
 

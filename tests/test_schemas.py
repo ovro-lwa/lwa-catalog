@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import pyarrow as pa
 
-from lwa_catalog.constants import GAUL_COLUMNS, METACATALOG_REQUIRED_COLUMNS
+from lwa_catalog.constants import GAUL_COLUMNS, GAUL_STRING_COLUMNS, METACATALOG_REQUIRED_COLUMNS
 from lwa_catalog.schemas import (
     lst_merged_schema,
     metacatalog_schema,
@@ -17,6 +17,8 @@ from lwa_catalog.schemas import (
 def test_sources_schema_includes_gaul_and_provenance() -> None:
     names = set(sources_schema().names)
     assert set(GAUL_COLUMNS) <= names
+    assert set(GAUL_STRING_COLUMNS) <= names
+    assert sources_schema().field("S_Code").type == pa.string()
     assert {"lst_hour", "band", "source_file", "BMAJ", "BMIN", "BPA", "time_key"} <= names
     from lwa_catalog.constants import DROPPED_GAUL_COLUMNS
 
@@ -39,6 +41,8 @@ def test_metacatalog_schema_has_required_and_assoc_fields() -> None:
     assert "source_file_Red" in names
     assert {"alpha_RG", "E_alpha_RG", "alpha_GB", "E_alpha_GB"} <= names
     assert "Peak_flux_std" in names
+    assert "S_Code" in names
+    assert metacatalog_schema().field("S_Code").type == pa.string()
 
 
 def test_table_from_dataframe_fills_missing_and_keeps_extras() -> None:

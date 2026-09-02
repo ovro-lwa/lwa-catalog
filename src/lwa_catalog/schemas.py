@@ -5,7 +5,13 @@ from __future__ import annotations
 import pandas as pd
 import pyarrow as pa
 
-from lwa_catalog.constants import ASSOC_BANDS, BAND_FIELDS, GAUL_FLOAT_COLUMNS, SPECTRAL_INDEX_PAIRS
+from lwa_catalog.constants import (
+    ASSOC_BANDS,
+    BAND_FIELDS,
+    GAUL_FLOAT_COLUMNS,
+    GAUL_STRING_COLUMNS,
+    SPECTRAL_INDEX_PAIRS,
+)
 
 
 def sources_schema() -> pa.Schema:
@@ -13,6 +19,9 @@ def sources_schema() -> pa.Schema:
     fields: list[pa.Field] = [
         pa.field(name, pa.float64(), nullable=True) for name in GAUL_FLOAT_COLUMNS
     ]
+    fields.extend(
+        pa.field(name, pa.string(), nullable=True) for name in GAUL_STRING_COLUMNS
+    )
     fields.extend(
         [
             pa.field("lst_hour", pa.string(), nullable=True),
@@ -70,6 +79,7 @@ def metacatalog_schema() -> pa.Schema:
         pa.field("cluster_jitter_rms_deg", pa.float64(), nullable=True),
         pa.field("Resid_Isl_rms", pa.float64(), nullable=True),
         pa.field("Resid_Isl_mean", pa.float64(), nullable=True),
+        pa.field("S_Code", pa.string(), nullable=True),
         pa.field("E_Peak_flux", pa.float64(), nullable=True),
         pa.field("E_Total_flux", pa.float64(), nullable=True),
         pa.field("source_file_Full", pa.string(), nullable=True),

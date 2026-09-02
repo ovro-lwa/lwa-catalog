@@ -58,7 +58,12 @@ def test_merge_lst_records_cluster_jitter() -> None:
 def test_build_global_metacatalog_propagates_cluster_jitter() -> None:
     lst_full = merge_lst_metacatalog(
         [
-            pd.DataFrame([_src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")]),
+            pd.DataFrame(
+                [
+                    _src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")
+                    | {"S_Code": "C"}
+                ]
+            ),
             pd.DataFrame([_src(ra=10.01, dec=20.0, peak=1.1, lst_hour="02h", band="Full")]),
         ],
         band="Full",
@@ -71,6 +76,7 @@ def test_build_global_metacatalog_propagates_cluster_jitter() -> None:
     )
     full_row = meta.loc[meta["origin_band"] == "Full"].iloc[0]
     assert np.isfinite(float(full_row["cluster_jitter_rms_deg"]))
+    assert full_row["S_Code"] == "C"
 
 
 def test_merge_lst_clusters_nearby_detections() -> None:

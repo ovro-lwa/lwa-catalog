@@ -383,11 +383,12 @@ def test_rewrite_output_dir_gaul_columns_drops_retired_fields(tmp_path: Path) ->
     sources = read_sources_catalog(layout, "01h", "Full")
     assert isinstance(sources, pd.DataFrame)
     assert "E_RA" not in sources.columns
-    assert "S_Code" not in sources.columns
     assert "Source_id" not in sources.columns
+    assert sources.iloc[0]["S_Code"] == "S"
     assert sources.iloc[0]["keep_me"] == "x"
 
     lst = read_lst_merged(layout, "Full")
     assert isinstance(lst, pd.DataFrame)
     assert "E_RA" not in lst.columns
+    assert lst.iloc[0]["S_Code"] == "S"
     assert rewrite_output_dir_gaul_columns(layout) == []

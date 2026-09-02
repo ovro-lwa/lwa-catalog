@@ -29,6 +29,7 @@ from lwa_catalog.constants import (
     SUBBAND_QUALITY_NAN_COLUMNS,
 )
 from lwa_catalog.create.merge import associate_catalogs
+from lwa_catalog.gaul import cast_s_code_value
 from lwa_catalog.io import read_sources_catalog
 from lwa_catalog.paths import CatalogLayout
 
@@ -928,7 +929,7 @@ def _build_context(
     n_lst_seed = np.full(n, np.nan)
     bmaj = np.full(n, np.nan)
     if "S_Code" in meta.columns:
-        s_code = meta["S_Code"].astype(object).to_numpy()
+        s_code = meta["S_Code"].map(cast_s_code_value).astype(object).to_numpy()
     else:
         s_code = np.array([pd.NA] * n, dtype=object)
 
@@ -1007,7 +1008,7 @@ def _build_context(
                 except (TypeError, ValueError):
                     pass
             if pd.isna(s_code[i]) and "S_Code" in srow.index:
-                s_code[i] = srow["S_Code"]
+                s_code[i] = cast_s_code_value(srow["S_Code"])
 
     # BMAJ from meta even without seed
     for i, row in meta.iterrows():

@@ -16,8 +16,9 @@ import pandas as pd
 from astropy.io import fits
 from astropy.table import Table
 
-from lwa_catalog.constants import GAUL_COLUMNS
+from lwa_catalog.constants import GAUL_DETECTION_COLUMNS
 from lwa_catalog.coords import normalize_ra_columns
+from lwa_catalog.gaul import cast_gaul_string_columns
 from lwa_catalog.create.discover import FitsMetadata
 
 DEFAULT_BDSF_KW: dict[str, Any] = {
@@ -207,7 +208,7 @@ def empty_sources_dataframe(
     bmaj: float,
     bmin: float,
     bpa: float,
-    gaul_columns: Sequence[str] = GAUL_COLUMNS,
+    gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
 ) -> pd.DataFrame:
     """Return an empty per-image catalog with expected columns."""
     columns = list(gaul_columns) + ["lst_hour", "band", "source_file", "BMAJ", "BMIN", "BPA"]
@@ -263,7 +264,7 @@ def detect_sources(
     meta: FitsMetadata,
     *,
     bdsf_kw: Mapping[str, Any] | None = None,
-    gaul_columns: Sequence[str] = GAUL_COLUMNS,
+    gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
     upsample_factor: int = 1,
     **process_kw: Any,
 ) -> pd.DataFrame:
@@ -300,7 +301,7 @@ def detect_sources(
 
     df = table.to_pandas()
     keep = [c for c in gaul_columns if c in df.columns]
-    df = df[keep].copy()
+    df = cast_gaul_string_columns(df[keep].copy())
     df["lst_hour"] = meta.lst_hour
     df["band"] = meta.band
     df["source_file"] = meta.path.name
@@ -317,7 +318,7 @@ def iter_detect_sources(
     *,
     n_jobs: int | None = None,
     bdsf_kw: Mapping[str, Any] | None = None,
-    gaul_columns: Sequence[str] = GAUL_COLUMNS,
+    gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
     upsample_factor: int = 1,
     **process_kw: Any,
 ) -> Iterator[tuple[FitsMetadata, pd.DataFrame]]:
@@ -374,7 +375,7 @@ def detect_sources_many(
     *,
     n_jobs: int | None = None,
     bdsf_kw: Mapping[str, Any] | None = None,
-    gaul_columns: Sequence[str] = GAUL_COLUMNS,
+    gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
     upsample_factor: int = 1,
     **process_kw: Any,
 ) -> list[pd.DataFrame]:
