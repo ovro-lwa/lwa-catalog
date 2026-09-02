@@ -597,6 +597,7 @@ def test_flag_scode_and_residual_percentile() -> None:
 
 
 def test_flag_low_elevation_and_high_ellipticity() -> None:
+    from lwa_catalog.analyze.reliability import OR_HESL_EXCLUDE_MASK, filter_or_hesl
     from lwa_catalog.create.merge import source_elevation_deg
 
     low_row = pd.DataFrame(
@@ -632,6 +633,30 @@ def test_flag_low_elevation_and_high_ellipticity() -> None:
         )
     )
     assert int(packed[0]) == int(SourceQualityFlag.LOW_ELEVATION | SourceQualityFlag.HIGH_ELLIPTICITY)
+
+
+def test_filter_or_hesl_or_and_combo() -> None:
+    from lwa_catalog.analyze.reliability import OR_HESL_EXCLUDE_MASK, filter_or_hesl
+
+    df = pd.DataFrame(
+        {
+            "meta_id": [0, 1, 2, 3, 4],
+            "quality_flag": np.uint32(
+                [
+                    0,
+                    int(SourceQualityFlag.SINGLE_LST),
+                    int(SourceQualityFlag.HIGH_ELLIPTICITY),
+                    int(
+                        SourceQualityFlag.SINGLE_LST | SourceQualityFlag.HIGH_ELLIPTICITY
+                    ),
+                    int(SourceQualityFlag.LOW_ELEVATION),
+                ]
+            ),
+        }
+    )
+    kept = filter_or_hesl(df)
+    assert kept["meta_id"].tolist() == [0, 1, 2]
+    assert OR_HESL_EXCLUDE_MASK == 4595
 
 
 def test_assign_source_quality_flags_keeps_all_rows(tmp_path: Path) -> None:

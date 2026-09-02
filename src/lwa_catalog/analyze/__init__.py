@@ -26,6 +26,8 @@ from lwa_catalog.analyze.nedlvs import (
     summarize_nedlvs_match,
 )
 from lwa_catalog.analyze.reliability import (
+    OR_HESL_EXCLUDE_FLAGS,
+    OR_HESL_EXCLUDE_MASK,
     QualityFlagResult,
     ReliabilityConfig,
     ReliabilityResult,
@@ -38,6 +40,7 @@ from lwa_catalog.analyze.reliability import (
     filter_metacatalog_exclude,
     filter_metacatalog_include,
     filter_metacatalog_reliability,
+    filter_or_hesl,
     is_subband_metacatalog,
     quality_flag_bit_counts,
     quality_flag_legend,
@@ -74,6 +77,8 @@ from lwa_catalog.analyze.vlssr import (
 )
 
 __all__ = [
+    "OR_HESL_EXCLUDE_FLAGS",
+    "OR_HESL_EXCLUDE_MASK",
     "QualityFlagResult",
     "ReliabilityConfig",
     "ReliabilityResult",
@@ -88,6 +93,7 @@ __all__ = [
     "filter_metacatalog_exclude",
     "filter_metacatalog_include",
     "filter_metacatalog_reliability",
+    "filter_or_hesl",
     "metacatalog_to_healpix",
     "metacatalog_to_hips",
     "plot_maj_min_scatter",

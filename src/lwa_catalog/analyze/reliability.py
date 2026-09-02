@@ -640,6 +640,47 @@ def filter_by_quality_flags(
     return df.loc[keep]
 
 
+OR_HESL_EXCLUDE_FLAGS: tuple[str, ...] = (
+    "LOW_ELEVATION",
+    "HAS_NAN",
+    "INVALID_ASTROMETRY",
+    "UNPHYSICAL_FLUX",
+    "RESID_ABS_FAIL",
+    "RESID_PCTL_RMS",
+    "JITTER_FAIL",
+    "RESID_PCTL_MEAN",
+)
+
+OR_HESL_EXCLUDE_MASK: int = quality_flag_mask_from_names(OR_HESL_EXCLUDE_FLAGS)
+
+
+def filter_or_hesl(
+    df: pd.DataFrame,
+    *,
+    flag_col: str = "quality_flag",
+    or_exclude_mask: int | None = None,
+) -> pd.DataFrame:
+    """Keep rows passing the OR+HE∧SL exclusion rule.
+
+    Excludes a row when any bit in :data:`OR_HESL_EXCLUDE_FLAGS` is set, or when
+    both ``HIGH_ELLIPTICITY`` and ``SINGLE_LST`` are set. When *flag_col* is
+    missing, *df* is returned unchanged.
+    """
+    if df.empty or flag_col not in df.columns:
+        return df.copy()
+    qf = pd.to_numeric(df[flag_col], errors="coerce").to_numpy(dtype=np.uint32)
+    single_lst = np.uint32(SourceQualityFlag.SINGLE_LST)
+    high_ellipticity = np.uint32(SourceQualityFlag.HIGH_ELLIPTICITY)
+    mask = np.uint32(
+        OR_HESL_EXCLUDE_MASK if or_exclude_mask is None else int(or_exclude_mask)
+    )
+    exclude = (
+        (((qf & single_lst) != 0) & ((qf & high_ellipticity) != 0))
+        | ((qf & mask) != 0)
+    )
+    return df.loc[~exclude].copy()
+
+
 def pack_quality_flags(flags: pd.DataFrame) -> np.ndarray:
     """Pack boolean flag columns into a uint32 ``quality_flag`` array."""
     n = len(flags)
