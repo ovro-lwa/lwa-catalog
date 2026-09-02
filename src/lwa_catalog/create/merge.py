@@ -11,6 +11,7 @@ from astropy.coordinates import SkyCoord
 
 from lwa_catalog.constants import (
     ASSOC_BANDS,
+    ASTROMETRY_FIELDS,
     BAND_FIELDS,
     BAND_FREQ_HZ,
     CLUSTER_JITTER_RMS_COL,
@@ -18,6 +19,8 @@ from lwa_catalog.constants import (
     LST_MERGE_QA_COLUMNS,
     OVRO_LATITUDE_DEG,
     SPECTRAL_INDEX_PAIRS,
+    SUBBAND_METACATALOG_FLUX_FIELDS,
+    band_frequency_hz,
 )
 from lwa_catalog.coords import normalize_ra_columns
 
@@ -317,12 +320,10 @@ def _lst_meta_from_band_row(row: pd.Series) -> tuple[int, str, str, float]:
     )
 
 
-def _primary_fields_from_band(row: pd.Series) -> dict:
+def _shape_fields_from_band(row: pd.Series) -> dict:
     return {
         "RA": row["RA"],
         "DEC": row["DEC"],
-        "Peak_flux": row["Peak_flux"],
-        "Total_flux": row["Total_flux"],
         "Maj": row["Maj"],
         "Min": row["Min"],
         "PA": row["PA"],
@@ -330,6 +331,53 @@ def _primary_fields_from_band(row: pd.Series) -> dict:
         "DC_Min": row.get("DC_Min", np.nan),
         "DC_PA": row.get("DC_PA", np.nan),
     }
+
+
+def _primary_fields_from_band(row: pd.Series, *, include_flux: bool = True) -> dict:
+    out = _shape_fields_from_band(row)
+    if include_flux:
+        out["Peak_flux"] = row["Peak_flux"]
+        out["Total_flux"] = row["Total_flux"]
+    return out
+
+
+def _lookup_band_frequency_hz(
+    band: str,
+    band_freq_hz: Mapping[str, float],
+) -> float:
+    if band in band_freq_hz:
+        return float(band_freq_hz[band])
+    return band_frequency_hz(band)
+
+
+def _maybe_update_astrometry_from_band(
+    entry: dict,
+    band_row: pd.Series,
+    band: str,
+    *,
+    band_freq_hz: Mapping[str, float],
+) -> None:
+    """Set top-level astrometry from *band_row* when *band* is the highest frequency so far."""
+    new_hz = _lookup_band_frequency_hz(band, band_freq_hz)
+    current_band = str(entry.get("astrometry_band", "") or "")
+    current_hz = (
+        _lookup_band_frequency_hz(current_band, band_freq_hz) if current_band else float("-inf")
+    )
+    if new_hz >= current_hz:
+        entry.update(_shape_fields_from_band(band_row))
+        entry["astrometry_band"] = band
+        _copy_lst_merge_qa(entry, band_row)
+
+
+def _representative_peak_flux(
+    meta: pd.DataFrame,
+    bands: Sequence[str],
+) -> pd.Series:
+    """Max ``Peak_flux_{band}`` across *bands* for sorting subband metacatalogs."""
+    cols = [f"Peak_flux_{band}" for band in bands if f"Peak_flux_{band}" in meta.columns]
+    if not cols:
+        return pd.Series(np.nan, index=meta.index, dtype=float)
+    return meta[cols].max(axis=1)
 
 
 def _attach_band_columns(
@@ -434,19 +482,23 @@ def _seed_row_from_band(
     assoc_bands: Sequence[str] = ASSOC_BANDS,
     band_fields: Sequence[str] = BAND_FIELDS,
     seed_band: str = "Full",
+    primary_flux: bool = True,
+    astrometry_from_highest_frequency: bool = False,
+    band_freq_hz: Mapping[str, float] | None = None,
 ) -> dict:
     """One metacatalog row seeded from a single-band LST-merged detection."""
     n_lst, lst_hours, rep_lst, peak_std = _lst_meta_from_band_row(band_row)
     entry = {
         "origin_band": band,
         "bands_present": band,
-        **_primary_fields_from_band(band_row),
+        **_primary_fields_from_band(band_row, include_flux=primary_flux),
         "BMAJ_match": float(band_row["BMAJ"]),
         "n_lst_contributions": n_lst,
         "lst_hours": lst_hours,
         "representative_lst": rep_lst,
-        "Peak_flux_std": peak_std,
     }
+    if primary_flux:
+        entry["Peak_flux_std"] = peak_std
     entry.update(_empty_band_cols(assoc_bands=assoc_bands, band_fields=band_fields))
     if band == seed_band:
         entry["BMAJ_full"] = float(band_row["BMAJ"])
@@ -456,8 +508,35 @@ def _seed_row_from_band(
     else:
         entry["BMAJ_full"] = np.nan
         _attach_band_columns(entry, band_row, band, 1, band_fields=band_fields)
-    _copy_lst_merge_qa(entry, band_row)
+    if astrometry_from_highest_frequency:
+        if band_freq_hz is None:
+            msg = "band_freq_hz is required when astrometry_from_highest_frequency=True"
+            raise ValueError(msg)
+        _maybe_update_astrometry_from_band(
+            entry, band_row, band, band_freq_hz=band_freq_hz
+        )
+    else:
+        _copy_lst_merge_qa(entry, band_row)
     return entry
+
+
+def _merge_build_kwargs(
+    *,
+    assoc_bands: Sequence[str],
+    band_fields: Sequence[str],
+    seed_band: str,
+    primary_flux: bool,
+    astrometry_from_highest_frequency: bool,
+    band_freq_hz: Mapping[str, float],
+) -> dict:
+    return {
+        "assoc_bands": assoc_bands,
+        "band_fields": band_fields,
+        "seed_band": seed_band,
+        "primary_flux": primary_flux,
+        "astrometry_from_highest_frequency": astrometry_from_highest_frequency,
+        "band_freq_hz": band_freq_hz,
+    }
 
 
 def merge_full_and_blue(
@@ -469,13 +548,23 @@ def merge_full_and_blue(
     assoc_bands: Sequence[str] = ASSOC_BANDS,
     band_fields: Sequence[str] = BAND_FIELDS,
     color_bands: Sequence[str] = COLOR_BANDS,
+    primary_flux: bool = True,
+    astrometry_from_highest_frequency: bool = False,
+    band_freq_hz: Mapping[str, float] | None = None,
 ) -> pd.DataFrame:
     """Cross-match *assoc_band* onto *seed_band*; one row per deduplicated sky position."""
     seed_df = seed_df.reset_index(drop=True)
     assoc_df = assoc_df.reset_index(drop=True)
     hits, matched_assoc = _associate_catalogs(seed_df, assoc_df)
-    seed_kw = dict(
-        assoc_bands=assoc_bands, band_fields=band_fields, seed_band=seed_band
+    if band_freq_hz is None:
+        band_freq_hz = BAND_FREQ_HZ
+    seed_kw = _merge_build_kwargs(
+        assoc_bands=assoc_bands,
+        band_fields=band_fields,
+        seed_band=seed_band,
+        primary_flux=primary_flux,
+        astrometry_from_highest_frequency=astrometry_from_highest_frequency,
+        band_freq_hz=band_freq_hz,
     )
 
     rows: list[dict] = []
@@ -488,6 +577,10 @@ def merge_full_and_blue(
             _attach_band_columns(
                 entry, best, assoc_band, len(assoc_hits), band_fields=band_fields
             )
+            if astrometry_from_highest_frequency:
+                _maybe_update_astrometry_from_band(
+                    entry, best, assoc_band, band_freq_hz=band_freq_hz
+                )
             _update_bands_present(
                 entry, seed_band, assoc_band, color_bands=color_bands
             )
@@ -509,11 +602,21 @@ def associate_band_into_metacatalog(
     band_fields: Sequence[str] = BAND_FIELDS,
     color_bands: Sequence[str] = COLOR_BANDS,
     seed_band: str = "Full",
+    primary_flux: bool = True,
+    astrometry_from_highest_frequency: bool = False,
+    band_freq_hz: Mapping[str, float] | None = None,
 ) -> pd.DataFrame:
     """Cross-match one band onto the current metacatalog; append unmatched band rows."""
     band_df = band_df.reset_index(drop=True)
-    seed_kw = dict(
-        assoc_bands=assoc_bands, band_fields=band_fields, seed_band=seed_band
+    if band_freq_hz is None:
+        band_freq_hz = BAND_FREQ_HZ
+    seed_kw = _merge_build_kwargs(
+        assoc_bands=assoc_bands,
+        band_fields=band_fields,
+        seed_band=seed_band,
+        primary_flux=primary_flux,
+        astrometry_from_highest_frequency=astrometry_from_highest_frequency,
+        band_freq_hz=band_freq_hz,
     )
     if meta_df.empty:
         return pd.DataFrame(
@@ -533,6 +636,10 @@ def associate_band_into_metacatalog(
             sub = band_df.iloc[band_hits]
             best = _pick_highest_elevation_row(sub)
             _attach_band_columns(entry, best, band, len(band_hits), band_fields=band_fields)
+            if astrometry_from_highest_frequency:
+                _maybe_update_astrometry_from_band(
+                    entry, best, band, band_freq_hz=band_freq_hz
+                )
             _update_bands_present(entry, band, color_bands=color_bands)
             entry["BMAJ_match"] = max(float(entry["BMAJ_match"]), float(best["BMAJ"]))
         rows.append(entry)

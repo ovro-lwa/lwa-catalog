@@ -165,6 +165,14 @@ BAND_FLUX_FIELDS: tuple[str, ...] = (
     "Peak_flux_std",
 )
 
+# Per-subband flux columns in MHz metacatalogs (no LST scatter per channel).
+SUBBAND_METACATALOG_FLUX_FIELDS: tuple[str, ...] = (
+    "Peak_flux",
+    "Total_flux",
+    "E_Peak_flux",
+    "E_Total_flux",
+)
+
 BAND_SHAPE_FIELDS: tuple[str, ...] = (
     "RA",
     "DEC",
@@ -176,6 +184,8 @@ BAND_SHAPE_FIELDS: tuple[str, ...] = (
     "DC_PA",
 )
 
+ASTROMETRY_FIELDS: tuple[str, ...] = BAND_SHAPE_FIELDS
+
 BAND_FIELDS: tuple[str, ...] = BAND_FLUX_FIELDS + BAND_SHAPE_FIELDS
 
 METACATALOG_REQUIRED_COLUMNS: frozenset[str] = frozenset(
@@ -185,6 +195,16 @@ METACATALOG_REQUIRED_COLUMNS: frozenset[str] = frozenset(
         "Peak_flux",
         "origin_band",
         "bands_present",
+    }
+)
+
+SUBBAND_METACATALOG_REQUIRED_COLUMNS: frozenset[str] = frozenset(
+    {
+        "RA",
+        "DEC",
+        "origin_band",
+        "bands_present",
+        "astrometry_band",
     }
 )
 
