@@ -11,6 +11,17 @@ from lwa_catalog.analyze.healpix_map import (
     metacatalog_to_hips,
     write_healpix_hips,
 )
+from lwa_catalog.analyze.nedlvs import (
+    NedlvsMatchConfig,
+    NedlvsMatchResult,
+    build_sfr_radio_luminosity_table,
+    load_nedlvs_catalog,
+    match_catalog_to_nedlvs,
+    radio_luminosity_nu,
+    resolve_highest_frequency_peak_flux,
+    select_metacatalog,
+    summarize_nedlvs_match,
+)
 from lwa_catalog.analyze.reliability import (
     QualityFlagResult,
     ReliabilityConfig,
@@ -28,6 +39,15 @@ from lwa_catalog.analyze.reliability import (
     quality_flag_mask_from_names,
     quality_flag_names,
 )
+from lwa_catalog.analyze.spectral import (
+    SingleSpectrumFit,
+    SpectralFitConfig,
+    SpectralFitResult,
+    fit_metacatalog_spectra,
+    fit_single_spectrum,
+    gather_band_flux_measurements,
+    summarize_spectral_fit,
+)
 from lwa_catalog.analyze.summary import bands_present_counts, summarize_metacatalog
 from lwa_catalog.analyze.trace import (
     SourceTrace,
@@ -37,17 +57,6 @@ from lwa_catalog.analyze.trace import (
     plot_ra_dec_scatter,
     preferred_trace_columns,
     rematch_meta_source,
-)
-from lwa_catalog.analyze.nedlvs import (
-    NedlvsMatchConfig,
-    NedlvsMatchResult,
-    build_sfr_radio_luminosity_table,
-    load_nedlvs_catalog,
-    match_catalog_to_nedlvs,
-    radio_luminosity_nu,
-    resolve_highest_frequency_peak_flux,
-    select_metacatalog,
-    summarize_nedlvs_match,
 )
 from lwa_catalog.analyze.vlssr import (
     VlssrMatchConfig,
@@ -101,4 +110,11 @@ __all__ = [
     "resolve_highest_frequency_peak_flux",
     "select_metacatalog",
     "select_blue_associated_rows",
+    "SingleSpectrumFit",
+    "SpectralFitConfig",
+    "SpectralFitResult",
+    "fit_metacatalog_spectra",
+    "fit_single_spectrum",
+    "gather_band_flux_measurements",
+    "summarize_spectral_fit",
 ]

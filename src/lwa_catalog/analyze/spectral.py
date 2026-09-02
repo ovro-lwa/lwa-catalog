@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 import numpy as np
@@ -41,6 +41,15 @@ class SingleSpectrumFit:
     n_flux: int
     coeffs: tuple[float, float, float, float]
     nu0_mhz: float
+
+
+@dataclass
+class SpectralFitResult:
+    """Batch Taylor spectral fit for a metacatalog table."""
+
+    summary: dict[str, float | int | dict[int, int]]
+    metacatalog: pd.DataFrame
+    warnings: list[str] = field(default_factory=list)
 
 
 def _flux_column_names(flux_kind: FluxKind) -> tuple[str, str]:
@@ -288,3 +297,142 @@ def evaluate_taylor_spectrum(
     for idx in range(fit.n_terms):
         log_s += fit.coeffs[idx] * x**idx
     return np.exp(log_s)
+
+
+def _output_column_names(prefix: str) -> tuple[str, ...]:
+    return (
+        f"{prefix}model_n_terms",
+        f"{prefix}model_bic",
+        f"{prefix}model_chi2_red",
+        f"{prefix}model_n_flux",
+        f"{prefix}model_nu0_mhz",
+        f"{prefix}model_a0",
+        f"{prefix}model_a1",
+        f"{prefix}model_a2",
+        f"{prefix}model_a3",
+    )
+
+
+def _single_fit_to_row(fit: SingleSpectrumFit, prefix: str) -> dict[str, float | int]:
+    return {
+        f"{prefix}model_n_terms": int(fit.n_terms),
+        f"{prefix}model_bic": float(fit.bic),
+        f"{prefix}model_chi2_red": float(fit.chi2_red),
+        f"{prefix}model_n_flux": int(fit.n_flux),
+        f"{prefix}model_nu0_mhz": float(fit.nu0_mhz),
+        f"{prefix}model_a0": float(fit.coeffs[0]),
+        f"{prefix}model_a1": float(fit.coeffs[1]),
+        f"{prefix}model_a2": float(fit.coeffs[2]),
+        f"{prefix}model_a3": float(fit.coeffs[3]),
+    }
+
+
+def _has_flux_columns(metacatalog: pd.DataFrame, config: SpectralFitConfig) -> bool:
+    flux_prefix, _ = _flux_column_names(config.flux_kind)
+    if flux_prefix in metacatalog.columns:
+        return True
+    return any(f"{flux_prefix}_{band}" in metacatalog.columns for band in config.bands)
+
+
+def fit_metacatalog_spectra(
+    metacatalog: pd.DataFrame,
+    config: SpectralFitConfig | None = None,
+) -> SpectralFitResult:
+    """Fit Taylor spectra for every row in a metacatalog table.
+
+    Gathers per-band flux measurements, runs :func:`fit_single_spectrum` per row,
+    and appends ``{prefix}model_*`` columns to a copy of the input table.
+    """
+    cfg = SpectralFitConfig() if config is None else config
+    warnings: list[str] = []
+    prefix = cfg.column_prefix
+
+    if metacatalog.empty:
+        warnings.append("metacatalog is empty; no spectral fits computed")
+        return SpectralFitResult(
+            summary={
+                "n_sources": 0,
+                "n_fitted": 0,
+                "n_terms_hist": {1: 0, 2: 0, 3: 0, 4: 0},
+                "median_bic": float("nan"),
+                "median_n_flux": float("nan"),
+                "n_warnings": len(warnings),
+            },
+            metacatalog=metacatalog.copy(),
+            warnings=warnings,
+        )
+
+    if not _has_flux_columns(metacatalog, cfg):
+        flux_prefix, _ = _flux_column_names(cfg.flux_kind)
+        warnings.append(
+            f"no {flux_prefix} or {flux_prefix}_{{band}} columns found; fits will be empty"
+        )
+
+    out = metacatalog.copy()
+    fit_rows: list[dict[str, float | int]] = []
+    n_terms_hist = {1: 0, 2: 0, 3: 0, 4: 0}
+    bic_values: list[float] = []
+    n_flux_values: list[int] = []
+    n_fitted = 0
+
+    for _, row in out.iterrows():
+        nu_hz, flux_jy, err_jy = gather_band_flux_measurements(
+            row,
+            bands=cfg.bands,
+            flux_kind=cfg.flux_kind,
+        )
+        fit = fit_single_spectrum(nu_hz, flux_jy, err_jy, config=cfg)
+        fit_rows.append(_single_fit_to_row(fit, prefix))
+        if fit.n_flux > 0:
+            n_fitted += 1
+            n_flux_values.append(fit.n_flux)
+            if fit.n_terms in n_terms_hist:
+                n_terms_hist[fit.n_terms] += 1
+            if np.isfinite(fit.bic):
+                bic_values.append(float(fit.bic))
+
+    fit_df = pd.DataFrame(fit_rows, index=out.index)
+    for col in _output_column_names(prefix):
+        out[col] = fit_df[col]
+
+    summary: dict[str, float | int | dict[int, int]] = {
+        "n_sources": int(len(out)),
+        "n_fitted": int(n_fitted),
+        "n_terms_hist": n_terms_hist,
+        "median_bic": float(np.median(bic_values)) if bic_values else float("nan"),
+        "median_n_flux": float(np.median(n_flux_values)) if n_flux_values else float("nan"),
+        "n_warnings": len(warnings),
+    }
+    return SpectralFitResult(summary=summary, metacatalog=out, warnings=warnings)
+
+
+def summarize_spectral_fit(result: SpectralFitResult) -> str:
+    """Return a multi-line text summary suitable for notebook printout."""
+    summary = result.summary
+    hist = summary["n_terms_hist"]
+    median_bic = float(summary["median_bic"])
+    median_n_flux = float(summary["median_n_flux"])
+    lines = [
+        f"Sources:                      {int(summary['n_sources']):6d}",
+        f"Fitted (>=1 flux):            {int(summary['n_fitted']):6d}",
+        (
+            f"Median BIC:                   {median_bic:.3f}"
+            if np.isfinite(median_bic)
+            else "Median BIC:                        nan"
+        ),
+        (
+            f"Median flux channels:         {median_n_flux:.1f}"
+            if np.isfinite(median_n_flux)
+            else "Median flux channels:              nan"
+        ),
+        "Model terms selected:",
+        f"  1-term: {int(hist[1]):6d}",
+        f"  2-term: {int(hist[2]):6d}",
+        f"  3-term: {int(hist[3]):6d}",
+        f"  4-term: {int(hist[4]):6d}",
+    ]
+    if result.warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        lines.extend(f"  - {warning}" for warning in result.warnings)
+    return "\n".join(lines)

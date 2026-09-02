@@ -9,8 +9,10 @@ import pytest
 from lwa_catalog.analyze.spectral import (
     SpectralFitConfig,
     evaluate_taylor_spectrum,
+    fit_metacatalog_spectra,
     fit_single_spectrum,
     gather_band_flux_measurements,
+    summarize_spectral_fit,
 )
 from lwa_catalog.constants import SUBBAND_BANDS_MHZ, SUBBAND_REF_FREQ_MHZ
 
@@ -135,3 +137,82 @@ def test_evaluate_taylor_spectrum_roundtrip() -> None:
     )
     recovered = evaluate_taylor_spectrum(nu_hz, fit)
     np.testing.assert_allclose(recovered, flux, rtol=1e-6)
+
+
+def _mini_metacatalog_rows() -> pd.DataFrame:
+    bands = ("18MHz", "23MHz", "27MHz")
+    nu_ref = SUBBAND_REF_FREQ_MHZ * 1e6
+    rows = []
+    for idx in range(3):
+        nu_hz = np.array([float(b.removesuffix("MHz")) * 1e6 for b in bands])
+        flux = _power_law_flux(nu_hz, alpha=-0.5 - 0.1 * idx, s_ref=1.0, nu_ref_hz=nu_ref)
+        row = {
+            "meta_id": idx,
+            "origin_band": bands[0],
+            "bands_present": ",".join(bands),
+        }
+        for band, value in zip(bands, flux, strict=True):
+            row[f"Total_flux_{band}"] = float(value)
+            row[f"E_Total_flux_{band}"] = 0.05 * float(value)
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def test_fit_metacatalog_spectra_columns() -> None:
+    meta = _mini_metacatalog_rows()
+    result = fit_metacatalog_spectra(
+        meta,
+        config=SpectralFitConfig(bands=("18MHz", "23MHz", "27MHz"), use_flux_errors=False),
+    )
+    expected = {
+        "spec_model_n_terms",
+        "spec_model_bic",
+        "spec_model_chi2_red",
+        "spec_model_n_flux",
+        "spec_model_nu0_mhz",
+        "spec_model_a0",
+        "spec_model_a1",
+        "spec_model_a2",
+        "spec_model_a3",
+    }
+    assert expected.issubset(result.metacatalog.columns)
+    assert len(result.metacatalog) == 3
+    assert (result.metacatalog["spec_model_n_flux"] > 0).all()
+
+
+def test_fit_metacatalog_spectra_summary() -> None:
+    meta = _mini_metacatalog_rows()
+    result = fit_metacatalog_spectra(
+        meta,
+        config=SpectralFitConfig(bands=("18MHz", "23MHz", "27MHz"), use_flux_errors=False),
+    )
+    assert result.summary["n_sources"] == 3
+    assert result.summary["n_fitted"] == 3
+    assert sum(result.summary["n_terms_hist"].values()) == 3
+    text = summarize_spectral_fit(result)
+    assert "Sources:" in text
+    assert "Fitted" in text
+
+
+def test_fit_metacatalog_empty() -> None:
+    result = fit_metacatalog_spectra(pd.DataFrame())
+    assert result.metacatalog.empty
+    assert result.summary["n_sources"] == 0
+    assert result.summary["n_fitted"] == 0
+    assert result.warnings
+    assert "empty" in result.warnings[0].lower()
+
+
+def test_fit_metacatalog_spectra_ten_rows_under_one_second() -> None:
+    import time
+
+    rows = [_mini_metacatalog_rows().iloc[0].copy() for _ in range(10)]
+    meta = pd.DataFrame(rows)
+    start = time.perf_counter()
+    result = fit_metacatalog_spectra(
+        meta,
+        config=SpectralFitConfig(bands=("18MHz", "23MHz", "27MHz"), use_flux_errors=False),
+    )
+    elapsed = time.perf_counter() - start
+    assert result.summary["n_sources"] == 10
+    assert elapsed < 1.0

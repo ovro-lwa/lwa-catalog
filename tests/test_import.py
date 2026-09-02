@@ -74,6 +74,29 @@ def test_analyze_nedlvs_exports() -> None:
     assert hasattr(NedlvsMatchResult, "__dataclass_fields__")
 
 
+def test_analyze_spectral_exports() -> None:
+    from lwa_catalog.analyze import (
+        SingleSpectrumFit,
+        SpectralFitConfig,
+        SpectralFitResult,
+        fit_metacatalog_spectra,
+        fit_single_spectrum,
+        gather_band_flux_measurements,
+        summarize_spectral_fit,
+    )
+    from lwa_catalog.constants import SUBBAND_REF_FREQ_MHZ
+
+    assert callable(fit_metacatalog_spectra)
+    assert callable(fit_single_spectrum)
+    assert callable(gather_band_flux_measurements)
+    assert callable(summarize_spectral_fit)
+    assert SpectralFitConfig().flux_kind == "total"
+    assert SpectralFitConfig().ref_freq_mhz == SUBBAND_REF_FREQ_MHZ
+    assert SpectralFitConfig().column_prefix == "spec_"
+    assert hasattr(SpectralFitResult, "__dataclass_fields__")
+    assert hasattr(SingleSpectrumFit, "__dataclass_fields__")
+
+
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
         detect_sources,
