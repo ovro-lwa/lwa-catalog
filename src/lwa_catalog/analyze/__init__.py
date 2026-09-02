@@ -37,10 +37,12 @@ from lwa_catalog.analyze.reliability import (
     filter_metacatalog_exclude,
     filter_metacatalog_include,
     filter_metacatalog_reliability,
+    is_subband_metacatalog,
     quality_flag_bit_counts,
     quality_flag_legend,
     quality_flag_mask_from_names,
     quality_flag_names,
+    representative_peak_flux,
 )
 from lwa_catalog.analyze.spectral import (
     SingleSpectrumFit,
@@ -96,6 +98,8 @@ __all__ = [
     "quality_flag_mask_from_names",
     "quality_flag_names",
     "rematch_meta_source",
+    "representative_peak_flux",
+    "is_subband_metacatalog",
     "summarize_metacatalog",
     "summarize_nedlvs_match",
     "summarize_vlssr_match",

@@ -23,7 +23,10 @@ from lwa_catalog.analyze.trace import (
     _parse_lst_hours,
     _pick_rematch_lst_row,
 )
-from lwa_catalog.constants import CLUSTER_JITTER_RMS_COL
+from lwa_catalog.constants import (
+    CLUSTER_JITTER_RMS_COL,
+    SUBBAND_QUALITY_NAN_COLUMNS,
+)
 from lwa_catalog.create.merge import associate_catalogs
 from lwa_catalog.io import read_sources_catalog
 from lwa_catalog.paths import CatalogLayout
@@ -53,6 +56,77 @@ QUALITY_NAN_COLUMNS: tuple[str, ...] = (
     "E_Peak_flux",
     "E_Total_flux",
 )
+
+_FLUX_QA_FIELDS: tuple[str, ...] = (
+    "Peak_flux",
+    "Total_flux",
+    "E_Peak_flux",
+    "E_Total_flux",
+)
+
+
+def is_subband_metacatalog(df: pd.DataFrame) -> bool:
+    """True when *df* uses per-subband flux columns without top-level ``Peak_flux``."""
+    if "Peak_flux" in df.columns:
+        return False
+    return any(str(col).startswith("Peak_flux_") for col in df.columns)
+
+
+def qa_band_for_row(row: pd.Series | Mapping) -> str:
+    """Band used for LST rematch and flux QA (``astrometry_band`` or ``origin_band``)."""
+    series = row if isinstance(row, pd.Series) else pd.Series(row)
+    astro = series.get("astrometry_band")
+    if astro is not None and str(astro).strip().lower() not in {"", "nan", "none"}:
+        return str(astro).strip()
+    return str(series.get("origin_band", "")).strip()
+
+
+def quality_nan_columns(df: pd.DataFrame) -> tuple[str, ...]:
+    """Core columns checked by :func:`flag_has_nan` for this metacatalog schema."""
+    if is_subband_metacatalog(df):
+        return SUBBAND_QUALITY_NAN_COLUMNS
+    return QUALITY_NAN_COLUMNS
+
+
+def flux_qa_frame(
+    meta_row: pd.Series,
+    seed_row: pd.Series | None,
+    band: str,
+) -> pd.DataFrame:
+    """One-row frame with Peak/Total flux for unphysical-flux checks."""
+    if "Peak_flux" in meta_row.index and "Total_flux" in meta_row.index:
+        try:
+            peak = float(meta_row["Peak_flux"])
+        except (TypeError, ValueError):
+            peak = float("nan")
+        if np.isfinite(peak):
+            return pd.DataFrame([meta_row])
+
+    entry: dict[str, object] = {}
+    for field in _FLUX_QA_FIELDS:
+        col = f"{field}_{band}"
+        if col in meta_row.index:
+            entry[field] = meta_row[col]
+    if "Peak_flux" in entry and pd.notna(entry["Peak_flux"]):
+        return pd.DataFrame([entry])
+    if seed_row is not None:
+        return pd.DataFrame([seed_row])
+    return pd.DataFrame()
+
+
+def representative_peak_flux(meta: pd.DataFrame) -> pd.Series:
+    """Peak flux for display / HiPS weighting (top-level or per-subband)."""
+    if meta.empty:
+        return pd.Series(dtype=float)
+    if "Peak_flux" in meta.columns:
+        return pd.to_numeric(meta["Peak_flux"], errors="coerce")
+    from lwa_catalog.analyze.nedlvs import resolve_highest_frequency_peak_flux
+
+    values = [
+        resolve_highest_frequency_peak_flux(row if isinstance(row, pd.Series) else pd.Series(row))[0]
+        for _, row in meta.iterrows()
+    ]
+    return pd.Series(values, index=meta.index, dtype=float, name="Peak_flux")
 
 
 @unique
@@ -242,7 +316,9 @@ def parse_bands_present(row: pd.Series | Mapping) -> list[str]:
 def unique_assoc_band_count(row: pd.Series, *, min_lst: int = 2) -> tuple[int, int]:
     """Return ``(n_lst, n_unique_assoc_bands)``.
 
-    Full in ``bands_present`` counts as uniquely associated (no ``n_assoc_Full``).
+    ``Full`` in ``bands_present`` counts as uniquely associated (no ``n_assoc_Full``).
+    The association seed band (``origin_band`` when ``n_assoc_{band}`` is absent)
+    counts the same way for MHz subband catalogs.
     Color bands count only when ``n_assoc_{band} == 1``.
     """
     del min_lst  # reserved for API symmetry with passes_multi_image
@@ -252,6 +328,7 @@ def unique_assoc_band_count(row: pd.Series, *, min_lst: int = 2) -> tuple[int, i
     except (TypeError, ValueError):
         n_lst = 0
 
+    origin = str(row.get("origin_band", "")).strip()
     bands = parse_bands_present(row)
     n_unique = 0
     for band in bands:
@@ -260,6 +337,8 @@ def unique_assoc_band_count(row: pd.Series, *, min_lst: int = 2) -> tuple[int, i
             continue
         col = f"n_assoc_{band}"
         if col not in row.index:
+            if band == origin:
+                n_unique += 1
             continue
         try:
             n_assoc = int(row[col])
@@ -281,13 +360,31 @@ def passes_multi_image(
 
 
 def flag_invalid_astrometry_flux(df: pd.DataFrame) -> pd.Series:
-    """True when RA, DEC, or Peak_flux is non-finite."""
+    """True when RA/DEC or representative peak flux is non-finite."""
     ok = pd.Series(True, index=df.index)
-    for col in ("RA", "DEC", "Peak_flux"):
+    for col in ("RA", "DEC"):
         if col not in df.columns:
             ok &= False
             continue
         ok &= pd.to_numeric(df[col], errors="coerce").apply(np.isfinite)
+
+    if is_subband_metacatalog(df):
+        flux_ok = []
+        for _, row in df.iterrows():
+            band = qa_band_for_row(row)
+            col = f"Peak_flux_{band}"
+            if col not in row.index:
+                flux_ok.append(False)
+                continue
+            flux_ok.append(
+                bool(np.isfinite(float(pd.to_numeric(row[col], errors="coerce"))))
+            )
+        ok &= pd.Series(flux_ok, index=df.index, dtype=bool)
+    else:
+        if "Peak_flux" not in df.columns:
+            ok &= False
+        else:
+            ok &= pd.to_numeric(df["Peak_flux"], errors="coerce").apply(np.isfinite)
     return (~ok).rename("invalid_astrometry_flux")
 
 
@@ -313,15 +410,18 @@ def flag_confused_assoc(df: pd.DataFrame) -> pd.Series:
 
 
 def all_bands_unique_assoc(row: pd.Series) -> bool:
-    """True when every band in ``bands_present`` is uniquely associated (or Full)."""
+    """True when every band in ``bands_present`` is uniquely associated (or Full/seed)."""
     bands = parse_bands_present(row)
     if not bands:
         return False
+    origin = str(row.get("origin_band", "")).strip()
     for band in bands:
         if band == "Full":
             continue
         col = f"n_assoc_{band}"
-        if col not in row.index or pd.isna(row[col]):
+        if col not in row.index:
+            if band == origin:
+                continue
             return False
         try:
             if int(row[col]) != 1:
@@ -333,10 +433,11 @@ def all_bands_unique_assoc(row: pd.Series) -> bool:
 
 def flag_has_nan(
     df: pd.DataFrame,
-    columns: Sequence[str] = QUALITY_NAN_COLUMNS,
+    columns: Sequence[str] | None = None,
 ) -> pd.Series:
     """True when any listed core column that exists on *df* is NA."""
-    present = [c for c in columns if c in df.columns]
+    cols = quality_nan_columns(df) if columns is None else columns
+    present = [c for c in cols if c in df.columns]
     if not present:
         return pd.Series(False, index=df.index, dtype=bool, name="has_nan")
     return df[present].isna().any(axis=1).rename("has_nan")
@@ -593,7 +694,7 @@ def seed_lst_rows(
     *,
     lst_merged: Mapping[str, pd.DataFrame] | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
-    """Rematch each row's ``origin_band`` to one LST-merged seed row.
+    """Rematch each row's QA band (``astrometry_band`` or ``origin_band``) to one LST seed.
 
     Returns a DataFrame indexed by ``meta_id`` with LST columns plus
     ``seed_band``, ``seed_matched``. Missing matches yield empty/NaN rows with
@@ -608,8 +709,10 @@ def seed_lst_rows(
         raise ValueError(msg)
 
     records: list[dict] = []
-    for origin_band, group in work.groupby(work["origin_band"].astype(str), sort=False):
-        band = str(origin_band)
+    work = work.copy()
+    work["_qa_band"] = work.apply(qa_band_for_row, axis=1)
+    for qa_band, group in work.groupby(work["_qa_band"].astype(str), sort=False):
+        band = str(qa_band)
         if band.lower() in {"", "nan", "none"}:
             for _, row in group.iterrows():
                 records.append(
@@ -619,7 +722,7 @@ def seed_lst_rows(
                         "seed_matched": False,
                     }
                 )
-            warn.append(f"{len(group)} rows have empty origin_band")
+            warn.append(f"{len(group)} rows have empty QA band")
             continue
 
         lst_df = _load_lst_band(layout, band, lst_merged, warn)
@@ -841,15 +944,21 @@ def _build_context(
                 float(pd.to_numeric(qa_row.get("Resid_Isl_rms"), errors="coerce"))
             ):
                 qa_row = srow
-            s_df = pd.DataFrame([qa_row])
-            sig = flux_sigma_total_minus_peak(s_df).iloc[0]
-            flux_sigma[i] = sig
-            sigma_finite[i] = bool(np.isfinite(sig))
-            unphys_soft[i] = bool(
-                flag_unphysical_flux(s_df, nsigma=config.flux_unphysical_nsigma).iloc[0]
-            )
+            qa_band = qa_band_for_row(meta.iloc[i])
+            s_df = flux_qa_frame(qa_row, srow, qa_band)
+            if s_df.empty:
+                sigma_finite[i] = False
+            else:
+                sig = flux_sigma_total_minus_peak(s_df).iloc[0]
+                flux_sigma[i] = sig
+                sigma_finite[i] = bool(np.isfinite(sig))
+                unphys_soft[i] = bool(
+                    flag_unphysical_flux(
+                        s_df, nsigma=config.flux_unphysical_nsigma
+                    ).iloc[0]
+                )
             rf = flag_residual_absolute(
-                s_df,
+                pd.DataFrame([qa_row]),
                 rms_thresh_jy=config.resid_rms_thresh_jy,
                 mean_thresh_jy=config.resid_mean_thresh_jy,
             )

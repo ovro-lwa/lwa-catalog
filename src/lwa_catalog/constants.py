@@ -235,6 +235,24 @@ SUBBAND_METACATALOG_REQUIRED_COLUMNS: frozenset[str] = frozenset(
     }
 )
 
+# Core columns for HAS_NAN on MHz-subband metacatalogs (no top-level flux).
+SUBBAND_QUALITY_NAN_COLUMNS: tuple[str, ...] = (
+    "RA",
+    "DEC",
+    "Maj",
+    "Min",
+    "PA",
+    "DC_Maj",
+    "DC_Min",
+    "DC_PA",
+    "n_lst_contributions",
+    "origin_band",
+    "bands_present",
+    "astrometry_band",
+    "Resid_Isl_rms",
+    "Resid_Isl_mean",
+)
+
 SOURCES_REQUIRED_COLUMNS: frozenset[str] = frozenset({"RA", "DEC"})
 
 # LST-merge QA columns propagated to metacatalog (origin-band row).

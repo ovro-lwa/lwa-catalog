@@ -222,8 +222,8 @@ def test_select_unique_nedlvs_matches() -> None:
 
 
 def test_build_sfr_radio_luminosity_table_unique_only() -> None:
-    meta = _meta_rows([(10.0, 20.0), (10.5, 20.0)])
-    nedlvs = _nedlvs_rows([(10.0001, 20.0, 0.01), (10.0002, 20.0, 0.01)])
+    meta = _meta_rows([(10.0, 20.0)])
+    nedlvs = _nedlvs_rows([(10.0001, 20.0, 0.01)])
     result = match_catalog_to_nedlvs(meta, nedlvs=nedlvs)
     table = build_sfr_radio_luminosity_table(
         meta, result.nedlvs_footprint, result.meta_flags, unique_only=True

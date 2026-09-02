@@ -8,7 +8,7 @@ beam keywords and overlays. Legacy CSV/FITS catalogs can be imported once via
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, overload
@@ -23,6 +23,7 @@ from lwa_catalog.constants import (
     DROPPED_GAUL_COLUMNS,
     METACATALOG_REQUIRED_COLUMNS,
     SOURCES_REQUIRED_COLUMNS,
+    SUBBAND_METACATALOG_REQUIRED_COLUMNS,
 )
 from lwa_catalog.paths import CatalogLayout
 from lwa_catalog.schemas import (
@@ -266,6 +267,21 @@ def discover_lst_merged_bands(layout: CatalogLayout) -> tuple[str, ...]:
     return COLOR_BANDS
 
 
+def seed_band_from_discovery(bands: Sequence[str]) -> str | None:
+    """Return the association seed band for discovered LST-merged labels.
+
+    MHz subbands seed from the highest frequency; RGB catalogs use ``Full``.
+    """
+    if not bands:
+        return None
+    mhz = [band for band in bands if str(band).endswith("MHz")]
+    if mhz:
+        return max(mhz, key=lambda band: float(str(band).removesuffix("MHz")))
+    if "Full" in bands:
+        return "Full"
+    return bands[0]
+
+
 def read_all_lst_merged(
     layout: CatalogLayout,
     bands: Iterable[str] = COLOR_BANDS,
@@ -309,8 +325,14 @@ def read_metacatalog(
     *,
     as_pandas: bool = True,
     validate: bool = True,
+    required: set[str] | frozenset[str] | None = None,
 ) -> pd.DataFrame | pa.Table:
-    """Read the global metacatalog from a layout root or explicit Parquet path."""
+    """Read the global metacatalog from a layout root or explicit Parquet path.
+
+    When *validate* is true and *required* is omitted, RGB catalogs (with
+    top-level ``Peak_flux``) use :data:`METACATALOG_REQUIRED_COLUMNS`; MHz
+    subband catalogs use :data:`SUBBAND_METACATALOG_REQUIRED_COLUMNS`.
+    """
     if isinstance(layout_or_path, CatalogLayout):
         path = layout_or_path.metacatalog()
     else:
@@ -319,7 +341,14 @@ def read_metacatalog(
         raise FileNotFoundError(f"Missing metacatalog: {path}")
     catalog = read_table(path, as_pandas=as_pandas)
     if validate:
-        validate_metacatalog(catalog)
+        cols = set(catalog.columns if isinstance(catalog, pd.DataFrame) else catalog.column_names)
+        if required is None:
+            required = (
+                SUBBAND_METACATALOG_REQUIRED_COLUMNS
+                if "Peak_flux" not in cols
+                else METACATALOG_REQUIRED_COLUMNS
+            )
+        validate_metacatalog(catalog, required=required)
     return catalog
 
 

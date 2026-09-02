@@ -19,20 +19,37 @@ from lwa_catalog.analyze.reliability import (
     filter_by_quality_flags,
     filter_metacatalog_reliability,
     flag_has_nan,
+    flag_invalid_astrometry_flux,
     flag_jitter_exceeds,
     flag_residual_absolute,
     flag_residual_percentile,
+    flag_single_unique_band,
     flag_scode_complex,
     flag_unphysical_flux,
+    flux_qa_frame,
     flux_sigma_total_minus_peak,
+    is_subband_metacatalog,
     pack_quality_flags,
     passes_multi_image,
+    qa_band_for_row,
     quality_flag_legend,
+    representative_peak_flux,
     seed_lst_rows,
+    unique_assoc_band_count,
 )
-from lwa_catalog.constants import CLUSTER_JITTER_RMS_COL
-from lwa_catalog.create.merge import build_global_metacatalog, merge_lst_metacatalog
-from lwa_catalog.io import write_lst_merged, write_metacatalog, write_sources_catalog
+from lwa_catalog.constants import CLUSTER_JITTER_RMS_COL, SUBBAND_METACATALOG_REQUIRED_COLUMNS
+from lwa_catalog.create.merge import (
+    build_global_metacatalog,
+    build_subband_metacatalog,
+    merge_lst_metacatalog,
+)
+from lwa_catalog.io import (
+    read_metacatalog,
+    seed_band_from_discovery,
+    write_lst_merged,
+    write_metacatalog,
+    write_sources_catalog,
+)
 from lwa_catalog.paths import CatalogLayout
 
 
@@ -199,6 +216,134 @@ def _reliability_layout(tmp_path: Path) -> tuple[CatalogLayout, pd.DataFrame, di
     meta = build_global_metacatalog(lst_merged)
     write_metacatalog(meta, layout)
     return layout, meta, lst_merged
+
+
+def test_passes_multi_image_subband_seed_only() -> None:
+    row = pd.Series(
+        {
+            "n_lst_contributions": 1,
+            "origin_band": "82MHz",
+            "bands_present": "82MHz",
+        }
+    )
+    assert unique_assoc_band_count(row)[1] == 1
+    assert bool(flag_single_unique_band(pd.DataFrame([row])).iloc[0]) is True
+    assert passes_multi_image(row) is False
+
+
+def test_subband_invalid_astrometry_and_flux_qa() -> None:
+    df = pd.DataFrame(
+        {
+            "RA": [10.0, np.nan],
+            "DEC": [20.0, 20.0],
+            "origin_band": ["82MHz", "82MHz"],
+            "astrometry_band": ["82MHz", "82MHz"],
+            "Peak_flux_82MHz": [1.5, 1.0],
+            "Total_flux_82MHz": [1.4, 1.0],
+            "E_Peak_flux_82MHz": [0.1, 0.1],
+            "E_Total_flux_82MHz": [0.1, 0.1],
+        }
+    )
+    assert is_subband_metacatalog(df)
+    invalid = flag_invalid_astrometry_flux(df)
+    assert bool(invalid.iloc[0]) is False
+    assert bool(invalid.iloc[1]) is True
+    row = df.iloc[0]
+    frame = flux_qa_frame(row, None, qa_band_for_row(row))
+    assert float(frame.iloc[0]["Peak_flux"]) == 1.5
+    assert not flag_has_nan(df).iloc[0]
+
+
+def test_representative_peak_flux_subband() -> None:
+    df = pd.DataFrame(
+        {
+            "bands_present": ["82MHz,18MHz", "18MHz"],
+            "Peak_flux_82MHz": [2.0, np.nan],
+            "Peak_flux_18MHz": [1.0, 0.5],
+        }
+    )
+    rep = representative_peak_flux(df)
+    assert float(rep.iloc[0]) == 2.0
+    assert float(rep.iloc[1]) == 0.5
+
+
+def test_read_metacatalog_auto_validates_subband(tmp_path: Path) -> None:
+    layout = CatalogLayout(tmp_path)
+    meta = pd.DataFrame(
+        {
+            "meta_id": [0],
+            "RA": [10.0],
+            "DEC": [20.0],
+            "origin_band": ["82MHz"],
+            "bands_present": ["82MHz"],
+            "astrometry_band": ["82MHz"],
+            "Peak_flux_82MHz": [1.0],
+        }
+    )
+    write_metacatalog(meta, layout, required=SUBBAND_METACATALOG_REQUIRED_COLUMNS, schema=None)
+    loaded = read_metacatalog(layout)
+    assert "Peak_flux" not in loaded.columns
+    assert float(loaded.iloc[0]["Peak_flux_82MHz"]) == 1.0
+
+
+def test_seed_band_from_discovery_mhz() -> None:
+    bands = ("18MHz", "55MHz", "82MHz")
+    assert seed_band_from_discovery(bands) == "82MHz"
+    assert seed_band_from_discovery(("Full", "Blue")) == "Full"
+
+
+def test_assign_source_quality_flags_subband(tmp_path: Path) -> None:
+    layout = CatalogLayout(tmp_path)
+    high = pd.DataFrame(
+        [
+            _src(
+                ra=30.0,
+                dec=37.0,
+                peak=2.0,
+                lst_hour="01h",
+                band="82MHz",
+                source_id=101,
+            )
+        ]
+    )
+    low = pd.DataFrame(
+        [
+            _src(
+                ra=30.01,
+                dec=37.0,
+                peak=1.5,
+                lst_hour="01h",
+                band="18MHz",
+                source_id=201,
+            )
+        ]
+    )
+    write_sources_catalog(high, layout, "01h", "82MHz")
+    write_sources_catalog(low, layout, "01h", "18MHz")
+    lst_high = merge_lst_metacatalog([high], band="82MHz")
+    lst_low = merge_lst_metacatalog([low], band="18MHz")
+    write_lst_merged(lst_high, layout, "82MHz")
+    write_lst_merged(lst_low, layout, "18MHz")
+    meta = build_subband_metacatalog(
+        {"82MHz": lst_high, "18MHz": lst_low},
+        seed_band="82MHz",
+        assoc_bands=("18MHz",),
+        color_bands=("82MHz", "18MHz"),
+        band_freq_hz={"82MHz": 82e6, "18MHz": 18e6},
+    )
+    write_metacatalog(meta, layout, required=SUBBAND_METACATALOG_REQUIRED_COLUMNS, schema=None)
+    lst_merged = {"82MHz": lst_high, "18MHz": lst_low}
+    result = assign_source_quality_flags(
+        meta,
+        layout,
+        lst_merged=lst_merged,
+        vlssr=pd.DataFrame(
+            {"RA": [30.0], "DEC": [37.0], "Peak_flux": [1.0], "BMAJ": [0.5], "BMIN": [0.5]}
+        ),
+    )
+    assert len(result.catalog) == len(meta)
+    assert is_subband_metacatalog(result.catalog)
+    assert not bool(result.flags["invalid"].all())
 
 
 def test_reliability_uses_merge_time_jitter_without_source_rematch(tmp_path: Path) -> None:
