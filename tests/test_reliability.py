@@ -17,6 +17,7 @@ from lwa_catalog.analyze.reliability import (
     cluster_radec_jitter_rms,
     decode_quality_flag,
     filter_by_quality_flags,
+    filter_by_quality_mask,
     filter_metacatalog_reliability,
     flag_has_nan,
     flag_invalid_astrometry_flux,
@@ -528,6 +529,38 @@ def test_filter_by_quality_flags_any_all_none() -> None:
     assert len(filter_by_quality_flags(df, [], match="any")) == 4
     with pytest.raises(ValueError, match="Unknown quality flag"):
         filter_by_quality_flags(df, ["NOT_A_BIT"])
+
+
+def test_filter_by_quality_mask_default_247() -> None:
+    from lwa_catalog.analyze.reliability import quality_flag_mask_from_names
+    from lwa_catalog.constants import DEFAULT_QUALITY_FLAG_MASK
+
+    expected = quality_flag_mask_from_names(
+        [
+            "HAS_NAN",
+            "INVALID_ASTROMETRY",
+            "SINGLE_LST",
+            "UNPHYSICAL_FLUX",
+            "RESID_ABS_FAIL",
+            "RESID_PCTL_RMS",
+            "RESID_PCTL_MEAN",
+        ]
+    )
+    assert DEFAULT_QUALITY_FLAG_MASK == expected == 247
+
+    lst = int(SourceQualityFlag.SINGLE_LST)
+    no_vlssr = int(SourceQualityFlag.NO_VLSSR)
+    df = pd.DataFrame(
+        {
+            "meta_id": [0, 1, 2, 3],
+            "quality_flag": [0, no_vlssr, lst, lst | no_vlssr],
+        }
+    )
+    kept = filter_by_quality_mask(df)
+    assert set(kept["meta_id"]) == {0, 1}
+    lst_only = filter_by_quality_mask(df, mask=lst)
+    assert set(lst_only["meta_id"]) == {0, 1}
+    assert len(filter_by_quality_mask(pd.DataFrame({"meta_id": [0]}))) == 1
 
 
 def test_flag_has_nan_core_columns_only() -> None:

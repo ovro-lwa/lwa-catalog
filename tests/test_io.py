@@ -10,7 +10,7 @@ import pyarrow as pa
 import pytest
 from astropy.io import fits
 
-from lwa_catalog.constants import COLOR_BANDS
+from lwa_catalog.constants import COLOR_BANDS, DEFAULT_QUALITY_FLAG_MASK
 from lwa_catalog.io import (
     discover_lst_merged_bands,
     ensure_beam_columns,
@@ -21,6 +21,7 @@ from lwa_catalog.io import (
     read_metacatalog,
     read_sources_catalog,
     read_table,
+    resolve_metacatalog_path,
     rewrite_output_dir_gaul_columns,
     sources_cache_complete,
     validate_metacatalog,
@@ -257,6 +258,50 @@ def test_read_missing_raises(tmp_path: Path) -> None:
         read_sources_catalog(layout, "00h", "Full")
     with pytest.raises(FileNotFoundError):
         read_metacatalog(layout)
+
+
+def test_read_metacatalog_prefers_quality_and_default_mask(tmp_path: Path) -> None:
+    from lwa_catalog.analyze.reliability import SourceQualityFlag
+
+    layout = CatalogLayout(tmp_path)
+    fusion = pd.DataFrame(
+        {
+            "meta_id": [0, 1],
+            "RA": [123.4, 124.0],
+            "DEC": [45.6, 46.0],
+            "Peak_flux": [1.0, 2.0],
+            "origin_band": ["Full", "Blue"],
+            "bands_present": ["Full,Blue", "Blue"],
+        }
+    )
+    write_metacatalog(fusion, layout)
+
+    quality = fusion.copy()
+    quality["quality_flag"] = np.uint32(
+        [
+            0,
+            int(SourceQualityFlag.SINGLE_LST),
+        ]
+    )
+    write_table(quality, layout.metacatalog_quality())
+
+    assert resolve_metacatalog_path(layout) == layout.metacatalog_quality()
+    loaded = read_metacatalog(layout)
+    assert len(loaded) == 1
+    assert int(loaded.iloc[0]["meta_id"]) == 0
+
+    unfiltered = read_metacatalog(layout, quality_mask=None)
+    assert len(unfiltered) == 2
+
+    fusion_only = read_metacatalog(
+        layout,
+        prefer_quality=False,
+        quality_mask=None,
+    )
+    assert len(fusion_only) == 2
+    assert "quality_flag" not in fusion_only.columns
+
+    assert DEFAULT_QUALITY_FLAG_MASK == 247
 
 
 def test_write_table_rejects_csv_suffix(tmp_path: Path) -> None:

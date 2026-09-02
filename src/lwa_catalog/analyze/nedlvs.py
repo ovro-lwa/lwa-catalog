@@ -86,7 +86,7 @@ def select_metacatalog(
         if layout is None:
             msg = "layout is required for selection='quality_all_clear'"
             raise ValueError(msg)
-        quality_path = layout.root / "metacatalog_quality.parquet"
+        quality_path = layout.metacatalog_quality()
         if not quality_path.is_file():
             msg = f"quality catalog not found: {quality_path}"
             raise FileNotFoundError(msg)

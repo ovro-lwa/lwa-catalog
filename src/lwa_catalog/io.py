@@ -20,6 +20,7 @@ from astropy.io import fits
 
 from lwa_catalog.constants import (
     COLOR_BANDS,
+    DEFAULT_QUALITY_FLAG_MASK,
     DROPPED_GAUL_COLUMNS,
     METACATALOG_REQUIRED_COLUMNS,
     SOURCES_REQUIRED_COLUMNS,
@@ -320,21 +321,48 @@ def write_metacatalog(
     )
 
 
+def resolve_metacatalog_path(
+    layout: CatalogLayout,
+    *,
+    prefer_quality: bool = True,
+) -> Path:
+    """Return the metacatalog Parquet path selected for reading.
+
+    When *prefer_quality* is true and ``metacatalog_quality.parquet`` exists
+    under ``layout.root``, that file is returned; otherwise
+    :meth:`~lwa_catalog.paths.CatalogLayout.metacatalog`.
+    """
+    if prefer_quality:
+        quality = layout.metacatalog_quality()
+        if quality.is_file():
+            return quality
+    return layout.metacatalog()
+
+
 def read_metacatalog(
     layout_or_path: CatalogLayout | str | Path,
     *,
     as_pandas: bool = True,
     validate: bool = True,
     required: set[str] | frozenset[str] | None = None,
+    prefer_quality: bool = True,
+    quality_mask: int | None = DEFAULT_QUALITY_FLAG_MASK,
 ) -> pd.DataFrame | pa.Table:
     """Read the global metacatalog from a layout root or explicit Parquet path.
+
+    For a :class:`~lwa_catalog.paths.CatalogLayout`, prefers
+    ``metacatalog_quality.parquet`` when present (see
+    :func:`resolve_metacatalog_path`). After loading, when *as_pandas* is true
+    and *quality_mask* is not ``None``, rows are filtered to those with
+    ``(quality_flag & quality_mask) == 0`` (no-op when ``quality_flag`` is
+    absent).
 
     When *validate* is true and *required* is omitted, RGB catalogs (with
     top-level ``Peak_flux``) use :data:`METACATALOG_REQUIRED_COLUMNS`; MHz
     subband catalogs use :data:`SUBBAND_METACATALOG_REQUIRED_COLUMNS`.
     """
     if isinstance(layout_or_path, CatalogLayout):
-        path = layout_or_path.metacatalog()
+        path = resolve_metacatalog_path(layout_or_path, prefer_quality=prefer_quality)
     else:
         path = Path(layout_or_path)
     if not path.is_file():
@@ -349,6 +377,14 @@ def read_metacatalog(
                 else METACATALOG_REQUIRED_COLUMNS
             )
         validate_metacatalog(catalog, required=required)
+    if (
+        quality_mask is not None
+        and as_pandas
+        and isinstance(catalog, pd.DataFrame)
+    ):
+        from lwa_catalog.analyze.reliability import filter_by_quality_mask
+
+        catalog = filter_by_quality_mask(catalog, quality_mask)
     return catalog
 
 

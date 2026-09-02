@@ -13,6 +13,7 @@ def test_package_version_and_exports() -> None:
     assert lwa_catalog.__version__
     assert hasattr(lwa_catalog, "CatalogLayout")
     assert hasattr(lwa_catalog, "read_metacatalog")
+    assert hasattr(lwa_catalog, "resolve_metacatalog_path")
     assert hasattr(lwa_catalog, "write_metacatalog")
 
 

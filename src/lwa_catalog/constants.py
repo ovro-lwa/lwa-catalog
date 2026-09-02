@@ -64,6 +64,14 @@ SUBBAND_BANDS_MHZ: tuple[str, ...] = (
 # Taylor expansion reference frequency for post-hoc spectral modeling (MHz).
 SUBBAND_REF_FREQ_MHZ: float = 55.0
 
+# QA overlay written by ``metacatalog_reliability.ipynb`` (never overwrites fusion metacatalog).
+METACATALOG_QUALITY_FILENAME: str = "metacatalog_quality.parquet"
+
+# Default analysis mask for ``(quality_flag & mask) == 0`` row selection.
+# Requires clear: HAS_NAN, INVALID_ASTROMETRY, SINGLE_LST, UNPHYSICAL_FLUX,
+# RESID_ABS_FAIL, RESID_PCTL_RMS, RESID_PCTL_MEAN (mask value 247).
+DEFAULT_QUALITY_FLAG_MASK: int = 247
+
 
 def normalize_band_label(label: str) -> str | None:
     """Return canonical color-band or ``{n}MHz`` subband label, else ``None``."""

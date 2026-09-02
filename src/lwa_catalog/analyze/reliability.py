@@ -25,6 +25,7 @@ from lwa_catalog.analyze.trace import (
 )
 from lwa_catalog.constants import (
     CLUSTER_JITTER_RMS_COL,
+    DEFAULT_QUALITY_FLAG_MASK,
     SUBBAND_QUALITY_NAN_COLUMNS,
 )
 from lwa_catalog.create.merge import associate_catalogs
@@ -537,6 +538,25 @@ def quality_flag_mask_from_names(names: Sequence[str]) -> int:
             raise ValueError(msg)
         mask |= known[key]
     return mask
+
+
+def filter_by_quality_mask(
+    df: pd.DataFrame,
+    mask: int = DEFAULT_QUALITY_FLAG_MASK,
+    *,
+    flag_col: str = "quality_flag",
+) -> pd.DataFrame:
+    """Keep rows with no quality concerns among the bits set in *mask*.
+
+    A set bit in ``quality_flag`` marks a failed check. Rows are kept when
+    ``(quality_flag & mask) == 0``. When *flag_col* is missing, *df* is
+    returned unchanged.
+    """
+    if df.empty or flag_col not in df.columns:
+        return df
+    quality = pd.to_numeric(df[flag_col], errors="coerce").to_numpy(dtype=np.uint32)
+    keep = (quality & np.uint32(mask)) == 0
+    return df.loc[keep]
 
 
 def filter_by_quality_flags(
