@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from lwa_catalog.constants import METACATALOG_QUALITY_FILENAME
+from lwa_catalog.constants import METACATALOG_QUALITY_FILENAME, METACATALOG_SPECTRAL_FILENAME
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +49,10 @@ class CatalogLayout:
     def metacatalog_quality(self) -> Path:
         """QA metacatalog with ``quality_flag``: ``{root}/metacatalog_quality.parquet``."""
         return self.root / METACATALOG_QUALITY_FILENAME
+
+    def metacatalog_spectral(self) -> Path:
+        """Metacatalog with post-hoc ``spec_model_*`` columns."""
+        return self.root / METACATALOG_SPECTRAL_FILENAME
 
     def with_metacatalog(self, metacatalog_file: str | Path) -> CatalogLayout:
         """Return a copy of this layout pointing at a different metacatalog file."""

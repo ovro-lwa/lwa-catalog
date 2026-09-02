@@ -304,6 +304,50 @@ def test_read_metacatalog_prefers_quality_and_default_mask(tmp_path: Path) -> No
     assert DEFAULT_QUALITY_FLAG_MASK == 247
 
 
+def test_read_metacatalog_prefers_spectral(tmp_path: Path) -> None:
+    layout = CatalogLayout(tmp_path)
+    fusion = pd.DataFrame(
+        {
+            "meta_id": [0],
+            "RA": [123.4],
+            "DEC": [45.6],
+            "Peak_flux": [1.0],
+            "origin_band": ["Full"],
+            "bands_present": ["Full"],
+        }
+    )
+    write_metacatalog(fusion, layout)
+
+    spectral = fusion.copy()
+    spectral["spec_model_n_terms"] = np.int32(2)
+    spectral["spec_model_a0"] = np.float64(0.0)
+    write_table(spectral, layout.metacatalog_spectral())
+
+    assert resolve_metacatalog_path(layout) == layout.metacatalog()
+    assert resolve_metacatalog_path(layout, prefer_spectral=True) == layout.metacatalog_spectral()
+
+    loaded = read_metacatalog(layout, prefer_spectral=True, quality_mask=None)
+    assert "spec_model_n_terms" in loaded.columns
+    assert int(loaded.iloc[0]["spec_model_n_terms"]) == 2
+
+    missing = read_metacatalog(
+        layout,
+        prefer_spectral=True,
+        prefer_quality=False,
+        quality_mask=None,
+    )
+    assert "spec_model_n_terms" in missing.columns
+
+    layout.metacatalog_spectral().unlink()
+    fallback = read_metacatalog(
+        layout,
+        prefer_spectral=True,
+        prefer_quality=False,
+        quality_mask=None,
+    )
+    assert "spec_model_n_terms" not in fallback.columns
+
+
 def test_write_table_rejects_csv_suffix(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Parquet"):
         write_table(pd.DataFrame({"RA": [1.0]}), tmp_path / "x.csv")

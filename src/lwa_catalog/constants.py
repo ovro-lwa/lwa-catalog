@@ -67,6 +67,9 @@ SUBBAND_REF_FREQ_MHZ: float = 55.0
 # QA overlay written by ``metacatalog_reliability.ipynb`` (never overwrites fusion metacatalog).
 METACATALOG_QUALITY_FILENAME: str = "metacatalog_quality.parquet"
 
+# Post-hoc Taylor spectral fits written by ``metacatalog_spectral_modeling.ipynb``.
+METACATALOG_SPECTRAL_FILENAME: str = "metacatalog_spectral.parquet"
+
 # Default analysis mask for ``(quality_flag & mask) == 0`` row selection.
 # Requires clear: HAS_NAN, INVALID_ASTROMETRY, SINGLE_LST, UNPHYSICAL_FLUX,
 # RESID_ABS_FAIL, RESID_PCTL_RMS, RESID_PCTL_MEAN (mask value 247).

@@ -42,3 +42,8 @@ def test_catalog_layout_absolute_metacatalog_path(tmp_path: Path) -> None:
 def test_catalog_layout_metacatalog_quality_path(tmp_path: Path) -> None:
     layout = CatalogLayout(tmp_path)
     assert layout.metacatalog_quality() == tmp_path / "metacatalog_quality.parquet"
+
+
+def test_catalog_layout_metacatalog_spectral_path(tmp_path: Path) -> None:
+    layout = CatalogLayout(tmp_path)
+    assert layout.metacatalog_spectral() == tmp_path / "metacatalog_spectral.parquet"
