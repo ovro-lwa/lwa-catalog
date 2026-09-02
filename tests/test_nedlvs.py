@@ -11,16 +11,25 @@ from astropy.table import Table
 
 from lwa_catalog.analyze.nedlvs import (
     NedlvsMatchConfig,
-    _diam_to_bmaj_deg,
+    _associate_by_centroid_sigma,
+    _filter_nedlvs_redshift,
     _footprint_filter_nedlvs,
     build_sfr_radio_luminosity_table,
     load_nedlvs_catalog,
     match_catalog_to_nedlvs,
+    resolve_centroid_sigma_deg,
     resolve_highest_frequency_peak_flux,
+    select_bijective_nedlvs_flags,
     select_metacatalog,
+    select_unique_nedlvs_matches,
     summarize_nedlvs_match,
 )
-from lwa_catalog.constants import BAND_FREQ_HZ, NEDLVS_DEFAULT_BMAJ_DEG, band_frequency_hz
+from lwa_catalog.constants import (
+    BAND_FREQ_HZ,
+    NEDLVS_DEFAULT_CENTROID_SIGMA_DEG,
+    NEDLVS_DEFAULT_MAX_REDSHIFT,
+    band_frequency_hz,
+)
 
 
 def _write_mini_nedlvs(path: Path) -> None:
@@ -30,7 +39,7 @@ def _write_mini_nedlvs(path: Path) -> None:
             "ra": [10.0, 50.0],
             "dec": [20.0, 50.0],
             "objtype": ["G", "G"],
-            "z": [0.01, 0.02],
+            "z": [0.01, 0.5],
             "DistMpc": [40.0, 80.0],
             "Diam": [40.0, np.nan],
             "Mstar": [1e10, 2e10],
@@ -41,34 +50,36 @@ def _write_mini_nedlvs(path: Path) -> None:
     table.write(path, overwrite=True)
 
 
-def _meta_rows(rows: list[tuple[float, float]]) -> pd.DataFrame:
+def _meta_rows(
+    rows: list[tuple[float, float]],
+    *,
+    jitter_deg: float | None = 0.001,
+) -> pd.DataFrame:
+    jitter = [jitter_deg] * len(rows) if jitter_deg is not None else [0.0] * len(rows)
     return pd.DataFrame(
         {
             "meta_id": list(range(len(rows))),
             "RA": [r[0] for r in rows],
             "DEC": [r[1] for r in rows],
             "bands_present": ["Blue"] * len(rows),
-            "BMAJ_match": [0.05] * len(rows),
+            "cluster_jitter_rms_deg": jitter,
+            "Peak_flux_Blue": [1.0] * len(rows),
         }
     )
 
 
-def _nedlvs_rows(rows: list[tuple[float, float, float | None]]) -> pd.DataFrame:
+def _nedlvs_rows(rows: list[tuple[float, float, float]]) -> pd.DataFrame:
     records = []
-    for ra, dec, diam in rows:
-        bmaj = NEDLVS_DEFAULT_BMAJ_DEG
-        if diam is not None and np.isfinite(diam) and diam > 0:
-            bmaj = diam / 3600.0
+    for ra, dec, z in rows:
         records.append(
             {
                 "RA": ra,
                 "DEC": dec,
-                "BMAJ": bmaj,
                 "objname": "GAL",
                 "objtype": "G",
-                "z": 0.01,
+                "z": z,
                 "DistMpc": 30.0,
-                "Diam_arcsec": diam,
+                "Diam_arcsec": 20.0,
                 "Mstar": 1e10,
                 "SFR_hybrid": 1.0,
                 "SFR_W4": 1.0,
@@ -77,27 +88,34 @@ def _nedlvs_rows(rows: list[tuple[float, float, float | None]]) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
-def test_diam_to_bmaj_deg() -> None:
-    diam = np.array([40.0, np.nan, 0.0])
-    bmaj = _diam_to_bmaj_deg(diam, default_bmaj_deg=0.01)
-    assert bmaj[0] == pytest.approx(40.0 / 3600.0)
-    assert bmaj[1] == pytest.approx(0.01)
-    assert bmaj[2] == pytest.approx(0.01)
-
-
 def test_load_nedlvs_catalog(tmp_path) -> None:
     catalog_path = tmp_path / "nedlvs.fits"
     _write_mini_nedlvs(catalog_path)
     loaded = load_nedlvs_catalog(catalog_path)
     assert len(loaded) == 2
-    assert loaded.loc[0, "BMAJ"] == pytest.approx(40.0 / 3600.0)
-    assert loaded.loc[1, "BMAJ"] == pytest.approx(NEDLVS_DEFAULT_BMAJ_DEG)
+    assert "Diam_arcsec" in loaded.columns
+    assert "BMAJ" not in loaded.columns
 
 
 def test_load_nedlvs_catalog_missing_file(tmp_path) -> None:
     missing = tmp_path / "missing.fits"
     with pytest.raises(FileNotFoundError, match="NED-LVS catalog not found"):
         load_nedlvs_catalog(missing)
+
+
+def test_resolve_centroid_sigma_prefers_e_ra_dec() -> None:
+    row = pd.Series({"E_RA": 0.002, "E_DEC": 0.001, "cluster_jitter_rms_deg": 0.05})
+    assert resolve_centroid_sigma_deg(row) == pytest.approx(np.hypot(0.002, 0.001))
+
+
+def test_resolve_centroid_sigma_uses_jitter() -> None:
+    row = pd.Series({"cluster_jitter_rms_deg": 0.01})
+    assert resolve_centroid_sigma_deg(row) == pytest.approx(0.01)
+
+
+def test_resolve_centroid_sigma_default() -> None:
+    row = pd.Series({"cluster_jitter_rms_deg": 0.0})
+    assert resolve_centroid_sigma_deg(row) == pytest.approx(NEDLVS_DEFAULT_CENTROID_SIGMA_DEG)
 
 
 def test_footprint_filter_nedlvs() -> None:
@@ -107,19 +125,41 @@ def test_footprint_filter_nedlvs() -> None:
     assert list(filtered["DEC"]) == [0.0, 15.0]
 
 
+def test_filter_nedlvs_redshift() -> None:
+    nedlvs = _nedlvs_rows([(0.0, 0.0, 0.01), (1.0, 1.0, 0.5)])
+    filtered = _filter_nedlvs_redshift(nedlvs, 0.2)
+    assert len(filtered) == 1
+    assert float(filtered.iloc[0]["z"]) == pytest.approx(0.01)
+
+
+def test_associate_by_centroid_sigma_single_hit() -> None:
+    base = pd.DataFrame({"RA": [10.0], "DEC": [20.0], "SIGMA": [0.001]})
+    ref = pd.DataFrame({"RA": [10.0001], "DEC": [20.0], "SIGMA": [0.0001]})
+    hits, matched = _associate_by_centroid_sigma(base, ref, position_sigma_scale=3.0)
+    assert hits == {0: [0]}
+    assert matched == {0}
+
+
 def test_match_single_hit() -> None:
     meta = _meta_rows([(10.0, 20.0)])
-    nedlvs = _nedlvs_rows([(10.01, 20.0, 40.0)])
+    nedlvs = _nedlvs_rows([(10.0001, 20.0, 0.01)])
     result = match_catalog_to_nedlvs(meta, nedlvs=nedlvs)
     assert int(result.meta_flags.iloc[0]["n_nedlvs"]) == 1
     assert bool(result.meta_flags.iloc[0]["matched"])
-    assert int(result.summary["n_nedlvs_matched"]) == 1
-    assert result.summary["nedlvs_recovery"] == pytest.approx(1.0)
+    assert int(result.summary["n_meta_unique_nedlvs"]) == 1
+
+
+def test_match_rejects_high_redshift() -> None:
+    meta = _meta_rows([(10.0, 20.0)])
+    nedlvs = _nedlvs_rows([(10.0001, 20.0, 0.5)])
+    config = NedlvsMatchConfig(max_redshift=0.2)
+    result = match_catalog_to_nedlvs(meta, nedlvs=nedlvs, config=config)
+    assert int(result.summary["n_meta_matched"]) == 0
 
 
 def test_match_oversplit_two_meta_one_nedlvs() -> None:
-    meta = _meta_rows([(10.01, 20.0), (10.02, 20.0)])
-    nedlvs = _nedlvs_rows([(10.015, 20.0, 40.0)])
+    meta = _meta_rows([(10.0001, 20.0), (10.0002, 20.0)], jitter_deg=0.01)
+    nedlvs = _nedlvs_rows([(10.00015, 20.0, 0.01)])
     result = match_catalog_to_nedlvs(meta, nedlvs=nedlvs)
     assert int(result.summary["n_nedlvs_oversplit"]) == 1
     assert bool(result.nedlvs_flags.iloc[0]["oversplit"])
@@ -127,16 +167,16 @@ def test_match_oversplit_two_meta_one_nedlvs() -> None:
 
 def test_summarize_nedlvs_match_includes_key_metrics() -> None:
     meta = _meta_rows([(10.0, 20.0)])
-    nedlvs = _nedlvs_rows([(10.0, 20.0, 40.0)])
+    nedlvs = _nedlvs_rows([(10.0001, 20.0, 0.01)])
     result = match_catalog_to_nedlvs(meta, nedlvs=nedlvs)
     text = summarize_nedlvs_match(result)
+    assert "Meta unique match" in text
     assert "NED-LVS recovery" in text
-    assert "Meta with NED-LVS host" in text
 
 
 def test_match_lst_merged_blue_target() -> None:
     lst_blue = _meta_rows([(10.0, 20.0)]).drop(columns=["bands_present"])
-    nedlvs = _nedlvs_rows([(10.0, 20.0, 40.0)])
+    nedlvs = _nedlvs_rows([(10.0001, 20.0, 0.01)])
     config = NedlvsMatchConfig(target="lst_merged_blue")
     result = match_catalog_to_nedlvs(lst_blue, nedlvs=nedlvs, config=config)
     assert int(result.summary["n_meta_matched"]) == 1
@@ -175,20 +215,44 @@ def test_select_metacatalog_blue() -> None:
     assert int(out.iloc[0]["meta_id"]) == 0
 
 
-def test_build_sfr_radio_luminosity_table() -> None:
-    meta = pd.DataFrame(
-        {
-            "meta_id": [0],
-            "RA": [10.0],
-            "DEC": [20.0],
-            "bands_present": ["Blue"],
-            "Peak_flux_Blue": [0.5],
-            "BMAJ_match": [0.05],
-        }
-    )
-    nedlvs = _nedlvs_rows([(10.01, 20.0, 40.0)])
+def test_select_unique_nedlvs_matches() -> None:
+    flags = pd.DataFrame({"meta_id": [0, 1, 2], "n_nedlvs": [0, 1, 3]})
+    unique = select_unique_nedlvs_matches(flags)
+    assert list(unique["meta_id"]) == [1]
+
+
+def test_build_sfr_radio_luminosity_table_unique_only() -> None:
+    meta = _meta_rows([(10.0, 20.0), (10.5, 20.0)])
+    nedlvs = _nedlvs_rows([(10.0001, 20.0, 0.01), (10.0002, 20.0, 0.01)])
     result = match_catalog_to_nedlvs(meta, nedlvs=nedlvs)
-    table = build_sfr_radio_luminosity_table(meta, result.nedlvs_footprint, result.meta_flags)
+    table = build_sfr_radio_luminosity_table(
+        meta, result.nedlvs_footprint, result.meta_flags, unique_only=True
+    )
     assert len(table) == 1
     assert table.iloc[0]["SFR_column"] == "SFR_hybrid"
     assert table.iloc[0]["nuL_nu_erg_s"] > 0
+
+
+def test_select_bijective_nedlvs_flags() -> None:
+    meta_flags = pd.DataFrame(
+        {
+            "meta_id": [0, 1, 2],
+            "n_nedlvs": [1, 1, 2],
+            "matched": [True, True, True],
+        }
+    )
+    nedlvs_flags = pd.DataFrame(
+        {
+            "nedlvs_pos": [0, 1, 2],
+            "n_meta": [1, 2, 1],
+            "meta_ids": [[0], [0, 1], [2]],
+        }
+    )
+    bijective = select_bijective_nedlvs_flags(meta_flags, nedlvs_flags)
+    assert list(bijective["nedlvs_pos"]) == [0]
+
+
+def test_nedlvs_match_config_defaults() -> None:
+    cfg = NedlvsMatchConfig()
+    assert cfg.max_redshift == pytest.approx(NEDLVS_DEFAULT_MAX_REDSHIFT)
+    assert cfg.position_sigma_scale == pytest.approx(3.0)

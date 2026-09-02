@@ -18,8 +18,11 @@ from lwa_catalog.analyze.nedlvs import (
     load_nedlvs_catalog,
     match_catalog_to_nedlvs,
     radio_luminosity_nu,
+    resolve_centroid_sigma_deg,
     resolve_highest_frequency_peak_flux,
     select_metacatalog,
+    select_bijective_nedlvs_flags,
+    select_unique_nedlvs_matches,
     summarize_nedlvs_match,
 )
 from lwa_catalog.analyze.reliability import (
@@ -107,8 +110,11 @@ __all__ = [
     "match_catalog_to_nedlvs",
     "match_catalog_to_vlssr",
     "radio_luminosity_nu",
+    "resolve_centroid_sigma_deg",
     "resolve_highest_frequency_peak_flux",
     "select_metacatalog",
+    "select_bijective_nedlvs_flags",
+    "select_unique_nedlvs_matches",
     "select_blue_associated_rows",
     "SingleSpectrumFit",
     "SpectralFitConfig",

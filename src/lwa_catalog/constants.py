@@ -27,9 +27,14 @@ VLSSR_DEFAULT_PATH: Path = Path("/fast/claw/vlssr_radecpeak.txt")
 
 # NED Local Volume Sample (Cook et al. 2023; latest FITS from NED-LVS page).
 NEDLVS_DEFAULT_PATH: Path = Path("/fast/claw/NEDLVS_current.fits")
-# Fallback angular radius when ``Diam`` is missing (arcsec; NED-LVS median ~20″).
-NEDLVS_DEFAULT_BMAJ_ARCSEC: float = 20.0
-NEDLVS_DEFAULT_BMAJ_DEG: float = NEDLVS_DEFAULT_BMAJ_ARCSEC / 3600.0
+NEDLVS_DEFAULT_MAX_REDSHIFT: float = 0.2
+NEDLVS_DEFAULT_POSITION_SIGMA_SCALE: float = 3.0
+# Fallback 1σ centroid radius when ``E_RA``/``E_DEC`` and ``cluster_jitter_rms_deg`` are absent.
+NEDLVS_DEFAULT_CENTROID_SIGMA_ARCSEC: float = 5.0
+NEDLVS_DEFAULT_CENTROID_SIGMA_DEG: float = NEDLVS_DEFAULT_CENTROID_SIGMA_ARCSEC / 3600.0
+# Typical NED catalog position uncertainty (1σ, arcsec).
+NEDLVS_CATALOG_POSITION_SIGMA_ARCSEC: float = 1.0
+NEDLVS_CATALOG_POSITION_SIGMA_DEG: float = NEDLVS_CATALOG_POSITION_SIGMA_ARCSEC / 3600.0
 
 _SUBBAND_FREQ_RE = re.compile(r"^(\d+)MHz$", re.IGNORECASE)
 
