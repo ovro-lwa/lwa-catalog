@@ -20,8 +20,10 @@ from lwa_catalog.analyze.reliability import (
     filter_by_quality_mask,
     filter_metacatalog_reliability,
     flag_has_nan,
+    flag_high_ellipticity,
     flag_invalid_astrometry_flux,
     flag_jitter_exceeds,
+    flag_low_elevation,
     flag_residual_absolute,
     flag_residual_percentile,
     flag_single_unique_band,
@@ -61,6 +63,8 @@ def test_reliability_config_defaults() -> None:
     assert cfg.resid_percentile_lo == 1.0
     assert cfg.resid_percentile_hi == 99.0
     assert cfg.jitter_bmaj_frac == 0.3
+    assert cfg.min_elevation_deg == 10.0
+    assert cfg.max_source_ellipticity == 3.0
     assert cfg.require_unique_assoc_include is True
     assert cfg.require_unique_assoc_exclude is False
 
@@ -481,8 +485,8 @@ def test_assert_gold_subset_warns() -> None:
 
 def test_quality_flag_pack_and_decode() -> None:
     legend = quality_flag_legend()
-    assert len(legend) == 12
-    assert set(legend["bit"]) == set(range(12))
+    assert len(legend) == 14
+    assert set(legend["bit"]) == set(range(14))
     flags = pd.DataFrame(
         {
             "has_nan": [True, False],
@@ -497,6 +501,8 @@ def test_quality_flag_pack_and_decode() -> None:
             "confused_assoc": [False, False],
             "no_vlssr": [False, True],
             "scode_complex": [False, False],
+            "low_elevation": [False, False],
+            "high_ellipticity": [False, False],
         }
     )
     packed = pack_quality_flags(flags)
@@ -588,6 +594,44 @@ def test_flag_scode_and_residual_percentile() -> None:
     assert bool(pctl["resid_pctl_rms"].iloc[1]) is False
     assert bool(pctl["resid_pctl_mean"].iloc[0]) is True
     assert bool(pctl["resid_pctl_mean"].iloc[2]) is False
+
+
+def test_flag_low_elevation_and_high_ellipticity() -> None:
+    from lwa_catalog.create.merge import source_elevation_deg
+
+    low_row = pd.DataFrame(
+        {
+            "RA": [180.0],
+            "DEC": [-50.0],
+            "representative_lst": ["12h"],
+            "Maj": [0.5],
+            "Min": [0.5],
+        }
+    )
+    high_row = pd.DataFrame(
+        {
+            "RA": [180.0],
+            "DEC": [37.0],
+            "representative_lst": ["12h"],
+            "Maj": [6.0],
+            "Min": [1.0],
+        }
+    )
+    assert float(source_elevation_deg(180.0, -50.0, "12h")) < 10.0
+    assert bool(flag_low_elevation(low_row, min_deg=10.0).iloc[0]) is True
+    assert bool(flag_low_elevation(high_row, min_deg=10.0).iloc[0]) is False
+    assert bool(flag_high_ellipticity(high_row, max_ratio=3.0).iloc[0]) is True
+    assert bool(flag_high_ellipticity(low_row, max_ratio=3.0).iloc[0]) is False
+
+    packed = pack_quality_flags(
+        pd.DataFrame(
+            {
+                "low_elevation": [True],
+                "high_ellipticity": [True],
+            }
+        )
+    )
+    assert int(packed[0]) == int(SourceQualityFlag.LOW_ELEVATION | SourceQualityFlag.HIGH_ELLIPTICITY)
 
 
 def test_assign_source_quality_flags_keeps_all_rows(tmp_path: Path) -> None:

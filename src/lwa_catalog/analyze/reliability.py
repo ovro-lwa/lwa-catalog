@@ -28,7 +28,7 @@ from lwa_catalog.constants import (
     DEFAULT_QUALITY_FLAG_MASK,
     SUBBAND_QUALITY_NAN_COLUMNS,
 )
-from lwa_catalog.create.merge import associate_catalogs
+from lwa_catalog.create.merge import associate_catalogs, catalog_elevation_deg
 from lwa_catalog.gaul import cast_s_code_value
 from lwa_catalog.io import read_sources_catalog
 from lwa_catalog.paths import CatalogLayout
@@ -137,7 +137,7 @@ class SourceQualityFlag(IntFlag):
 
     A bit is **0 when that check is good/reliable** and **1 when the property
     is a quality concern**. ``quality_flag == 0`` means every implemented check
-    passed. Bits 12–31 are reserved (stay 0).
+    passed. Bits 14–31 are reserved (stay 0).
 
     ====== ===================== =================================================
     Bit    Name                  Set (1) when
@@ -154,6 +154,8 @@ class SourceQualityFlag(IntFlag):
     9      CONFUSED_ASSOC        any ``n_assoc_* > 1`` (was E5)
     10     NO_VLSSR              no positional match to the VLSSR catalog
     11     SCODE_COMPLEX         PyBDSF ``S_Code`` is ``C`` or ``M``
+    12     LOW_ELEVATION         elevation at ``representative_lst`` < 10°
+    13     HIGH_ELLIPTICITY      ``Maj / Min > 3`` (source FWHM axes)
     ====== ===================== =================================================
     """
 
@@ -169,6 +171,8 @@ class SourceQualityFlag(IntFlag):
     CONFUSED_ASSOC = 1 << 9
     NO_VLSSR = 1 << 10
     SCODE_COMPLEX = 1 << 11
+    LOW_ELEVATION = 1 << 12
+    HIGH_ELLIPTICITY = 1 << 13
 
 
 _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
@@ -184,6 +188,8 @@ _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
     ("confused_assoc", SourceQualityFlag.CONFUSED_ASSOC),
     ("no_vlssr", SourceQualityFlag.NO_VLSSR),
     ("scode_complex", SourceQualityFlag.SCODE_COMPLEX),
+    ("low_elevation", SourceQualityFlag.LOW_ELEVATION),
+    ("high_ellipticity", SourceQualityFlag.HIGH_ELLIPTICITY),
 )
 
 _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
@@ -201,6 +207,8 @@ _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
     SourceQualityFlag.CONFUSED_ASSOC: "any n_assoc_* > 1",
     SourceQualityFlag.NO_VLSSR: "not associated with the VLSSR catalog",
     SourceQualityFlag.SCODE_COMPLEX: "S_Code is C or M",
+    SourceQualityFlag.LOW_ELEVATION: "elevation at representative_lst below min_elevation_deg",
+    SourceQualityFlag.HIGH_ELLIPTICITY: "Maj / Min exceeds max_source_ellipticity",
 }
 
 
@@ -214,6 +222,8 @@ class ReliabilityConfig:
     resid_percentile_hi: float = 99.0
     flux_unphysical_nsigma: float = 3.0
     jitter_bmaj_frac: float = 0.3
+    min_elevation_deg: float = 10.0
+    max_source_ellipticity: float = 3.0
     min_lst_contributions: int = 2
     require_unique_assoc_include: bool = True
     require_unique_assoc_exclude: bool = False
@@ -464,6 +474,44 @@ def flag_scode_complex(codes: pd.Series | np.ndarray) -> pd.Series:
     series = pd.Series(codes, dtype=object)
     text = series.astype("string").str.strip().str.upper()
     return text.isin(["C", "M"]).fillna(False).rename("scode_complex")
+
+
+def flag_low_elevation(
+    df: pd.DataFrame,
+    *,
+    min_deg: float = 10.0,
+) -> pd.Series:
+    """True when source elevation at ``representative_lst`` is below *min_deg*."""
+    name = "low_elevation"
+    if df.empty:
+        return pd.Series(dtype=bool, name=name)
+    need = {"RA", "DEC", "representative_lst"}
+    if not need <= set(df.columns):
+        return pd.Series(False, index=df.index, dtype=bool, name=name)
+    try:
+        elev = catalog_elevation_deg(df)
+    except KeyError:
+        return pd.Series(False, index=df.index, dtype=bool, name=name)
+    low = np.asarray(elev, dtype=float) < float(min_deg)
+    return pd.Series(low & np.isfinite(elev), index=df.index, dtype=bool, name=name)
+
+
+def flag_high_ellipticity(
+    df: pd.DataFrame,
+    *,
+    max_ratio: float = 3.0,
+) -> pd.Series:
+    """True when ``Maj / Min > max_ratio`` with finite positive minor axis."""
+    name = "high_ellipticity"
+    if "Maj" not in df.columns or "Min" not in df.columns:
+        return pd.Series(False, index=df.index, dtype=bool, name=name)
+    maj = pd.to_numeric(df["Maj"], errors="coerce")
+    min_ = pd.to_numeric(df["Min"], errors="coerce")
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ratio = maj / min_
+    ok = maj.notna() & min_.notna() & (min_ > 0.0)
+    high = ok & (ratio > float(max_ratio))
+    return high.fillna(False).rename(name)
 
 
 def flag_residual_percentile(
@@ -1340,6 +1388,10 @@ def assign_source_quality_flags(
     flags["no_vlssr"] = _match_vlssr_unmatched(
         meta, vlssr=vlssr, vlssr_config=vlssr_config, warn=warn
     )
+    flags["low_elevation"] = flag_low_elevation(meta, min_deg=cfg.min_elevation_deg).to_numpy()
+    flags["high_ellipticity"] = flag_high_ellipticity(
+        meta, max_ratio=cfg.max_source_ellipticity
+    ).to_numpy()
 
     quality = pack_quality_flags(flags)
     flags["quality_flag"] = quality
