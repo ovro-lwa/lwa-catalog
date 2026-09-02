@@ -89,6 +89,34 @@ def _pick_highest_elevation_row(
     return df.iloc[int(np.nanargmax(elev))]
 
 
+def source_elevation_deg(
+    ra_deg: float,
+    dec_deg: float,
+    lst_hour: str | float | int,
+    *,
+    latitude_deg: float = OVRO_LATITUDE_DEG,
+) -> float:
+    """Source elevation (degrees) for a zenith-centered observation at *lst_hour*."""
+    return _elevation_deg(ra_deg, dec_deg, lst_hour, latitude_deg=latitude_deg)
+
+
+def catalog_elevation_deg(
+    catalog: pd.DataFrame,
+    *,
+    latitude_deg: float = OVRO_LATITUDE_DEG,
+) -> np.ndarray:
+    """Return source elevation (degrees) for each row in a per-LST catalog."""
+    lst_col = _lst_label_column(catalog)
+    ra = catalog["RA"].to_numpy(dtype=float)
+    dec = catalog["DEC"].to_numpy(dtype=float)
+    lst = catalog[lst_col].to_numpy()
+    zenith_ra = np.array([_lst_hour_to_deg(lh) for lh in lst]) * u.deg
+    zenith_dec = np.full(len(catalog), latitude_deg) * u.deg
+    sources = SkyCoord(ra=ra * u.deg, dec=dec * u.deg)
+    zenith = SkyCoord(ra=zenith_ra, dec=zenith_dec)
+    return 90.0 - zenith.separation(sources).deg
+
+
 def pick_highest_elevation_row(
     df: pd.DataFrame,
     *,

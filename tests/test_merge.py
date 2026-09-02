@@ -90,6 +90,19 @@ def test_merge_lst_clusters_nearby_detections() -> None:
     assert int(merged.loc[merged["RA"].between(9, 11), "n_lst_contributions"].iloc[0]) == 2
 
 
+def test_catalog_elevation_deg_at_transit() -> None:
+    """Source at zenith (RA=LST, Dec=latitude) has ~90° elevation."""
+    from lwa_catalog.constants import OVRO_LATITUDE_DEG
+    from lwa_catalog.create.merge import catalog_elevation_deg, source_elevation_deg
+
+    lst = "02h"
+    ra = 30.0  # 2h * 15 deg/h
+    df = pd.DataFrame({"RA": [ra], "DEC": [OVRO_LATITUDE_DEG], "lst_hour": [lst]})
+    elev = catalog_elevation_deg(df)
+    assert abs(float(elev[0]) - 90.0) < 1e-6
+    assert abs(source_elevation_deg(ra, OVRO_LATITUDE_DEG, lst) - 90.0) < 1e-6
+
+
 def test_merge_lst_picks_highest_elevation_and_flux_std() -> None:
     # Source near RA=30° (LST 02h). Peak flux is higher at 01h so the old
     # median-flux rule would prefer 01h; elevation at transit prefers 02h.

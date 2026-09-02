@@ -21,8 +21,10 @@ from lwa_catalog.create.merge import (
     associate_catalogs,
     build_global_metacatalog,
     build_subband_metacatalog,
+    catalog_elevation_deg,
     merge_lst_metacatalog,
     pick_highest_elevation_row,
+    source_elevation_deg,
 )
 
 __all__ = [
@@ -32,6 +34,7 @@ __all__ = [
     "associate_catalogs",
     "build_global_metacatalog",
     "build_subband_metacatalog",
+    "catalog_elevation_deg",
     "detect_sources",
     "detect_sources_many",
     "iter_detect_sources",
@@ -42,4 +45,5 @@ __all__ = [
     "parse_fits_metadata",
     "pick_highest_elevation_row",
     "resolve_fits_slot",
+    "source_elevation_deg",
 ]
