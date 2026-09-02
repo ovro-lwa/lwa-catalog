@@ -31,6 +31,7 @@ class VlssrMatchResult:
     summary: dict[str, float | int]
     meta_flags: pd.DataFrame
     vlssr_flags: pd.DataFrame
+    vlssr_footprint: pd.DataFrame
     warnings: list[str] = field(default_factory=list)
 
 
@@ -207,7 +208,7 @@ def match_catalog_to_vlssr(
         return VlssrMatchResult(
             summary=_empty_summary(),
             meta_flags=pd.DataFrame(
-                columns=["meta_id", "RA", "DEC", "n_vlssr", "matched"]
+                columns=["meta_id", "RA", "DEC", "n_vlssr", "vlssr_positions", "matched"]
             ),
             vlssr_flags=pd.DataFrame(
                 columns=[
@@ -220,6 +221,7 @@ def match_catalog_to_vlssr(
                     "oversplit",
                 ]
             ),
+            vlssr_footprint=pd.DataFrame(),
             warnings=warnings,
         )
 
@@ -246,6 +248,7 @@ def match_catalog_to_vlssr(
             "RA": row.get("RA", np.nan),
             "DEC": row.get("DEC", np.nan),
             "n_vlssr": n_vlssr,
+            "vlssr_positions": list(hit_vlssr),
             "matched": n_vlssr >= 1,
         }
         if "meta_id" in target.columns:
@@ -254,7 +257,7 @@ def match_catalog_to_vlssr(
 
     meta_flags = pd.DataFrame(meta_records)
     if "meta_id" in meta_flags.columns:
-        cols = ["meta_id", "RA", "DEC", "n_vlssr", "matched"]
+        cols = ["meta_id", "RA", "DEC", "n_vlssr", "vlssr_positions", "matched"]
         meta_flags = meta_flags[cols]
 
     vlssr_records: list[dict] = []
@@ -320,6 +323,7 @@ def match_catalog_to_vlssr(
         summary=summary,
         meta_flags=meta_flags,
         vlssr_flags=vlssr_flags,
+        vlssr_footprint=vlssr_footprint,
         warnings=warnings,
     )
 

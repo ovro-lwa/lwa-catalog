@@ -111,8 +111,8 @@ def load_vlass_catalog(
     if not catalog_path.is_file():
         msg = (
             f"VLASS catalog not found: {catalog_path}. "
-            "Download CIRADA_VLASS1QLv3.1_table1_components.csv.gz from "
-            "https://cirada.ca/catalogues"
+            f"Download CIRADA_VLASS1QLv3.1_table1_components.csv.gz into "
+            f"{VLASS_DEFAULT_PATH.parent} from https://cirada.ca/catalogues"
         )
         raise FileNotFoundError(msg)
 

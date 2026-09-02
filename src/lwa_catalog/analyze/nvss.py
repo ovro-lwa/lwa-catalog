@@ -81,7 +81,8 @@ def load_nvss_catalog(path: Path | str | None = None) -> pd.DataFrame:
     if not catalog_path.is_file():
         msg = (
             f"NVSS catalog not found: {catalog_path}. "
-            "Download CATALOG.FIT from ftp://ftp.cv.nrao.edu/nvss/CATALOG/CATALOG.FIT"
+            f"Download CATALOG.FIT into {NVSS_DEFAULT_PATH.parent} from "
+            "ftp://ftp.cv.nrao.edu/nvss/CATALOG/CATALOG.FIT"
         )
         raise FileNotFoundError(msg)
 
