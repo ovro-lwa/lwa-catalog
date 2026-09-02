@@ -40,15 +40,15 @@ def test_fit_power_law_selects_two_terms() -> None:
     assert fit.coeffs[1] == pytest.approx(alpha_true, abs=1e-6)
 
 
-def test_fit_constant_selects_one_term() -> None:
+def test_fit_single_point_returns_empty() -> None:
     nu_hz = np.array([55e6])
     flux = np.array([2.5])
     err = np.array([0.1])
 
     fit = fit_single_spectrum(nu_hz, flux, err)
-    assert fit.n_terms == 1
-    assert fit.n_flux == 1
-    assert fit.coeffs[0] == pytest.approx(np.log(2.5), rel=1e-9)
+    assert fit.n_terms == 0
+    assert fit.n_flux == 0
+    assert np.isnan(fit.bic)
 
 
 def test_fit_insufficient_points() -> None:

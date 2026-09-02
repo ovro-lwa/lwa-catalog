@@ -15,6 +15,7 @@ from lwa_catalog.constants import (
 )
 
 FluxKind = Literal["total", "peak"]
+_MIN_TAYLOR_TERMS = 2
 _MAX_TAYLOR_TERMS = 4
 _NAN_COEFFS = (float("nan"),) * _MAX_TAYLOR_TERMS
 
@@ -221,14 +222,14 @@ def fit_single_spectrum(
     """Fit nested Taylor models in log-flux and select the simplest adequate model.
 
   Models use ``ln S = sum_j a_j [ln(nu/nu0)]^j`` for ``j = 0 .. n_terms-1`` with
-  ``n_terms`` in ``1 .. min(max_terms, n_points)``. Among models with reduced
+  ``n_terms`` in ``2 .. min(max_terms, n_points)``. Among models with reduced
   chi-squared within 5% (or 0.05 absolute) of the best reduced chi-squared, the fewest
   terms wins; otherwise the lowest BIC wins.
     """
     cfg = SpectralFitConfig() if config is None else config
     nu0_mhz = float(cfg.ref_freq_mhz)
     nu0_hz = nu0_mhz * 1e6
-    max_terms = max(1, min(int(cfg.max_terms), _MAX_TAYLOR_TERMS))
+    max_terms = max(_MIN_TAYLOR_TERMS, min(int(cfg.max_terms), _MAX_TAYLOR_TERMS))
 
     nu = np.asarray(nu_hz, dtype=float)
     flux = np.asarray(flux_jy, dtype=float)
@@ -252,7 +253,7 @@ def fit_single_spectrum(
 
     candidates: list[SingleSpectrumFit] = []
 
-    for n_terms in range(1, min(max_terms, n_points) + 1):
+    for n_terms in range(_MIN_TAYLOR_TERMS, min(max_terms, n_points) + 1):
         design = _design_matrix(x, n_terms)
         coeffs = _weighted_lstsq(design, y, weights)
         y_hat = design @ coeffs
@@ -266,10 +267,6 @@ def fit_single_spectrum(
         bic = _bic(n_points, n_terms, chi2)
         dof = n_points - n_terms
         chi2_red = float(chi2 / dof) if dof > 0 else float("nan")
-
-        if n_points == 1 and n_terms == 1:
-            bic = float("nan")
-            chi2_red = float("nan")
 
         candidates.append(
             SingleSpectrumFit(
@@ -353,7 +350,7 @@ def fit_metacatalog_spectra(
             summary={
                 "n_sources": 0,
                 "n_fitted": 0,
-                "n_terms_hist": {1: 0, 2: 0, 3: 0, 4: 0},
+                "n_terms_hist": {2: 0, 3: 0, 4: 0},
                 "median_bic": float("nan"),
                 "median_n_flux": float("nan"),
                 "n_warnings": len(warnings),
@@ -370,7 +367,7 @@ def fit_metacatalog_spectra(
 
     out = metacatalog.copy()
     fit_rows: list[dict[str, float | int]] = []
-    n_terms_hist = {1: 0, 2: 0, 3: 0, 4: 0}
+    n_terms_hist = {2: 0, 3: 0, 4: 0}
     bic_values: list[float] = []
     n_flux_values: list[int] = []
     n_fitted = 0
@@ -426,7 +423,6 @@ def summarize_spectral_fit(result: SpectralFitResult) -> str:
             else "Median flux channels:              nan"
         ),
         "Model terms selected:",
-        f"  1-term: {int(hist[1]):6d}",
         f"  2-term: {int(hist[2]):6d}",
         f"  3-term: {int(hist[3]):6d}",
         f"  4-term: {int(hist[4]):6d}",
