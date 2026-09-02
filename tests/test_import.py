@@ -75,6 +75,38 @@ def test_analyze_nedlvs_exports() -> None:
     assert hasattr(NedlvsMatchResult, "__dataclass_fields__")
 
 
+def test_analyze_nvss_exports() -> None:
+    from lwa_catalog.analyze import (
+        NvssMatchConfig,
+        NvssMatchResult,
+        load_nvss_catalog,
+        match_catalog_to_nvss,
+        summarize_nvss_match,
+    )
+
+    assert callable(load_nvss_catalog)
+    assert callable(match_catalog_to_nvss)
+    assert callable(summarize_nvss_match)
+    assert NvssMatchConfig().target == "metacatalog"
+    assert hasattr(NvssMatchResult, "__dataclass_fields__")
+
+
+def test_analyze_vlass_exports() -> None:
+    from lwa_catalog.analyze import (
+        VlassMatchConfig,
+        VlassMatchResult,
+        load_vlass_catalog,
+        match_catalog_to_vlass,
+        summarize_vlass_match,
+    )
+
+    assert callable(load_vlass_catalog)
+    assert callable(match_catalog_to_vlass)
+    assert callable(summarize_vlass_match)
+    assert VlassMatchConfig().target == "metacatalog"
+    assert hasattr(VlassMatchResult, "__dataclass_fields__")
+
+
 def test_analyze_spectral_exports() -> None:
     from lwa_catalog.analyze import (
         SingleSpectrumFit,

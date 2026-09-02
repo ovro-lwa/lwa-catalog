@@ -25,6 +25,22 @@ VLSSR_BMAJ_ARCSEC: float = 80.0
 VLSSR_BMAJ_DEG: float = VLSSR_BMAJ_ARCSEC / 3600.0
 VLSSR_DEFAULT_PATH: Path = Path("/fast/claw/vlssr_radecpeak.txt")
 
+# NVSS reference catalog (Condon et al. 1998; 1.4 GHz, 45″ FWHM; Dec > −40°).
+NVSS_FREQ_HZ: float = 1.4e9
+NVSS_BMAJ_ARCSEC: float = 45.0
+NVSS_BMAJ_DEG: float = NVSS_BMAJ_ARCSEC / 3600.0
+NVSS_DEC_MIN_DEG: float = -40.0
+NVSS_DEFAULT_PATH: Path = Path("/fast/claw/nvss/CATALOG.FIT")
+
+# VLASS QL epoch 1 component table (Gordon et al. 2021; ~3 GHz; Dec > −40°).
+VLASS_FREQ_HZ: float = 3.0e9
+VLASS_BMAJ_ARCSEC: float = 2.5
+VLASS_BMAJ_DEG: float = VLASS_BMAJ_ARCSEC / 3600.0
+VLASS_DEC_MIN_DEG: float = -40.0
+VLASS_DEFAULT_PATH: Path = Path(
+    "/fast/claw/vlass/CIRADA_VLASS1QLv3.1_table1_components.csv.gz"
+)
+
 # NED Local Volume Sample (Cook et al. 2023; latest FITS from NED-LVS page).
 NEDLVS_DEFAULT_PATH: Path = Path("/fast/claw/NEDLVS_current.fits")
 NEDLVS_DEFAULT_MAX_REDSHIFT: float = 0.2
