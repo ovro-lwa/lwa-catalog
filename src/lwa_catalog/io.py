@@ -281,10 +281,12 @@ def read_all_lst_merged(
 def write_metacatalog(
     data: pd.DataFrame | pa.Table,
     layout: CatalogLayout,
+    *,
+    required: set[str] | frozenset[str] | None = None,
     **kwargs: Any,
 ) -> Path:
     """Write the global metacatalog Parquet file (validates required columns)."""
-    validate_metacatalog(data)
+    validate_metacatalog(data, required=required)
     return write_table(
         data,
         layout.metacatalog(),

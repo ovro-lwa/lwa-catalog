@@ -37,6 +37,28 @@ _SUBBAND_FREQ_RE = re.compile(r"^(\d+)MHz$", re.IGNORECASE)
 SUBBAND_FREQ_MHZ_MIN: float = 18.0
 SUBBAND_FREQ_MHZ_MAX: float = 82.0
 
+# 15 MHz subbands (low → high); matches ovro_lwa_metacatalog_subband.ipynb.
+SUBBAND_BANDS_MHZ: tuple[str, ...] = (
+    "18MHz",
+    "23MHz",
+    "27MHz",
+    "32MHz",
+    "36MHz",
+    "41MHz",
+    "46MHz",
+    "50MHz",
+    "55MHz",
+    "59MHz",
+    "64MHz",
+    "69MHz",
+    "73MHz",
+    "78MHz",
+    "82MHz",
+)
+
+# Taylor expansion reference frequency for post-hoc spectral modeling (MHz).
+SUBBAND_REF_FREQ_MHZ: float = 55.0
+
 
 def normalize_band_label(label: str) -> str | None:
     """Return canonical color-band or ``{n}MHz`` subband label, else ``None``."""

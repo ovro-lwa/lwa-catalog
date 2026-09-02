@@ -20,6 +20,7 @@ from lwa_catalog.create.merge import (
     associate_band_into_metacatalog,
     associate_catalogs,
     build_global_metacatalog,
+    build_subband_metacatalog,
     merge_lst_metacatalog,
     pick_highest_elevation_row,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "associate_band_into_metacatalog",
     "associate_catalogs",
     "build_global_metacatalog",
+    "build_subband_metacatalog",
     "detect_sources",
     "detect_sources_many",
     "iter_detect_sources",

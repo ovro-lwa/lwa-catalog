@@ -9,6 +9,7 @@ from lwa_catalog.constants import BAND_FREQ_HZ
 from lwa_catalog.create.merge import (
     add_spectral_indices,
     build_global_metacatalog,
+    build_subband_metacatalog,
     merge_lst_metacatalog,
 )
 
@@ -427,6 +428,103 @@ def test_build_global_metacatalog_forwards_band_freq_hz() -> None:
     assert float(default.iloc[0]["alpha_GB"]) == float(custom.iloc[0]["alpha_GB"])
 
 
+def test_build_subband_metacatalog_flux_only_and_highest_freq_astrometry() -> None:
+    """MHz subband merge keeps flux per channel and top-level astrometry from ν_max."""
+    bands = ("18MHz", "23MHz", "27MHz")
+    catalogs = {
+        "27MHz": pd.DataFrame(
+            [
+                {
+                    **_src(ra=10.0, dec=20.0, peak=2.0, lst_hour="01h", band="27MHz"),
+                    "n_lst_contributions": 1,
+                    "lst_hours": "01h",
+                    "representative_lst": "01h",
+                    "E_Peak_flux": 0.2,
+                }
+            ]
+        ),
+        "23MHz": pd.DataFrame(
+            [
+                {
+                    **_src(ra=10.05, dec=20.0, peak=1.5, lst_hour="01h", band="23MHz"),
+                    "n_lst_contributions": 1,
+                    "lst_hours": "01h",
+                    "representative_lst": "01h",
+                    "E_Peak_flux": 0.15,
+                }
+            ]
+        ),
+        "18MHz": pd.DataFrame(
+            [
+                {
+                    **_src(ra=10.2, dec=20.1, peak=1.0, lst_hour="01h", band="18MHz"),
+                    "n_lst_contributions": 1,
+                    "lst_hours": "01h",
+                    "representative_lst": "01h",
+                    "E_Peak_flux": 0.1,
+                }
+            ]
+        ),
+    }
+    freq = {b: float(b.removesuffix("MHz")) * 1e6 for b in bands}
+    pairs = (
+        ("18_23", "18MHz", "23MHz"),
+        ("23_27", "23MHz", "27MHz"),
+    )
+    meta = build_subband_metacatalog(
+        catalogs,
+        seed_band="27MHz",
+        assoc_bands=("23MHz", "18MHz"),
+        color_bands=bands,
+        band_freq_hz=freq,
+        spectral_index_pairs=pairs,
+    )
+    assert len(meta) == 1
+    row = meta.iloc[0]
+    assert "Peak_flux" not in meta.columns
+    assert "Total_flux" not in meta.columns
+    assert "E_Peak_flux" not in meta.columns
+    assert "E_Total_flux" not in meta.columns
+    assert "RA_18MHz" not in meta.columns
+    assert "Peak_flux_std_23MHz" not in meta.columns
+    assert float(row["RA"]) == 10.0
+    assert row["astrometry_band"] == "27MHz"
+    assert float(row["Peak_flux_27MHz"]) == 2.0
+    assert float(row["Peak_flux_18MHz"]) == 1.0
+    assert float(row["E_Peak_flux_18MHz"]) == 0.1
+    assert np.isfinite(float(row["alpha_23_27"]))
+
+
+def test_build_subband_metacatalog_low_freq_only_row() -> None:
+    catalogs = {
+        "27MHz": pd.DataFrame([]),
+        "18MHz": pd.DataFrame(
+            [
+                {
+                    **_src(ra=50.0, dec=0.0, peak=0.5, lst_hour="01h", band="18MHz"),
+                    "n_lst_contributions": 1,
+                    "lst_hours": "01h",
+                    "representative_lst": "01h",
+                }
+            ]
+        ),
+    }
+    freq = {"27MHz": 27e6, "18MHz": 18e6}
+    meta = build_subband_metacatalog(
+        catalogs,
+        seed_band="27MHz",
+        assoc_bands=("18MHz",),
+        color_bands=("27MHz", "18MHz"),
+        band_freq_hz=freq,
+        spectral_index_pairs=(),
+    )
+    assert len(meta) == 1
+    row = meta.iloc[0]
+    assert row["astrometry_band"] == "18MHz"
+    assert float(row["RA"]) == 50.0
+    assert float(row["Peak_flux_18MHz"]) == 0.5
+
+
 def test_build_global_metacatalog_frequency_subbands() -> None:
     """Sequential association works for frequency-labeled subbands (not RGBF)."""
     bands = ("18MHz", "23MHz", "27MHz")
@@ -455,21 +553,21 @@ def test_build_global_metacatalog_frequency_subbands() -> None:
         ("18_23", "18MHz", "23MHz"),
         ("23_27", "23MHz", "27MHz"),
     )
-    meta = build_global_metacatalog(
+    meta = build_subband_metacatalog(
         catalogs,
-        seed_band="18MHz",
-        assoc_bands=("23MHz", "27MHz"),
+        seed_band="27MHz",
+        assoc_bands=("23MHz", "18MHz"),
         color_bands=bands,
         band_freq_hz=freq,
         spectral_index_pairs=pairs,
     )
     assert len(meta) == 1
     row = meta.iloc[0]
-    assert row["origin_band"] == "18MHz"
+    assert row["origin_band"] == "27MHz"
     assert "23MHz" in str(row["bands_present"])
-    assert "27MHz" in str(row["bands_present"])
+    assert "18MHz" in str(row["bands_present"])
     assert int(row["n_assoc_23MHz"]) >= 1
-    assert int(row["n_assoc_27MHz"]) >= 1
+    assert int(row["n_assoc_18MHz"]) >= 1
     assert "alpha_18_23" in meta.columns
     assert np.isfinite(float(row["alpha_18_23"]))
     assert np.isfinite(float(row["alpha_23_27"]))

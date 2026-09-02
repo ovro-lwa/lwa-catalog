@@ -11,7 +11,6 @@ from astropy.coordinates import SkyCoord
 
 from lwa_catalog.constants import (
     ASSOC_BANDS,
-    ASTROMETRY_FIELDS,
     BAND_FIELDS,
     BAND_FREQ_HZ,
     CLUSTER_JITTER_RMS_COL,
@@ -125,6 +124,13 @@ def _lst_cluster_qa_fields(members: pd.DataFrame, rep: pd.Series) -> dict[str, f
 def _copy_lst_merge_qa(entry: dict, band_row: pd.Series) -> None:
     """Copy merge-time QA columns from an LST-merged band row into *entry*."""
     for col in LST_MERGE_QA_COLUMNS:
+        if col in band_row.index:
+            entry[col] = band_row[col]
+
+
+def _copy_lst_astrometry_qa(entry: dict, band_row: pd.Series) -> None:
+    """Copy non-flux LST QA from the astrometry band (residuals, jitter)."""
+    for col in (CLUSTER_JITTER_RMS_COL, "Resid_Isl_rms", "Resid_Isl_mean"):
         if col in band_row.index:
             entry[col] = band_row[col]
 
@@ -366,7 +372,7 @@ def _maybe_update_astrometry_from_band(
     if new_hz >= current_hz:
         entry.update(_shape_fields_from_band(band_row))
         entry["astrometry_band"] = band
-        _copy_lst_merge_qa(entry, band_row)
+        _copy_lst_astrometry_qa(entry, band_row)
 
 
 def _representative_peak_flux(
@@ -659,6 +665,8 @@ def build_global_metacatalog(
     color_bands: Sequence[str] = COLOR_BANDS,
     band_freq_hz: Mapping[str, float] = BAND_FREQ_HZ,
     spectral_index_pairs: Sequence[tuple[str, str, str]] = SPECTRAL_INDEX_PAIRS,
+    primary_flux: bool = True,
+    astrometry_from_highest_frequency: bool = False,
 ) -> pd.DataFrame:
     """Fuse LST-merged per-band catalogs via sequential cross-matching.
 
@@ -682,14 +690,29 @@ def build_global_metacatalog(
     spectral_index_pairs
         ``(label, band_a, band_b)`` triples forwarded to
         :func:`add_spectral_indices`.
+    primary_flux
+        When true (default), copy seed-band ``Peak_flux`` / ``Total_flux`` to
+        top-level columns. Subband metacatalogs set this false.
+    astrometry_from_highest_frequency
+        When true, set top-level astrometry from the highest-frequency band
+        present on each row (requires *band_freq_hz*).
     """
-    seed_kw = dict(
-        assoc_bands=assoc_bands, band_fields=band_fields, seed_band=seed_band
+    merge_kw = _merge_build_kwargs(
+        assoc_bands=assoc_bands,
+        band_fields=band_fields,
+        seed_band=seed_band,
+        primary_flux=primary_flux,
+        astrometry_from_highest_frequency=astrometry_from_highest_frequency,
+        band_freq_hz=band_freq_hz,
     )
+    build_kw = {
+        **merge_kw,
+        "color_bands": color_bands,
+    }
     if not assoc_bands:
         temp = pd.DataFrame(
             [
-                _seed_row_from_band(row, seed_band, **seed_kw)
+                _seed_row_from_band(row, seed_band, **merge_kw)
                 for _, row in lst_merged[seed_band].iterrows()
             ]
         )
@@ -698,27 +721,57 @@ def build_global_metacatalog(
         temp = merge_full_and_blue(
             lst_merged[seed_band],
             lst_merged[first_assoc],
-            seed_band=seed_band,
             assoc_band=first_assoc,
-            assoc_bands=assoc_bands,
-            band_fields=band_fields,
-            color_bands=color_bands,
+            **build_kw,
         )
         for band in assoc_bands[1:]:
             temp = associate_band_into_metacatalog(
                 temp,
                 lst_merged[band],
                 band,
-                assoc_bands=assoc_bands,
-                band_fields=band_fields,
-                color_bands=color_bands,
-                seed_band=seed_band,
+                **build_kw,
             )
     meta = add_spectral_indices(
         temp, band_freq_hz=band_freq_hz, pairs=spectral_index_pairs
     )
     meta = normalize_ra_columns(meta)
     meta.insert(0, "meta_id", range(len(meta)))
-    return meta.sort_values("Peak_flux", ascending=False, na_position="last").reset_index(
+    if primary_flux:
+        sort_col = "Peak_flux"
+    else:
+        meta["_sort_peak_flux"] = _representative_peak_flux(meta, color_bands)
+        sort_col = "_sort_peak_flux"
+    meta = meta.sort_values(sort_col, ascending=False, na_position="last").reset_index(
         drop=True
+    )
+    if not primary_flux:
+        meta = meta.drop(columns=["_sort_peak_flux"])
+    return meta
+
+
+def build_subband_metacatalog(
+    lst_merged: dict[str, pd.DataFrame],
+    *,
+    seed_band: str,
+    assoc_bands: Sequence[str],
+    color_bands: Sequence[str],
+    band_freq_hz: Mapping[str, float],
+    spectral_index_pairs: Sequence[tuple[str, str, str]],
+    band_fields: Sequence[str] = SUBBAND_METACATALOG_FLUX_FIELDS,
+) -> pd.DataFrame:
+    """Fuse MHz-subband LST catalogs into a flux-only, wide metacatalog.
+
+    Top-level ``RA``/``DEC``/shape come from the highest-frequency subband
+    present on each row. Flux is stored only in ``{field}_{subband}`` columns.
+    """
+    return build_global_metacatalog(
+        lst_merged,
+        seed_band=seed_band,
+        assoc_bands=assoc_bands,
+        band_fields=band_fields,
+        color_bands=color_bands,
+        band_freq_hz=band_freq_hz,
+        spectral_index_pairs=spectral_index_pairs,
+        primary_flux=False,
+        astrometry_from_highest_frequency=True,
     )
