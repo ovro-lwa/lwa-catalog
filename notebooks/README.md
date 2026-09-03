@@ -24,7 +24,7 @@ Catalogs are written and read as **Apache Parquet** through `lwa_catalog`:
 | QA metacatalog (+ `quality_flag`) | `metacatalog_quality.parquet` |
 
 Analysis notebooks load **`metacatalog_quality.parquet` by default** (when present) via
-`read_metacatalog(layout)` and keep rows with `(quality_flag & 247) == 0`. Set
+`read_metacatalog(layout)` and keep rows with `(quality_flag & 33267) == 0`. Set
 `quality_mask=None` to skip filtering, or `prefer_quality=False` to read fusion
 `metacatalog.parquet` (required when building quality flags).
 
