@@ -9,11 +9,12 @@ import pytest
 from lwa_catalog.analyze.crossmatch_radius import (
     CrossmatchRadiusSpec,
     LWA_CROSSMATCH_RADIUS_BEAM,
+    VLSSR_REFERENCE_RADIUS_FIXED,
     catalog_match_frame,
     describe_crossmatch_radius,
     match_radius_deg,
 )
-from lwa_catalog.constants import NVSS_BMAJ_ARCSEC, VLSSR_BMAJ_ARCSEC
+from lwa_catalog.constants import NVSS_BMAJ_ARCSEC, VLSSR_BMAJ_ARCSEC, VLSSR_POSITION_ERROR_ARCSEC
 
 
 def test_fixed_radius_requires_arcsec() -> None:
@@ -25,6 +26,15 @@ def test_match_radius_fixed_arcsec() -> None:
     spec = CrossmatchRadiusSpec(mode="fixed", fixed_arcsec=30.0)
     row = pd.Series({"RA": 0.0, "DEC": 0.0})
     assert match_radius_deg(row, spec) == pytest.approx(30.0 / 3600.0)
+
+
+def test_vlssr_default_radius_is_fixed_position_error() -> None:
+    row = pd.Series({})
+    assert match_radius_deg(row, VLSSR_REFERENCE_RADIUS_FIXED) == pytest.approx(
+        VLSSR_POSITION_ERROR_ARCSEC / 3600.0
+    )
+    assert VLSSR_REFERENCE_RADIUS_FIXED.mode == "fixed"
+    assert VLSSR_REFERENCE_RADIUS_FIXED.fixed_arcsec == VLSSR_POSITION_ERROR_ARCSEC
 
 
 def test_match_radius_beam_from_bmaj_match() -> None:

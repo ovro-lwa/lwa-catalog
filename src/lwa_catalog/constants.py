@@ -27,14 +27,19 @@ REFERENCE_CATALOGS_DIR: Path = Path("/fast/claw/catalogs")
 VLSSR_FREQ_HZ: float = 74e6
 VLSSR_BMAJ_ARCSEC: float = 80.0
 VLSSR_BMAJ_DEG: float = VLSSR_BMAJ_ARCSEC / 3600.0
+# Quoted typical VLSSR position uncertainty (Lane et al. 2014).
+VLSSR_POSITION_ERROR_ARCSEC: float = 3.0
 VLSSR_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "vlssr_radecpeak.txt"
 
 # NVSS reference catalog (Condon et al. 1998; 1.4 GHz, 45″ FWHM; Dec > −40°).
+# Default table is the VizieR VIII/65 packaging (includes RA/Dec errors).
 NVSS_FREQ_HZ: float = 1.4e9
 NVSS_BMAJ_ARCSEC: float = 45.0
 NVSS_BMAJ_DEG: float = NVSS_BMAJ_ARCSEC / 3600.0
 NVSS_DEC_MIN_DEG: float = -40.0
-NVSS_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "nvss" / "CATALOG.FIT"
+# Typical NVSS position uncertainty at the survey limit (Condon et al. 1998).
+NVSS_POSITION_ERROR_DEFAULT_ARCSEC: float = 7.0
+NVSS_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "nvss" / "nvss_vizier.parquet"
 
 # VLASS QL epoch 1 component table (Gordon et al. 2021; ~3 GHz; Dec > −40°).
 VLASS_FREQ_HZ: float = 3.0e9

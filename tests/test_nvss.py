@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import gzip
+
 import numpy as np
 import pandas as pd
 import pytest
-from astropy.table import Table
 
+from lwa_catalog.analyze.crossmatch_radius import (
+    LWA_CROSSMATCH_RADIUS_BEAM,
+    NVSS_REFERENCE_RADIUS_LOCALIZATION,
+    match_radius_deg,
+)
 from lwa_catalog.analyze.nvss import (
+    NvssMatchConfig,
     _catalog_match_frame,
     _footprint_filter_nvss,
     load_nvss_catalog,
@@ -16,24 +23,62 @@ from lwa_catalog.analyze.nvss import (
     select_unique_nvss_matches,
     summarize_nvss_match,
 )
-from lwa_catalog.analyze.crossmatch_radius import LWA_CROSSMATCH_RADIUS_BEAM
 from lwa_catalog.constants import NVSS_BMAJ_DEG, NVSS_DEC_MIN_DEG
 
 
-def _write_mini_nvss_fits(path) -> None:
-    table = Table(
-        {
-            "RA(2000)": [10.0, 10.01],
-            "DEC(2000)": [20.0, 20.0],
-            "PEAK INT": [0.05, 0.03],
-            "MAJOR AX": [NVSS_BMAJ_DEG, NVSS_BMAJ_DEG],
-            "MINOR AX": [NVSS_BMAJ_DEG, NVSS_BMAJ_DEG],
-            "POSANGLE": [0.0, 0.0],
-            "P FLUX": [0.001, 0.002],
-            "FIELD": ["C0100P20", "C0100P20"],
-        }
-    )
-    table.write(path, overwrite=True)
+def _vizier_line(
+    *,
+    ra_h: int = 0,
+    ra_m: int = 40,
+    ra_s: float = 0.0,
+    dec_sign: str = "+",
+    dec_d: int = 20,
+    dec_m: int = 0,
+    dec_s: float = 0.0,
+    e_ras: float = 0.1,
+    e_des: float = 1.5,
+    s14_mjy: float = 50.0,
+) -> str:
+    """Build one 158-char VizieR VIII/65 fixed-width row."""
+    # Positions from ReadMe (1-indexed inclusive).
+    buf = [" "] * 158
+    def put(start: int, end: int, text: str) -> None:
+        s = text[: end - start + 1].rjust(end - start + 1)
+        buf[start - 1 : end] = list(s)
+
+    put(1, 8, "C0100P20")
+    put(10, 16, f"{100.0:7.2f}")
+    put(18, 24, f"{200.0:7.2f}")
+    put(26, 39, "004000+200000")
+    put(41, 42, f"{ra_h:2d}")
+    put(44, 45, f"{ra_m:2d}")
+    put(47, 51, f"{ra_s:5.2f}")
+    put(53, 53, dec_sign)
+    put(54, 55, f"{dec_d:2d}")
+    put(57, 58, f"{dec_m:2d}")
+    put(60, 63, f"{dec_s:4.1f}")
+    put(65, 69, f"{e_ras:5.2f}")
+    put(71, 74, f"{e_des:4.1f}")
+    put(76, 83, f"{s14_mjy:8.1f}")
+    put(85, 91, f"{1.0:7.1f}")
+    put(93, 93, "<")
+    put(94, 98, f"{45.0:5.1f}")
+    put(100, 100, "<")
+    put(101, 105, f"{45.0:5.1f}")
+    return "".join(buf)
+
+
+def _write_mini_nvss_vizier(path, *, gzipped: bool = True) -> None:
+    lines = [
+        _vizier_line(ra_h=0, ra_m=40, ra_s=0.0, dec_d=20, e_ras=0.10, e_des=1.5, s14_mjy=50.0),
+        _vizier_line(ra_h=0, ra_m=40, ra_s=2.4, dec_d=20, e_ras=0.20, e_des=2.0, s14_mjy=30.0),
+    ]
+    text = "\n".join(lines) + "\n"
+    if gzipped:
+        with gzip.open(path, "wt") as handle:
+            handle.write(text)
+    else:
+        path.write_text(text)
 
 
 def _meta_row(
@@ -61,7 +106,10 @@ def _nvss_rows(rows: list[tuple[float, float]]) -> pd.DataFrame:
             {
                 "RA": ra,
                 "DEC": dec,
+                "E_RA": 1.5 / 3600.0,
+                "E_DEC": 1.5 / 3600.0,
                 "Peak_intensity": 0.05,
+                "Total_flux": 0.05,
                 "Maj": NVSS_BMAJ_DEG,
                 "Min": NVSS_BMAJ_DEG,
                 "PA": 0.0,
@@ -75,20 +123,46 @@ def _nvss_rows(rows: list[tuple[float, float]]) -> pd.DataFrame:
     )
 
 
-def test_load_nvss_catalog_assigns_bmaj(tmp_path) -> None:
-    catalog_path = tmp_path / "CATALOG.FIT"
-    _write_mini_nvss_fits(catalog_path)
+def test_load_nvss_catalog_from_vizier_gzip(tmp_path) -> None:
+    catalog_path = tmp_path / "nvss_vizier.dat.gz"
+    _write_mini_nvss_vizier(catalog_path)
 
     loaded = load_nvss_catalog(catalog_path)
 
-    assert "Peak_intensity" in loaded.columns
     assert len(loaded) == 2
+    assert "E_RA" in loaded.columns
+    assert "E_DEC" in loaded.columns
+    assert "Peak_intensity" in loaded.columns
+    assert "Total_flux" in loaded.columns
     assert (loaded["BMAJ"] == NVSS_BMAJ_DEG).all()
+    # 0h40m0s = 10 deg
+    assert loaded.iloc[0]["RA"] == pytest.approx(10.0)
+    assert loaded.iloc[0]["DEC"] == pytest.approx(20.0)
+    assert loaded.iloc[0]["Peak_intensity"] == pytest.approx(0.05)
+    # e_RAs=0.10s * 15 * cos(20°) / 3600 degrees
+    expected_e_ra = 0.10 * 15.0 * np.cos(np.deg2rad(20.0)) / 3600.0
+    assert loaded.iloc[0]["E_RA"] == pytest.approx(expected_e_ra)
+    assert loaded.iloc[0]["E_DEC"] == pytest.approx(1.5 / 3600.0)
+
+
+def test_load_nvss_catalog_from_parquet(tmp_path) -> None:
+    catalog_path = tmp_path / "nvss.parquet"
+    frame = _nvss_rows([(10.0, 20.0)])
+    frame.to_parquet(catalog_path, index=False)
+    loaded = load_nvss_catalog(catalog_path)
+    assert len(loaded) == 1
     assert loaded.iloc[0]["RA"] == pytest.approx(10.0)
 
 
+def test_nvss_default_radius_uses_localization() -> None:
+    row = pd.Series({"E_RA": 0.001, "E_DEC": 0.0005})
+    radius = match_radius_deg(row, NVSS_REFERENCE_RADIUS_LOCALIZATION)
+    assert radius == pytest.approx(float(np.hypot(0.001, 0.0005)))
+    assert NvssMatchConfig().reference_radius is NVSS_REFERENCE_RADIUS_LOCALIZATION
+
+
 def test_load_nvss_catalog_missing_file(tmp_path) -> None:
-    missing = tmp_path / "missing.FIT"
+    missing = tmp_path / "missing.parquet"
     with pytest.raises(FileNotFoundError, match="NVSS catalog not found"):
         load_nvss_catalog(missing)
 

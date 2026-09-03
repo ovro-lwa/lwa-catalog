@@ -11,8 +11,10 @@ import pandas as pd
 from lwa_catalog.analyze.reliability import resolve_bmaj
 from lwa_catalog.constants import (
     NVSS_BMAJ_ARCSEC,
+    NVSS_POSITION_ERROR_DEFAULT_ARCSEC,
     VLASS_BMAJ_ARCSEC,
     VLSSR_BMAJ_ARCSEC,
+    VLSSR_POSITION_ERROR_ARCSEC,
 )
 
 CrossmatchRadiusMode = Literal["beam", "localization", "fixed"]
@@ -57,13 +59,25 @@ class CrossmatchRadiusSpec:
 
 
 # Survey-specific defaults (reference side) for notebook / config reuse.
+VLSSR_REFERENCE_RADIUS_FIXED = CrossmatchRadiusSpec(
+    mode="fixed",
+    fixed_arcsec=VLSSR_POSITION_ERROR_ARCSEC,
+)
 VLSSR_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
     mode="beam",
     default_arcsec=VLSSR_BMAJ_ARCSEC,
 )
+NVSS_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
+    mode="localization",
+    default_arcsec=NVSS_POSITION_ERROR_DEFAULT_ARCSEC,
+)
 NVSS_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
     mode="beam",
     default_arcsec=NVSS_BMAJ_ARCSEC,
+)
+VLASS_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
+    mode="localization",
+    default_arcsec=VLASS_BMAJ_ARCSEC,
 )
 VLASS_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
     mode="beam",

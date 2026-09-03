@@ -12,7 +12,7 @@ import pandas as pd
 from lwa_catalog.analyze.crossmatch_radius import (
     CrossmatchRadiusSpec,
     LWA_CROSSMATCH_RADIUS_BEAM,
-    VLSSR_REFERENCE_RADIUS_BEAM,
+    VLSSR_REFERENCE_RADIUS_FIXED,
     apply_match_radius,
     catalog_match_frame,
 )
@@ -30,7 +30,7 @@ class VlssrMatchConfig:
     catalog_path: Path = VLSSR_DEFAULT_PATH
     target: VlssrTarget = "metacatalog_blue"
     lwa_radius: CrossmatchRadiusSpec = LWA_CROSSMATCH_RADIUS_BEAM
-    reference_radius: CrossmatchRadiusSpec = VLSSR_REFERENCE_RADIUS_BEAM
+    reference_radius: CrossmatchRadiusSpec = VLSSR_REFERENCE_RADIUS_FIXED
 
 
 @dataclass

@@ -8,12 +8,11 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-from astropy.table import Table
 
 from lwa_catalog.analyze.crossmatch_radius import (
     CrossmatchRadiusSpec,
     LWA_CROSSMATCH_RADIUS_BEAM,
-    NVSS_REFERENCE_RADIUS_BEAM,
+    NVSS_REFERENCE_RADIUS_LOCALIZATION,
     apply_match_radius,
     catalog_match_frame,
 )
@@ -28,15 +27,68 @@ from lwa_catalog.create.merge import associate_catalogs
 
 NvssTarget = Literal["metacatalog", "metacatalog_blue"]
 
-NVSS_FITS_COLUMNS: tuple[str, ...] = (
-    "RA(2000)",
-    "DEC(2000)",
-    "PEAK INT",
-    "MAJOR AX",
-    "MINOR AX",
-    "POSANGLE",
-    "P FLUX",
-    "FIELD",
+# VizieR VIII/65 fixed-width layout (0-based half-open), from ReadMe.vizier.
+_NVSS_VIZIER_COLSPECS: list[tuple[int, int]] = [
+    (0, 8),
+    (9, 16),
+    (17, 24),
+    (25, 39),
+    (40, 42),
+    (43, 45),
+    (46, 51),
+    (52, 53),
+    (53, 55),
+    (56, 58),
+    (59, 63),
+    (64, 69),
+    (70, 74),
+    (75, 83),
+    (84, 91),
+    (92, 93),
+    (93, 98),
+    (99, 100),
+    (100, 105),
+    (106, 111),
+    (112, 116),
+    (117, 121),
+    (122, 126),
+    (127, 129),
+    (130, 134),
+    (135, 141),
+    (142, 147),
+    (148, 153),
+    (154, 158),
+]
+_NVSS_VIZIER_NAMES: tuple[str, ...] = (
+    "Field",
+    "Xpos",
+    "Ypos",
+    "NVSS",
+    "RAh",
+    "RAm",
+    "RAs",
+    "DE-",
+    "DEd",
+    "DEm",
+    "DEs",
+    "e_RAs",
+    "e_DEs",
+    "S1.4",
+    "e_S1.4",
+    "l_MajAxis",
+    "MajAxis",
+    "l_MinAxis",
+    "MinAxis",
+    "PA",
+    "e_MajAxis",
+    "e_MinAxis",
+    "e_PA",
+    "f_resFlux",
+    "resFlux",
+    "polFlux",
+    "polPA",
+    "e_polFlux",
+    "e_polPA",
 )
 
 
@@ -48,7 +100,7 @@ class NvssMatchConfig:
     target: NvssTarget = "metacatalog"
     dec_min_deg: float = NVSS_DEC_MIN_DEG
     lwa_radius: CrossmatchRadiusSpec = LWA_CROSSMATCH_RADIUS_BEAM
-    reference_radius: CrossmatchRadiusSpec = NVSS_REFERENCE_RADIUS_BEAM
+    reference_radius: CrossmatchRadiusSpec = NVSS_REFERENCE_RADIUS_LOCALIZATION
 
 
 @dataclass
@@ -62,14 +114,92 @@ class NvssMatchResult:
     warnings: list[str] = field(default_factory=list)
 
 
-def load_nvss_catalog(path: Path | str | None = None) -> pd.DataFrame:
-    """Load the NVSS FITS catalog for cross-matching.
+def _sexagesimal_to_deg(raw: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    rah = pd.to_numeric(raw["RAh"], errors="coerce")
+    ram = pd.to_numeric(raw["RAm"], errors="coerce")
+    ras = pd.to_numeric(raw["RAs"], errors="coerce")
+    ded = pd.to_numeric(raw["DEd"], errors="coerce")
+    dem = pd.to_numeric(raw["DEm"], errors="coerce")
+    des = pd.to_numeric(raw["DEs"], errors="coerce")
+    sign = np.where(raw["DE-"].astype(str).str.strip() == "-", -1.0, 1.0)
+    ra = (15.0 * (rah + ram / 60.0 + ras / 3600.0)).to_numpy(dtype=float)
+    dec = (sign * (ded + dem / 60.0 + des / 3600.0)).to_numpy(dtype=float)
+    return ra, dec
 
-    Expects the NRAO ``CATALOG.FIT`` table (see
-    `NVSS at HEASARC <https://heasarc.gsfc.nasa.gov/w3browse/all/nvss.html>`_).
-    Returned columns include ``RA``, ``DEC``, ``Peak_intensity`` (Jy/beam),
+
+def _finalize_nvss_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure required columns exist and drop non-finite coordinates."""
+    out = df.copy()
+    if "BMAJ" not in out.columns:
+        out["BMAJ"] = NVSS_BMAJ_DEG
+    if "BMIN" not in out.columns:
+        out["BMIN"] = NVSS_BMAJ_DEG
+    ra = pd.to_numeric(out["RA"], errors="coerce")
+    dec = pd.to_numeric(out["DEC"], errors="coerce")
+    ok = np.isfinite(ra.to_numpy(dtype=float)) & np.isfinite(dec.to_numpy(dtype=float))
+    return out.loc[ok].reset_index(drop=True)
+
+
+def _load_nvss_vizier_fwf(path: Path) -> pd.DataFrame:
+    """Parse VizieR VIII/65 ``nvss.dat`` / ``.dat.gz`` fixed-width ASCII."""
+    compression = "gzip" if path.suffix == ".gz" else None
+    raw = pd.read_fwf(
+        path,
+        colspecs=_NVSS_VIZIER_COLSPECS,
+        names=list(_NVSS_VIZIER_NAMES),
+        compression=compression,
+    )
+    ra, dec = _sexagesimal_to_deg(raw)
+    e_ras = pd.to_numeric(raw["e_RAs"], errors="coerce").to_numpy(dtype=float)
+    e_des = pd.to_numeric(raw["e_DEs"], errors="coerce").to_numpy(dtype=float)
+    # On-sky degrees: e_RAs is seconds of time; e_DEs is arcsec.
+    e_ra = (e_ras * 15.0 * np.cos(np.deg2rad(dec))) / 3600.0
+    e_dec = e_des / 3600.0
+
+    s14_jy = pd.to_numeric(raw["S1.4"], errors="coerce").to_numpy(dtype=float) / 1000.0
+    e_s14_jy = (
+        pd.to_numeric(raw["e_S1.4"], errors="coerce").to_numpy(dtype=float) / 1000.0
+    )
+    maj_deg = pd.to_numeric(raw["MajAxis"], errors="coerce").to_numpy(dtype=float) / 3600.0
+    min_deg = pd.to_numeric(raw["MinAxis"], errors="coerce").to_numpy(dtype=float) / 3600.0
+    pa = pd.to_numeric(raw["PA"], errors="coerce").to_numpy(dtype=float)
+    pol_jy = pd.to_numeric(raw["polFlux"], errors="coerce").to_numpy(dtype=float) / 1000.0
+
+    return pd.DataFrame(
+        {
+            "RA": ra,
+            "DEC": dec,
+            "E_RA": e_ra,
+            "E_DEC": e_dec,
+            "Total_flux": s14_jy,
+            # VIII/65 publishes integrated S1.4 only; keep Peak_intensity for
+            # existing NVSS QA / attach code paths.
+            "Peak_intensity": s14_jy,
+            "E_Total_flux": e_s14_jy,
+            "Maj": maj_deg,
+            "Min": min_deg,
+            "PA": pa,
+            "Pol_flux": pol_jy,
+            "Field": raw["Field"].astype(str).str.strip().to_numpy(),
+            "NVSS": raw["NVSS"].astype(str).str.strip().to_numpy(),
+            "BMAJ": np.full(len(raw), NVSS_BMAJ_DEG),
+            "BMIN": np.full(len(raw), NVSS_BMAJ_DEG),
+        }
+    )
+
+
+def load_nvss_catalog(path: Path | str | None = None) -> pd.DataFrame:
+    """Load the NVSS catalog for cross-matching.
+
+    Default path is the VizieR VIII/65 packaging converted to parquet
+    (``nvss_vizier.parquet``), which includes per-source ``E_RA``/``E_DEC``
+    (on-sky degrees). Also accepts the raw ``nvss_vizier.dat.gz`` / ``.dat``
+    ASCII and a pre-normalized parquet/FITS/CSV with ``RA``/``DEC`` columns.
+
+    Returned columns include ``RA``, ``DEC``, ``E_RA``, ``E_DEC``,
+    ``Total_flux`` / ``Peak_intensity`` (Jy; VizieR integrated ``S1.4``),
     deconvolved ``Maj``/``Min``/``PA`` (degrees on sky), ``Pol_flux`` (Jy),
-  ``Field``, and circular ``BMAJ``/``BMIN`` set to the survey 45″ FWHM.
+    ``Field``, and circular ``BMAJ``/``BMIN`` set to the survey 45″ FWHM.
     Rows with non-finite ``RA``/``DEC`` are dropped.
 
     Parameters
@@ -83,43 +213,40 @@ def load_nvss_catalog(path: Path | str | None = None) -> pd.DataFrame:
     FileNotFoundError
         If *path* does not exist.
     ValueError
-        If required FITS columns are missing.
+        If required columns are missing from a pre-normalized table.
     """
     catalog_path = Path(NVSS_DEFAULT_PATH if path is None else path)
     if not catalog_path.is_file():
         msg = (
             f"NVSS catalog not found: {catalog_path}. "
-            f"Download CATALOG.FIT into {NVSS_DEFAULT_PATH.parent} from "
-            "ftp://ftp.cv.nrao.edu/nvss/CATALOG/CATALOG.FIT"
+            f"Download VizieR VIII/65 into {NVSS_DEFAULT_PATH.parent} "
+            "(e.g. nvss_vizier.dat.gz from "
+            "https://cdsarc.cds.unistra.fr/ftp/cats/VIII/65/) "
+            "and convert/point NVSS_DEFAULT_PATH at the parquet or ASCII file."
         )
         raise FileNotFoundError(msg)
 
-    table = Table.read(catalog_path)
-    missing = [col for col in NVSS_FITS_COLUMNS if col not in table.colnames]
-    if missing:
-        msg = f"NVSS FITS missing expected columns: {missing}"
+    suffixes = "".join(catalog_path.suffixes).lower()
+    if suffixes.endswith(".dat") or suffixes.endswith(".dat.gz"):
+        df = _load_nvss_vizier_fwf(catalog_path)
+        return _finalize_nvss_frame(df)
+
+    if suffixes.endswith(".parquet"):
+        df = pd.read_parquet(catalog_path)
+    elif suffixes.endswith(".csv") or suffixes.endswith(".csv.gz"):
+        df = pd.read_csv(catalog_path)
+    else:
+        from astropy.table import Table
+
+        df = Table.read(catalog_path).to_pandas()
+
+    if "RA" not in df.columns or "DEC" not in df.columns:
+        msg = (
+            f"NVSS table missing RA/DEC columns: {catalog_path}. "
+            "Expected a VizieR-derived parquet/ASCII or a pre-normalized table."
+        )
         raise ValueError(msg)
-
-    df = table[list(NVSS_FITS_COLUMNS)].to_pandas()
-    df = df.rename(
-        columns={
-            "RA(2000)": "RA",
-            "DEC(2000)": "DEC",
-            "PEAK INT": "Peak_intensity",
-            "MAJOR AX": "Maj",
-            "MINOR AX": "Min",
-            "POSANGLE": "PA",
-            "P FLUX": "Pol_flux",
-            "FIELD": "Field",
-        }
-    )
-    df["BMAJ"] = NVSS_BMAJ_DEG
-    df["BMIN"] = NVSS_BMAJ_DEG
-
-    ra = pd.to_numeric(df["RA"], errors="coerce")
-    dec = pd.to_numeric(df["DEC"], errors="coerce")
-    ok = np.isfinite(ra.to_numpy(dtype=float)) & np.isfinite(dec.to_numpy(dtype=float))
-    return df.loc[ok].reset_index(drop=True)
+    return _finalize_nvss_frame(df)
 
 
 def select_unique_nvss_matches(meta_flags: pd.DataFrame) -> pd.DataFrame:
@@ -194,10 +321,11 @@ def match_catalog_to_nvss(
     """Cross-match an LWA catalog against NVSS and compute association metrics.
 
     Default target is the full input metacatalog (``config.target ==
-    "metacatalog"``). Matching uses primary ``RA``/``DEC`` and beam radii via
-    :func:`~lwa_catalog.create.merge.associate_catalogs`. NVSS sources outside
-    the survey (Dec ``< config.dec_min_deg``, default −40°) are excluded from
-    the footprint.
+    "metacatalog"``). Matching uses primary ``RA``/``DEC`` and configured
+    :class:`~lwa_catalog.analyze.crossmatch_radius.CrossmatchRadiusSpec`
+    radii via :func:`~lwa_catalog.create.merge.associate_catalogs`. NVSS
+    sources outside the survey (Dec ``< config.dec_min_deg``, default −40°)
+    are excluded from the footprint.
 
     Parameters
     ----------

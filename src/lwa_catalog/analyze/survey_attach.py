@@ -15,9 +15,9 @@ import pandas as pd
 
 from lwa_catalog.analyze.crossmatch_radius import (
     LWA_CROSSMATCH_RADIUS_BEAM,
-    NVSS_REFERENCE_RADIUS_BEAM,
-    VLASS_REFERENCE_RADIUS_BEAM,
-    VLSSR_REFERENCE_RADIUS_BEAM,
+    NVSS_REFERENCE_RADIUS_LOCALIZATION,
+    VLASS_REFERENCE_RADIUS_LOCALIZATION,
+    VLSSR_REFERENCE_RADIUS_FIXED,
     CrossmatchRadiusSpec,
     apply_match_radius,
     match_radius_deg,
@@ -35,9 +35,9 @@ from lwa_catalog.create.merge import associate_band_into_metacatalog
 RADIO_SURVEY_BANDS: tuple[str, ...] = ("VLASS", "NVSS", "VLSSR")
 
 _DEFAULT_REFERENCE_RADIUS: dict[str, CrossmatchRadiusSpec] = {
-    "VLASS": VLASS_REFERENCE_RADIUS_BEAM,
-    "NVSS": NVSS_REFERENCE_RADIUS_BEAM,
-    "VLSSR": VLSSR_REFERENCE_RADIUS_BEAM,
+    "VLASS": VLASS_REFERENCE_RADIUS_LOCALIZATION,
+    "NVSS": NVSS_REFERENCE_RADIUS_LOCALIZATION,
+    "VLSSR": VLSSR_REFERENCE_RADIUS_FIXED,
 }
 
 

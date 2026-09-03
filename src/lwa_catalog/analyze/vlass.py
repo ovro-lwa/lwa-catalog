@@ -12,7 +12,7 @@ import pandas as pd
 from lwa_catalog.analyze.crossmatch_radius import (
     CrossmatchRadiusSpec,
     LWA_CROSSMATCH_RADIUS_BEAM,
-    VLASS_REFERENCE_RADIUS_BEAM,
+    VLASS_REFERENCE_RADIUS_LOCALIZATION,
     apply_match_radius,
     catalog_match_frame,
 )
@@ -31,6 +31,8 @@ VLASS_LOAD_COLUMNS: tuple[str, ...] = (
     "Component_name",
     "RA",
     "DEC",
+    "E_RA",
+    "E_DEC",
     "Peak_flux",
     "Total_flux",
     "Maj",
@@ -57,7 +59,7 @@ class VlassMatchConfig:
     quality_flags: tuple[int, ...] = (0, 4)
     exclude_s_code_e: bool = True
     lwa_radius: CrossmatchRadiusSpec = LWA_CROSSMATCH_RADIUS_BEAM
-    reference_radius: CrossmatchRadiusSpec = VLASS_REFERENCE_RADIUS_BEAM
+    reference_radius: CrossmatchRadiusSpec = VLASS_REFERENCE_RADIUS_LOCALIZATION
 
 
 @dataclass
@@ -110,9 +112,10 @@ def load_vlass_catalog(
     2021, ApJS 255, 30). By default applies recommended quality cuts
     (``Duplicate_flag <= 1``, ``Quality_flag in (0, 4)``, ``S_Code != 'E'``).
 
-    Returns columns ``RA``, ``DEC``, ``Peak_flux``, ``Total_flux``, deconvolved
-    ``Maj``/``Min``/``PA`` (arcsec), ``Component_name``, and ``BMAJ``/``BMIN``
-    in degrees for :func:`~lwa_catalog.create.merge.associate_catalogs`.
+    Returns columns ``RA``, ``DEC``, PyBDSF ``E_RA``/``E_DEC`` (1σ degrees),
+    ``Peak_flux``, ``Total_flux``, deconvolved ``Maj``/``Min``/``PA`` (arcsec),
+    ``Component_name``, and ``BMAJ``/``BMIN`` in degrees for
+    :func:`~lwa_catalog.create.merge.associate_catalogs`.
     """
     cfg = config or VlassMatchConfig()
     catalog_path = Path(VLASS_DEFAULT_PATH if path is None else path)
