@@ -6,6 +6,7 @@ import importlib
 import os
 import sys
 import tempfile
+import warnings
 from collections.abc import Iterator, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -31,6 +32,15 @@ DEFAULT_BDSF_KW: dict[str, Any] = {
     "psf_vary_do": False,
     "quiet": True,
     "ncores": 1,
+}
+
+# Force a constant background so PyBDSF skips sliding-box ``bstat`` maps.
+_CONSTANT_RMS_FALLBACK_KW: dict[str, Any] = {
+    "adaptive_rms_box": False,
+    "rms_map": False,
+    "mean_map": "const",
+    "rms_box": None,
+    "rms_box_bright": None,
 }
 
 
@@ -225,13 +235,35 @@ def empty_sources_dataframe(
     return pd.DataFrame(columns=columns)
 
 
+def _is_recoverable_rms_error(exc: BaseException) -> bool:
+    """True for PyBDSF sliding-box RMS failures on constant/blank patches."""
+    msg = str(exc).lower()
+    if isinstance(exc, FloatingPointError):
+        return "divide" in msg and "zero" in msg
+    if isinstance(exc, RuntimeError):
+        return "unphysical rms" in msg or "clipped rms appears to be zero" in msg
+    return False
+
+
+def _with_constant_rms_fallback(kw: Mapping[str, Any]) -> dict[str, Any]:
+    """Return process_image kwargs that skip 2-D mean/rms map calculation."""
+    out = dict(kw)
+    out.update(_CONSTANT_RMS_FALLBACK_KW)
+    return out
+
+
 def run_pybdsf_on_hdu(
     hdu: fits.PrimaryHDU,
     *,
     bdsf_kw: Mapping[str, Any] | None = None,
     **process_kw: Any,
 ) -> Table | None:
-    """Run PyBDSF on an in-memory HDU and return the Gaussian catalog table."""
+    """Run PyBDSF on an in-memory HDU and return the Gaussian catalog table.
+
+    If sliding-box RMS estimation fails on a constant/blank patch
+    (``FloatingPointError: divide by zero`` or ``unphysical rms``), retries once
+    with a constant background (``rms_map=False``, ``mean_map='const'``).
+    """
     try:
         bdsf = _import_pybdsf_safely()
     except ImportError as exc:  # pragma: no cover
@@ -245,7 +277,18 @@ def run_pybdsf_on_hdu(
     kw.update(process_kw)
     kw["beam"] = beam
 
-    img = bdsf.process_image(hdu, **kw)
+    try:
+        img = bdsf.process_image(hdu, **kw)
+    except (FloatingPointError, RuntimeError) as exc:
+        if not _is_recoverable_rms_error(exc):
+            raise
+        fallback_kw = _with_constant_rms_fallback(kw)
+        warnings.warn(
+            f"PyBDSF RMS map failed ({exc}); retrying with constant rms/mean maps",
+            UserWarning,
+            stacklevel=2,
+        )
+        img = bdsf.process_image(hdu, **fallback_kw)
 
     with tempfile.NamedTemporaryFile(suffix=".gaul.fits", delete=False) as tmp:
         cat_path = tmp.name
