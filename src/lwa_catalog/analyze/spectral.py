@@ -222,9 +222,10 @@ def fit_single_spectrum(
     """Fit nested Taylor models in log-flux and select the simplest adequate model.
 
   Models use ``ln S = sum_j a_j [ln(nu/nu0)]^j`` for ``j = 0 .. n_terms-1`` with
-  ``n_terms`` in ``2 .. min(max_terms, n_points)``. Among models with reduced
-  chi-squared within 5% (or 0.05 absolute) of the best reduced chi-squared, the fewest
-  terms wins; otherwise the lowest BIC wins.
+  ``n_terms`` in ``2 .. min(max_terms, n_points)``. Requires at least two flux
+  measurements (a one-point spectrum cannot constrain a ≥2-term Taylor model).
+  Among models with reduced chi-squared within 5% (or 0.05 absolute) of the best
+  reduced chi-squared, the fewest terms wins; otherwise the lowest BIC wins.
     """
     cfg = SpectralFitConfig() if config is None else config
     nu0_mhz = float(cfg.ref_freq_mhz)
@@ -240,7 +241,8 @@ def fit_single_spectrum(
     err = err[valid] if err.shape == valid.shape else np.full(nu.shape, np.nan)
 
     n_points = int(nu.size)
-    if n_points == 0:
+    # Need ≥2 frequencies: Taylor models start at 2 terms (a0, a1).
+    if n_points < _MIN_TAYLOR_TERMS:
         return _empty_fit(nu0_mhz)
 
     x = np.log(nu / nu0_hz)
@@ -311,6 +313,19 @@ def _output_column_names(prefix: str) -> tuple[str, ...]:
 
 
 def _single_fit_to_row(fit: SingleSpectrumFit, prefix: str) -> dict[str, float | int]:
+    """Serialize a fit to output columns; unfitted rows get NaN (not 0/1 ``n_flux``)."""
+    if fit.n_terms < _MIN_TAYLOR_TERMS or fit.n_flux < _MIN_TAYLOR_TERMS:
+        return {
+            f"{prefix}model_n_terms": float("nan"),
+            f"{prefix}model_bic": float("nan"),
+            f"{prefix}model_chi2_red": float("nan"),
+            f"{prefix}model_n_flux": float("nan"),
+            f"{prefix}model_nu0_mhz": float(fit.nu0_mhz),
+            f"{prefix}model_a0": float("nan"),
+            f"{prefix}model_a1": float("nan"),
+            f"{prefix}model_a2": float("nan"),
+            f"{prefix}model_a3": float("nan"),
+        }
     return {
         f"{prefix}model_n_terms": int(fit.n_terms),
         f"{prefix}model_bic": float(fit.bic),
@@ -380,7 +395,7 @@ def fit_metacatalog_spectra(
         )
         fit = fit_single_spectrum(nu_hz, flux_jy, err_jy, config=cfg)
         fit_rows.append(_single_fit_to_row(fit, prefix))
-        if fit.n_flux > 0:
+        if fit.n_terms >= _MIN_TAYLOR_TERMS and fit.n_flux >= _MIN_TAYLOR_TERMS:
             n_fitted += 1
             n_flux_values.append(fit.n_flux)
             if fit.n_terms in n_terms_hist:
@@ -411,7 +426,7 @@ def summarize_spectral_fit(result: SpectralFitResult) -> str:
     median_n_flux = float(summary["median_n_flux"])
     lines = [
         f"Sources:                      {int(summary['n_sources']):6d}",
-        f"Fitted (>=1 flux):            {int(summary['n_fitted']):6d}",
+        f"Fitted (>=2 flux):            {int(summary['n_fitted']):6d}",
         (
             f"Median BIC:                   {median_bic:.3f}"
             if np.isfinite(median_bic)

@@ -51,6 +51,21 @@ def test_fit_single_point_returns_empty() -> None:
     assert np.isnan(fit.bic)
 
 
+def test_fit_two_points_selects_two_terms() -> None:
+    nu_hz = np.array([18e6, 82e6])
+    nu_ref = SUBBAND_REF_FREQ_MHZ * 1e6
+    flux = _power_law_flux(nu_hz, alpha=-0.8, s_ref=1.0, nu_ref_hz=nu_ref)
+    fit = fit_single_spectrum(
+        nu_hz,
+        flux,
+        0.05 * flux,
+        config=SpectralFitConfig(use_flux_errors=False),
+    )
+    assert fit.n_terms == 2
+    assert fit.n_flux == 2
+    assert fit.coeffs[1] == pytest.approx(-0.8, abs=1e-6)
+
+
 def test_fit_insufficient_points() -> None:
     fit = fit_single_spectrum(np.array([]), np.array([]), np.array([]))
     assert fit.n_flux == 0
@@ -177,7 +192,46 @@ def test_fit_metacatalog_spectra_columns() -> None:
     }
     assert expected.issubset(result.metacatalog.columns)
     assert len(result.metacatalog) == 3
-    assert (result.metacatalog["spec_model_n_flux"] > 0).all()
+    n_flux = result.metacatalog["spec_model_n_flux"]
+    assert n_flux.notna().all()
+    assert (n_flux >= 2).all()
+    assert not (n_flux == 0).any()
+    assert not (n_flux == 1).any()
+
+
+def test_fit_metacatalog_skips_single_band_rows() -> None:
+    meta = pd.DataFrame(
+        [
+            {
+                "meta_id": 0,
+                "origin_band": "18MHz",
+                "bands_present": "18MHz",
+                "Total_flux_18MHz": 1.0,
+                "E_Total_flux_18MHz": 0.05,
+            },
+            {
+                "meta_id": 1,
+                "origin_band": "18MHz",
+                "bands_present": "18MHz,23MHz",
+                "Total_flux_18MHz": 1.0,
+                "E_Total_flux_18MHz": 0.05,
+                "Total_flux_23MHz": 0.9,
+                "E_Total_flux_23MHz": 0.05,
+            },
+        ]
+    )
+    result = fit_metacatalog_spectra(
+        meta,
+        config=SpectralFitConfig(bands=("18MHz", "23MHz"), use_flux_errors=False),
+    )
+    assert result.summary["n_sources"] == 2
+    assert result.summary["n_fitted"] == 1
+    assert np.isnan(result.metacatalog.loc[0, "spec_model_n_flux"])
+    assert np.isnan(result.metacatalog.loc[0, "spec_model_n_terms"])
+    assert int(result.metacatalog.loc[1, "spec_model_n_flux"]) == 2
+    assert int(result.metacatalog.loc[1, "spec_model_n_terms"]) == 2
+    assert not (result.metacatalog["spec_model_n_flux"] == 0).any()
+    assert not (result.metacatalog["spec_model_n_flux"] == 1).any()
 
 
 def test_fit_metacatalog_spectra_summary() -> None:
