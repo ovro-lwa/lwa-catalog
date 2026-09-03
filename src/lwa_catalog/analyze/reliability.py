@@ -137,7 +137,7 @@ class SourceQualityFlag(IntFlag):
 
     A bit is **0 when that check is good/reliable** and **1 when the property
     is a quality concern**. ``quality_flag == 0`` means every implemented check
-    passed. Bits 14–31 are reserved (stay 0).
+    passed. Bits 16–31 are reserved (stay 0).
 
     ====== ===================== =================================================
     Bit    Name                  Set (1) when
@@ -156,6 +156,9 @@ class SourceQualityFlag(IntFlag):
     11     SCODE_COMPLEX         PyBDSF ``S_Code`` is ``C`` or ``M``
     12     LOW_ELEVATION         elevation at ``representative_lst`` < 10°
     13     HIGH_ELLIPTICITY      ``Maj / Min > 3`` (source FWHM axes)
+    14     EXTENDED              ``Maj > 3 × BMAJ`` (resolved match beam)
+    15     LARGE_SINGLE          (EXTENDED or HIGH_ELLIPTICITY) and
+                                 (SINGLE_UNIQUE_BAND or SINGLE_LST)
     ====== ===================== =================================================
     """
 
@@ -173,6 +176,8 @@ class SourceQualityFlag(IntFlag):
     SCODE_COMPLEX = 1 << 11
     LOW_ELEVATION = 1 << 12
     HIGH_ELLIPTICITY = 1 << 13
+    EXTENDED = 1 << 14
+    LARGE_SINGLE = 1 << 15
 
 
 _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
@@ -190,6 +195,8 @@ _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
     ("scode_complex", SourceQualityFlag.SCODE_COMPLEX),
     ("low_elevation", SourceQualityFlag.LOW_ELEVATION),
     ("high_ellipticity", SourceQualityFlag.HIGH_ELLIPTICITY),
+    ("extended", SourceQualityFlag.EXTENDED),
+    ("large_single", SourceQualityFlag.LARGE_SINGLE),
 )
 
 _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
@@ -209,6 +216,10 @@ _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
     SourceQualityFlag.SCODE_COMPLEX: "S_Code is C or M",
     SourceQualityFlag.LOW_ELEVATION: "elevation at representative_lst below min_elevation_deg",
     SourceQualityFlag.HIGH_ELLIPTICITY: "Maj / Min exceeds max_source_ellipticity",
+    SourceQualityFlag.EXTENDED: "Maj exceeds extended_bmaj_ratio × BMAJ",
+    SourceQualityFlag.LARGE_SINGLE: (
+        "(extended OR high_ellipticity) AND (single_unique_band OR single_lst)"
+    ),
 }
 
 
@@ -224,6 +235,7 @@ class ReliabilityConfig:
     jitter_bmaj_frac: float = 0.3
     min_elevation_deg: float = 10.0
     max_source_ellipticity: float = 3.0
+    extended_bmaj_ratio: float = 3.0
     min_lst_contributions: int = 2
     require_unique_assoc_include: bool = True
     require_unique_assoc_exclude: bool = False
@@ -512,6 +524,24 @@ def flag_high_ellipticity(
     ok = maj.notna() & min_.notna() & (min_ > 0.0)
     high = ok & (ratio > float(max_ratio))
     return high.fillna(False).rename(name)
+
+
+def flag_extended(
+    df: pd.DataFrame,
+    *,
+    bmaj_ratio: float = 3.0,
+) -> pd.Series:
+    """True when ``Maj > bmaj_ratio × BMAJ`` with finite positive BMAJ."""
+    name = "extended"
+    if "Maj" not in df.columns:
+        return pd.Series(False, index=df.index, dtype=bool, name=name)
+    maj = pd.to_numeric(df["Maj"], errors="coerce")
+    bmaj = df.apply(resolve_bmaj, axis=1)
+    with np.errstate(invalid="ignore"):
+        thresh = float(bmaj_ratio) * bmaj
+    ok = maj.notna() & np.isfinite(bmaj) & (bmaj > 0.0)
+    extended = ok & (maj > thresh)
+    return extended.fillna(False).rename(name)
 
 
 def flag_residual_percentile(
@@ -1433,6 +1463,11 @@ def assign_source_quality_flags(
     flags["high_ellipticity"] = flag_high_ellipticity(
         meta, max_ratio=cfg.max_source_ellipticity
     ).to_numpy()
+    flags["extended"] = flag_extended(meta, bmaj_ratio=cfg.extended_bmaj_ratio).to_numpy()
+    flags["large_single"] = (
+        (flags["extended"] | flags["high_ellipticity"])
+        & (flags["single_unique_band"] | flags["single_lst"])
+    ).to_numpy(dtype=bool)
 
     quality = pack_quality_flags(flags)
     flags["quality_flag"] = quality

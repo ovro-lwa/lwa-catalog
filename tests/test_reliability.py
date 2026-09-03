@@ -20,6 +20,7 @@ from lwa_catalog.analyze.reliability import (
     filter_by_quality_mask,
     filter_metacatalog_reliability,
     flag_has_nan,
+    flag_extended,
     flag_high_ellipticity,
     flag_invalid_astrometry_flux,
     flag_jitter_exceeds,
@@ -485,8 +486,8 @@ def test_assert_gold_subset_warns() -> None:
 
 def test_quality_flag_pack_and_decode() -> None:
     legend = quality_flag_legend()
-    assert len(legend) == 14
-    assert set(legend["bit"]) == set(range(14))
+    assert len(legend) == 16
+    assert set(legend["bit"]) == set(range(16))
     flags = pd.DataFrame(
         {
             "has_nan": [True, False],
@@ -503,6 +504,8 @@ def test_quality_flag_pack_and_decode() -> None:
             "scode_complex": [False, False],
             "low_elevation": [False, False],
             "high_ellipticity": [False, False],
+            "extended": [False, False],
+            "large_single": [False, False],
         }
     )
     packed = pack_quality_flags(flags)
@@ -594,6 +597,53 @@ def test_flag_scode_and_residual_percentile() -> None:
     assert bool(pctl["resid_pctl_rms"].iloc[1]) is False
     assert bool(pctl["resid_pctl_mean"].iloc[0]) is True
     assert bool(pctl["resid_pctl_mean"].iloc[2]) is False
+
+
+def test_flag_extended() -> None:
+    compact = pd.DataFrame({"Maj": [0.5], "BMAJ_match": [0.5]})
+    extended = pd.DataFrame({"Maj": [2.0], "BMAJ_match": [0.5]})
+    assert bool(flag_extended(compact, bmaj_ratio=3.0).iloc[0]) is False
+    assert bool(flag_extended(extended, bmaj_ratio=3.0).iloc[0]) is True
+
+    packed = pack_quality_flags(pd.DataFrame({"extended": [True]}))
+    assert int(packed[0]) == int(SourceQualityFlag.EXTENDED)
+    assert decode_quality_flag(int(packed[0])) == ["EXTENDED"]
+
+
+def test_large_single_composite_logic() -> None:
+    flags = pd.DataFrame(
+        {
+            "extended": [False, True, False, True, False],
+            "high_ellipticity": [False, False, True, True, True],
+            "single_unique_band": [False, False, True, False, False],
+            "single_lst": [False, True, False, False, False],
+        }
+    )
+    flags["large_single"] = (
+        (flags["extended"] | flags["high_ellipticity"])
+        & (flags["single_unique_band"] | flags["single_lst"])
+    )
+    packed = pack_quality_flags(flags)
+
+    # row 0: no large/elongated and no singleton marker
+    assert int(packed[0]) == 0
+    assert bool(flags["large_single"].iloc[0]) is False
+
+    # row 1: extended + single_lst => LARGE_SINGLE set
+    assert int(packed[1] & np.uint32(SourceQualityFlag.LARGE_SINGLE)) != 0
+    assert bool(flags["large_single"].iloc[1]) is True
+
+    # row 2: high_ellipticity + single_unique_band => LARGE_SINGLE set
+    assert int(packed[2] & np.uint32(SourceQualityFlag.LARGE_SINGLE)) != 0
+    assert bool(flags["large_single"].iloc[2]) is True
+
+    # row 3: both large criteria but no singleton marker => LARGE_SINGLE clear
+    assert int(packed[3] & np.uint32(SourceQualityFlag.LARGE_SINGLE)) == 0
+    assert bool(flags["large_single"].iloc[3]) is False
+
+    # row 4: high_ellipticity only => LARGE_SINGLE clear
+    assert int(packed[4] & np.uint32(SourceQualityFlag.LARGE_SINGLE)) == 0
+    assert bool(flags["large_single"].iloc[4]) is False
 
 
 def test_flag_low_elevation_and_high_ellipticity() -> None:
