@@ -94,6 +94,8 @@ METACATALOG_QUALITY_FILENAME: str = "metacatalog_quality.parquet"
 
 # Post-hoc Taylor spectral fits written by ``metacatalog_spectral_modeling.ipynb``.
 METACATALOG_SPECTRAL_FILENAME: str = "metacatalog_spectral.parquet"
+# Metacatalog with attached radio-survey photometry (VLSSR / NVSS / VLASS).
+METACATALOG_RADIO_FILENAME: str = "metacatalog_radio.parquet"
 
 # Default analysis mask for ``(quality_flag & mask) == 0`` row selection.
 # Requires clear: HAS_NAN, INVALID_ASTROMETRY, SINGLE_LST, UNPHYSICAL_FLUX,
@@ -173,11 +175,15 @@ def band_frequency_hz(band: str) -> float:
 
 
 # Rest-frame center frequencies (Hz) from RESTFRQ on OVRO-LWA deep color products.
+# External radio surveys use the catalog reference frequencies.
 BAND_FREQ_HZ: dict[str, float] = {
     "Blue": 73_956_883.683421,
     "Green": 51_675_007.041984,
     "Red": 34_599_742.150104,
     "Full": 57_200_637.276411,
+    "VLSSR": VLSSR_FREQ_HZ,
+    "NVSS": NVSS_FREQ_HZ,
+    "VLASS": VLASS_FREQ_HZ,
 }
 
 # (label, band_lo_or_a, band_hi_or_b) for α = log(S_a/S_b) / log(ν_a/ν_b).

@@ -49,7 +49,7 @@ def test_normalize_survey_maps_nvss_peak_intensity() -> None:
     )
     out = normalize_survey_band_catalog(raw)
     assert float(out.iloc[0]["Peak_flux"]) == 0.05
-    assert np.isnan(float(out.iloc[0]["Total_flux"]))
+    assert float(out.iloc[0]["Total_flux"]) == 0.05
     assert out.iloc[0]["source_file"] == "C0100P20"
 
 

@@ -4,6 +4,10 @@ Unmatched survey sources are not seeded as new rows. Top-level LWA astrometry
 and ``BMAJ_match`` are left unchanged. Stored survey flux is the brightest
 associated hit (preferring ``Total_flux`` when available, else peak);
 ``n_assoc_{band}`` counts every hit inside the match radius.
+
+``match_RA`` / ``match_DEC`` / ``match_source`` record the best cascaded match
+position (survey coords after bijective VLSSR→NVSS→VLASS when enabled;
+otherwise native LWA).
 """
 
 from __future__ import annotations
@@ -55,14 +59,19 @@ _BOOTSTRAP_ADOPT_RADIUS: dict[str, CrossmatchRadiusSpec] = {
 
 
 def normalize_survey_band_catalog(survey_df: pd.DataFrame) -> pd.DataFrame:
-    """Return a copy with merge-ready ``Peak_flux`` / ``Total_flux`` / ``source_file``."""
+    """Return a copy with merge-ready ``Peak_flux`` / ``Total_flux`` / ``source_file``.
+
+    Catalogs that only publish peak brightness (e.g. VLSSR) get ``Total_flux``
+    filled from ``Peak_flux`` so photometric attach and ``flux_kind="total"``
+    spectral fits see a usable column.
+    """
     out = survey_df.copy()
     if "Peak_flux" not in out.columns and "Peak_intensity" in out.columns:
         out["Peak_flux"] = pd.to_numeric(out["Peak_intensity"], errors="coerce")
     if "Peak_flux" not in out.columns:
         out["Peak_flux"] = np.nan
     if "Total_flux" not in out.columns:
-        out["Total_flux"] = np.nan
+        out["Total_flux"] = out["Peak_flux"]
     if "source_file" not in out.columns:
         if "Component_name" in out.columns:
             out["source_file"] = out["Component_name"].astype(str)
@@ -203,6 +212,28 @@ def _prepare_survey_for_attach(
     return apply_match_radius(survey, reference_radius)
 
 
+def _write_match_positions(meta_df: pd.DataFrame, frame: pd.DataFrame) -> pd.DataFrame:
+    """Copy bootstrap-frame coords onto *meta_df* as ``match_RA`` / ``match_DEC``.
+
+    Also writes ``match_source`` (``LWA`` / ``VLSSR`` / ``NVSS`` / ``VLASS``).
+    Top-level ``RA``/``DEC`` are unchanged.
+    """
+    if len(frame) != len(meta_df):
+        msg = (
+            f"match frame length {len(frame)} does not match metacatalog rows "
+            f"{len(meta_df)}"
+        )
+        raise ValueError(msg)
+    out = meta_df.copy()
+    out["match_RA"] = pd.to_numeric(frame["RA"], errors="coerce").to_numpy(dtype=float)
+    out["match_DEC"] = pd.to_numeric(frame["DEC"], errors="coerce").to_numpy(dtype=float)
+    if "bootstrap_source" in frame.columns:
+        out["match_source"] = frame["bootstrap_source"].astype(str).to_numpy()
+    else:
+        out["match_source"] = np.array(["LWA"] * len(out), dtype=object)
+    return out
+
+
 def attach_radio_surveys_to_metacatalog(
     meta_df: pd.DataFrame,
     surveys: Mapping[str, pd.DataFrame],
@@ -223,6 +254,9 @@ def attach_radio_surveys_to_metacatalog(
     order and the match frame advances after each bijective step (adopt survey
     position/error for the next survey) without rewriting metacatalog
     ``RA``/``DEC``.
+
+    Always adds ``match_RA`` / ``match_DEC`` / ``match_source`` from the final
+    match frame (cascaded survey position when bijective; otherwise LWA).
     """
     radii = dict(_DEFAULT_REFERENCE_RADIUS)
     if reference_radii is not None:
@@ -249,7 +283,7 @@ def attach_radio_surveys_to_metacatalog(
                 color_bands=color_bands,
                 footprint_filter=footprint_filter,
             )
-        return out
+        return _write_match_positions(out, native_lwa_frame(out, lwa_radius))
 
     frame = native_lwa_frame(out, lwa_radius)
     for band in present:
@@ -285,4 +319,4 @@ def attach_radio_surveys_to_metacatalog(
             radius_spec=adopt_radius,
             source=band,
         )
-    return out
+    return _write_match_positions(out, frame)

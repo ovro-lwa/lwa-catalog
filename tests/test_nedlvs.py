@@ -188,6 +188,9 @@ def test_match_lst_merged_blue_target() -> None:
 def test_band_frequency_hz() -> None:
     assert band_frequency_hz("Blue") == pytest.approx(BAND_FREQ_HZ["Blue"])
     assert band_frequency_hz("82MHz") == pytest.approx(82e6)
+    assert band_frequency_hz("VLSSR") == pytest.approx(BAND_FREQ_HZ["VLSSR"])
+    assert band_frequency_hz("NVSS") == pytest.approx(BAND_FREQ_HZ["NVSS"])
+    assert band_frequency_hz("VLASS") == pytest.approx(BAND_FREQ_HZ["VLASS"])
 
 
 def test_resolve_highest_frequency_peak_flux() -> None:

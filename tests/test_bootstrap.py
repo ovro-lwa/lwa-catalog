@@ -320,6 +320,29 @@ def test_attach_cascade_bootstrap_does_not_mutate_ra() -> None:
     assert float(out.iloc[0]["RA"]) == pytest.approx(orig_ra)
     assert len(out) == 1
     assert "Peak_flux_VLSSR" in out.columns or "Total_flux_VLSSR" in out.columns
+    # After VLSSR, adopt radius is ~3″; NVSS/VLASS sit just outside that, so the
+    # final cascaded match position stays on the bijective VLSSR counterpart.
+    assert float(out.iloc[0]["match_RA"]) == pytest.approx(10.001)
+    assert float(out.iloc[0]["match_DEC"]) == pytest.approx(20.0)
+    assert out.iloc[0]["match_source"] == "VLSSR"
+
+
+def test_attach_without_cascade_writes_lwa_match_positions() -> None:
+    meta = pd.DataFrame([_meta_row(0, 10.0, 20.0, bmaj=0.5)])
+    out = attach_radio_surveys_to_metacatalog(
+        meta,
+        {
+            "VLSSR": pd.DataFrame(
+                [{"RA": 10.001, "DEC": 20.0, "Peak_flux": 2.0, "BMAJ": VLSSR_BMAJ_DEG}]
+            )
+        },
+        lwa_radius=CrossmatchRadiusSpec(mode="fixed", fixed_arcsec=60.0),
+        cascade_bootstrap=False,
+        footprint_filter=False,
+    )
+    assert float(out.iloc[0]["match_RA"]) == pytest.approx(10.0)
+    assert float(out.iloc[0]["match_DEC"]) == pytest.approx(20.0)
+    assert out.iloc[0]["match_source"] == "LWA"
 
 
 def test_bijective_map_from_hits() -> None:

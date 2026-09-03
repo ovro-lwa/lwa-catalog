@@ -118,6 +118,24 @@ def test_gather_band_flux_origin_fallback() -> None:
     assert 0.2 in err
 
 
+def test_gather_includes_radio_survey_bands() -> None:
+    row = pd.Series(
+        {
+            "Total_flux_55MHz": 1.0,
+            "Total_flux_VLSSR": 0.8,
+            "Total_flux_NVSS": 0.15,
+            "Total_flux_VLASS": 0.05,
+        }
+    )
+    nu_hz, flux, _ = gather_band_flux_measurements(
+        row,
+        bands=("55MHz", "VLSSR", "NVSS", "VLASS"),
+        flux_kind="total",
+    )
+    assert list(nu_hz) == pytest.approx([55e6, 74e6, 1.4e9, 3e9])
+    assert list(flux) == pytest.approx([1.0, 0.8, 0.15, 0.05])
+
+
 def test_bic_prefers_simpler_model() -> None:
     rng = np.random.default_rng(42)
     bands = SUBBAND_BANDS_MHZ
