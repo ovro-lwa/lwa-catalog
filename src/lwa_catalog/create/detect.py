@@ -20,6 +20,8 @@ from lwa_catalog.constants import GAUL_DETECTION_COLUMNS
 from lwa_catalog.coords import normalize_ra_columns
 from lwa_catalog.gaul import cast_gaul_string_columns
 from lwa_catalog.create.discover import FitsMetadata
+from lwa_catalog.io import write_table
+from lwa_catalog.schemas import sources_schema
 
 DEFAULT_BDSF_KW: dict[str, Any] = {
     "thresh": "hard",
@@ -91,24 +93,30 @@ def _fork_process_pool(max_workers: int) -> ProcessPoolExecutor:
     return ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx)
 
 
-def _detect_sources_task(
+def _detect_and_write_sources(
     meta: FitsMetadata,
+    catalog_path: Path,
     bdsf_kw: Mapping[str, Any] | None,
     gaul_columns: Sequence[str],
     upsample_factor: int,
     process_kw: Mapping[str, Any],
-) -> pd.DataFrame:
-    return detect_sources(
+) -> tuple[str, int]:
+    """Run detection and write Parquet in the worker; return path and row count."""
+    catalog = detect_sources(
         meta,
         bdsf_kw=bdsf_kw,
         gaul_columns=gaul_columns,
         upsample_factor=upsample_factor,
         **process_kw,
     )
+    path = Path(catalog_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_table(catalog, path, schema=sources_schema())
+    return str(path.resolve()), len(catalog)
 
 
-def _detect_sources_packed(task: tuple[Any, ...]) -> pd.DataFrame:
-    return _detect_sources_task(*task)
+def _detect_and_write_packed(task: tuple[Any, ...]) -> tuple[str, int]:
+    return _detect_and_write_sources(*task)
 
 
 def _restfreq_hz(header: fits.Header) -> float | None:
@@ -315,23 +323,27 @@ def detect_sources(
 
 def iter_detect_sources(
     metas: Sequence[FitsMetadata],
+    catalog_paths: Sequence[Path],
     *,
     n_jobs: int | None = None,
     bdsf_kw: Mapping[str, Any] | None = None,
     gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
     upsample_factor: int = 1,
     **process_kw: Any,
-) -> Iterator[tuple[FitsMetadata, pd.DataFrame]]:
-    """Yield ``(meta, catalog)`` as each image finishes.
+) -> Iterator[tuple[FitsMetadata, Path, int]]:
+    """Yield ``(meta, catalog_path, n_sources)`` as each image finishes.
 
-    Workers only return DataFrames. The caller (parent process) can write
-    Parquet as results arrive — completion order is not ``metas`` order when
-    ``n_jobs > 1``.
+    Each worker runs PyBDSF and writes its Parquet file before returning only
+    the output path and source count (avoids shipping large DataFrames through
+    a forked process pool from Jupyter). Completion order is not ``metas``
+    order when ``n_jobs > 1``.
 
     Parameters
     ----------
     metas
         One ``FitsMetadata`` per image to process.
+    catalog_paths
+        Parquet output path per image (same length and order as ``metas``).
     n_jobs
         Number of worker processes. ``None`` uses all CPUs available to this
         process. ``1`` runs serially in the current process.
@@ -340,6 +352,12 @@ def iter_detect_sources(
     """
     if not metas:
         return
+    if len(catalog_paths) != len(metas):
+        msg = (
+            f"catalog_paths length ({len(catalog_paths)}) must match "
+            f"metas length ({len(metas)})"
+        )
+        raise ValueError(msg)
 
     if n_jobs is None:
         n_jobs = _available_cpu_count()
@@ -348,12 +366,14 @@ def iter_detect_sources(
     gaul_cols = tuple(gaul_columns)
     proc_kw = dict(process_kw)
     tasks = [
-        (meta, bdsf_kw, gaul_cols, upsample_factor, proc_kw) for meta in metas
+        (meta, Path(path), bdsf_kw, gaul_cols, upsample_factor, proc_kw)
+        for meta, path in zip(metas, catalog_paths, strict=True)
     ]
 
     if n_jobs == 1:
         for meta, task in zip(metas, tasks, strict=True):
-            yield meta, _detect_sources_packed(task)
+            out_path, n_sources = _detect_and_write_packed(task)
+            yield meta, Path(out_path), n_sources
         return
 
     # Load PyBDSF in the parent before forking so workers inherit the module
@@ -362,16 +382,18 @@ def iter_detect_sources(
 
     with _fork_process_pool(n_jobs) as pool:
         future_to_index = {
-            pool.submit(_detect_sources_packed, task): i
+            pool.submit(_detect_and_write_packed, task): i
             for i, task in enumerate(tasks)
         }
         for future in as_completed(future_to_index):
             i = future_to_index[future]
-            yield metas[i], future.result()
+            out_path, n_sources = future.result()
+            yield metas[i], Path(out_path), n_sources
 
 
 def detect_sources_many(
     metas: Sequence[FitsMetadata],
+    catalog_paths: Sequence[Path],
     *,
     n_jobs: int | None = None,
     bdsf_kw: Mapping[str, Any] | None = None,
@@ -381,17 +403,17 @@ def detect_sources_many(
 ) -> list[pd.DataFrame]:
     """Detect sources in many FITS images, parallelizing across images.
 
-    Each image runs PyBDSF in its own worker process. Use ``ncores=1`` in
-    ``bdsf_kw`` (the library default) so workers do not compete for CPUs.
-
-    Collects :func:`iter_detect_sources` into a list in the same order as
-    ``metas``. Prefer the iterator when the caller should persist each catalog
-    as soon as it finishes.
+    Each image runs PyBDSF in its own worker process, writes Parquet under
+    *catalog_paths*, and the caller receives catalogs read back in ``metas``
+    order. Use ``ncores=1`` in ``bdsf_kw`` (the library default) so workers
+    do not compete for CPUs.
 
     Parameters
     ----------
     metas
         One ``FitsMetadata`` per image to process.
+    catalog_paths
+        Parquet output path per image (same length and order as ``metas``).
     n_jobs
         Number of worker processes. ``None`` uses all CPUs available to this
         process. ``1`` runs serially in the current process.
@@ -403,15 +425,19 @@ def detect_sources_many(
     list[pd.DataFrame]
         Catalogs in the same order as ``metas``.
     """
-    by_path = {
-        meta.path: catalog
-        for meta, catalog in iter_detect_sources(
-            metas,
-            n_jobs=n_jobs,
-            bdsf_kw=bdsf_kw,
-            gaul_columns=gaul_columns,
-            upsample_factor=upsample_factor,
-            **process_kw,
-        )
-    }
+    from lwa_catalog.io import read_table
+
+    by_path: dict[Path, pd.DataFrame] = {}
+    for meta, out_path, _n_sources in iter_detect_sources(
+        metas,
+        catalog_paths,
+        n_jobs=n_jobs,
+        bdsf_kw=bdsf_kw,
+        gaul_columns=gaul_columns,
+        upsample_factor=upsample_factor,
+        **process_kw,
+    ):
+        df = read_table(out_path, as_pandas=True)
+        assert isinstance(df, pd.DataFrame)
+        by_path[meta.path] = df
     return [by_path[meta.path] for meta in metas]
