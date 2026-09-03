@@ -138,8 +138,40 @@ def resolve_centroid_sigma_deg(
     return float(default_centroid_sigma_deg)
 
 
-def resolve_highest_frequency_peak_flux(row: pd.Series) -> tuple[float, float, str]:
-    """Return ``(peak_flux_jy, frequency_hz, band_name)`` for the highest-frequency band."""
+def _positive_flux(row: pd.Series, *columns: str) -> float:
+    """Return the first positive finite flux among *columns*, else NaN."""
+    for col in columns:
+        if col not in row.index:
+            continue
+        flux = pd.to_numeric(row[col], errors="coerce")
+        if np.isfinite(flux) and float(flux) > 0.0:
+            return float(flux)
+    return float("nan")
+
+
+def resolve_row_flux(row: pd.Series, *, prefer_total: bool = True) -> float:
+    """Return a positive flux from a catalog row.
+
+    When *prefer_total* is true (default), try ``Total_flux`` before
+    ``Peak_flux`` / ``Peak_intensity``. Catalogs that only publish peak
+    intensity (VLSSR, NVSS ``CATALOG.FIT``) still resolve successfully.
+    """
+    if prefer_total:
+        return _positive_flux(row, "Total_flux", "Peak_flux", "Peak_intensity")
+    return _positive_flux(row, "Peak_flux", "Peak_intensity", "Total_flux")
+
+
+def resolve_highest_frequency_flux(
+    row: pd.Series,
+    *,
+    prefer_total: bool = True,
+) -> tuple[float, float, str]:
+    """Return ``(flux_jy, frequency_hz, band_name)`` at the highest-frequency band.
+
+    Prefers ``Total_flux_{band}`` (and unsuffixed ``Total_flux`` on the origin
+    band) when *prefer_total* is true, falling back to peak columns when total
+    flux is missing.
+    """
     from lwa_catalog.analyze.reliability import parse_bands_present
 
     bands = parse_bands_present(row)
@@ -151,17 +183,51 @@ def resolve_highest_frequency_peak_flux(row: pd.Series) -> tuple[float, float, s
         freq = band_frequency_hz(band)
         if not np.isfinite(freq) or freq <= 0.0:
             continue
-        col = f"Peak_flux_{band}"
-        if col in row.index:
-            flux = pd.to_numeric(row[col], errors="coerce")
-            if np.isfinite(flux) and float(flux) > 0.0:
-                return float(flux), float(freq), band
-        if band == row.get("origin_band") and "Peak_flux" in row.index:
-            flux = pd.to_numeric(row["Peak_flux"], errors="coerce")
-            if np.isfinite(flux) and float(flux) > 0.0:
-                return float(flux), float(freq), band
+
+        candidates: list[str] = []
+        if prefer_total:
+            candidates.append(f"Total_flux_{band}")
+        candidates.append(f"Peak_flux_{band}")
+        if not prefer_total:
+            candidates.append(f"Total_flux_{band}")
+
+        if band == row.get("origin_band"):
+            if prefer_total:
+                candidates.extend(["Total_flux", "Peak_flux"])
+            else:
+                candidates.extend(["Peak_flux", "Total_flux"])
+
+        flux = _positive_flux(row, *candidates)
+        if np.isfinite(flux):
+            return flux, float(freq), band
 
     return float("nan"), float("nan"), ""
+
+
+def resolve_highest_frequency_peak_flux(row: pd.Series) -> tuple[float, float, str]:
+    """Return ``(peak_flux_jy, frequency_hz, band_name)`` for the highest-frequency band."""
+    return resolve_highest_frequency_flux(row, prefer_total=False)
+
+
+def resolve_band_flux(
+    row: pd.Series,
+    band: str,
+    *,
+    prefer_total: bool = True,
+) -> float:
+    """Return positive flux for a named band, preferring total when available."""
+    candidates: list[str] = []
+    if prefer_total:
+        candidates.append(f"Total_flux_{band}")
+    candidates.append(f"Peak_flux_{band}")
+    if not prefer_total:
+        candidates.append(f"Total_flux_{band}")
+    if band == row.get("origin_band"):
+        if prefer_total:
+            candidates.extend(["Total_flux", "Peak_flux"])
+        else:
+            candidates.extend(["Peak_flux", "Total_flux"])
+    return _positive_flux(row, *candidates)
 
 
 def radio_luminosity_nu(
@@ -395,7 +461,7 @@ def build_sfr_radio_luminosity_table(
         "SFR_column",
         "radio_band",
         "radio_freq_hz",
-        "Peak_flux_jy",
+        "Flux_jy",
         "L_nu_erg_s_hz",
         "nuL_nu_erg_s",
     ]
@@ -424,7 +490,7 @@ def build_sfr_radio_luminosity_table(
         ned_pos = int(positions[0])
         ned_row = nedlvs_footprint.iloc[ned_pos]
 
-        flux, freq_hz, band = resolve_highest_frequency_peak_flux(meta_row)
+        flux, freq_hz, band = resolve_highest_frequency_flux(meta_row, prefer_total=True)
         z = pd.to_numeric(ned_row.get("z"), errors="coerce")
         sfr, sfr_col = _resolve_sfr(ned_row)
         if not np.isfinite(flux) or not np.isfinite(freq_hz) or not np.isfinite(z) or z <= 0:
@@ -442,7 +508,7 @@ def build_sfr_radio_luminosity_table(
                 "SFR_column": sfr_col,
                 "radio_band": band,
                 "radio_freq_hz": freq_hz,
-                "Peak_flux_jy": flux,
+                "Flux_jy": flux,
                 "L_nu_erg_s_hz": float(l_nu),
                 "nuL_nu_erg_s": float(nu_l_nu),
             }

@@ -158,6 +158,35 @@ def test_predict_flux_at_frequency_hz() -> None:
     assert flux == pytest.approx(1.0 * (1.4e9 / 55e6) ** -0.7, rel=1e-6)
 
 
+def test_predict_flux_prefers_total_and_falls_back_to_peak() -> None:
+    peak_only = pd.Series(
+        {
+            "spec_peak_n_terms": 2,
+            "spec_peak_nu0_mhz": 55.0,
+            "spec_peak_a0": np.log(1.0),
+            "spec_peak_a1": -0.7,
+        }
+    )
+    # Default prefer_total should fall back to peak when only peak fit exists.
+    flux = predict_flux_at_frequency_hz(peak_only, 1.4e9)
+    assert flux == pytest.approx(1.0 * (1.4e9 / 55e6) ** -0.7, rel=1e-6)
+
+    both = pd.Series(
+        {
+            "spec_total_n_terms": 2,
+            "spec_total_nu0_mhz": 55.0,
+            "spec_total_a0": np.log(2.0),
+            "spec_total_a1": -0.5,
+            "spec_peak_n_terms": 2,
+            "spec_peak_nu0_mhz": 55.0,
+            "spec_peak_a0": np.log(1.0),
+            "spec_peak_a1": -0.7,
+        }
+    )
+    flux_total = predict_flux_at_frequency_hz(both, 1.4e9, flux_kind="total")
+    assert flux_total == pytest.approx(2.0 * (1.4e9 / 55e6) ** -0.5, rel=1e-6)
+
+
 def test_summarize_nvss_match_includes_key_metrics() -> None:
     meta = pd.DataFrame([_meta_row()])
     nvss = _nvss_rows([(10.0, 20.0)])

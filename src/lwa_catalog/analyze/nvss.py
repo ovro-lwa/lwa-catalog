@@ -354,42 +354,52 @@ def predict_flux_at_frequency_hz(
     row: pd.Series,
     frequency_hz: float,
     *,
-    flux_kind: str = "peak",
+    flux_kind: str = "total",
 ) -> float:
     """Extrapolate metacatalog flux to *frequency_hz* using Taylor ``spec_*`` coeffs.
 
-    Returns NaN when spectral-fit columns are missing or invalid.
+    Prefers ``spec_total_*`` by default; falls back to ``spec_peak_*`` when the
+    requested kind is unavailable. Returns NaN when no usable fit exists.
     """
     if not np.isfinite(frequency_hz) or frequency_hz <= 0.0:
         return float("nan")
 
-    prefix = "spec_peak" if flux_kind == "peak" else "spec_total"
-    n_terms_col = f"{prefix}_n_terms"
-    nu0_col = f"{prefix}_nu0_mhz"
-    if n_terms_col not in row.index or nu0_col not in row.index:
-        return float("nan")
+    kinds = ("total", "peak") if flux_kind == "total" else ("peak", "total")
+    for kind in kinds:
+        prefix = "spec_peak" if kind == "peak" else "spec_total"
+        n_terms_col = f"{prefix}_n_terms"
+        nu0_col = f"{prefix}_nu0_mhz"
+        if n_terms_col not in row.index or nu0_col not in row.index:
+            continue
 
-    n_terms = int(pd.to_numeric(row.get(n_terms_col), errors="coerce") or 0)
-    if n_terms < 2:
-        return float("nan")
+        n_terms = int(pd.to_numeric(row.get(n_terms_col), errors="coerce") or 0)
+        if n_terms < 2:
+            continue
 
-    nu0_mhz = pd.to_numeric(row.get(nu0_col), errors="coerce")
-    if not np.isfinite(nu0_mhz) or float(nu0_mhz) <= 0.0:
-        return float("nan")
+        nu0_mhz = pd.to_numeric(row.get(nu0_col), errors="coerce")
+        if not np.isfinite(nu0_mhz) or float(nu0_mhz) <= 0.0:
+            continue
 
-    coeffs: list[float] = []
-    for idx in range(n_terms):
-        col = f"{prefix}_a{idx}"
-        if col not in row.index:
-            return float("nan")
-        coeff = pd.to_numeric(row.get(col), errors="coerce")
-        if not np.isfinite(coeff):
-            return float("nan")
-        coeffs.append(float(coeff))
+        coeffs: list[float] = []
+        ok = True
+        for idx in range(n_terms):
+            col = f"{prefix}_a{idx}"
+            if col not in row.index:
+                ok = False
+                break
+            coeff = pd.to_numeric(row.get(col), errors="coerce")
+            if not np.isfinite(coeff):
+                ok = False
+                break
+            coeffs.append(float(coeff))
+        if not ok:
+            continue
 
-    x = np.log(frequency_hz / (float(nu0_mhz) * 1e6))
-    ln_s = sum(c * x**j for j, c in enumerate(coeffs))
-    return float(np.exp(ln_s))
+        x = np.log(frequency_hz / (float(nu0_mhz) * 1e6))
+        ln_s = sum(c * x**j for j, c in enumerate(coeffs))
+        return float(np.exp(ln_s))
+
+    return float("nan")
 
 
 def summarize_nvss_match(result: NvssMatchResult) -> str:

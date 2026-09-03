@@ -95,6 +95,40 @@ def test_attach_survey_does_not_seed_unmatched_or_rewrite_astrometry() -> None:
     assert "NVSS" in present
 
 
+def test_attach_survey_picks_brightest_total_when_available() -> None:
+    meta = pd.DataFrame([_meta_row(bmaj=1.0)])
+    vlass = pd.DataFrame(
+        [
+            {
+                "RA": 10.02,
+                "DEC": 20.0,
+                "Peak_flux": 0.9,
+                "Total_flux": 0.2,
+                "BMAJ": VLASS_BMAJ_DEG,
+            },
+            {
+                "RA": 10.03,
+                "DEC": 20.0,
+                "Peak_flux": 0.1,
+                "Total_flux": 0.8,
+                "BMAJ": VLASS_BMAJ_DEG,
+            },
+        ]
+    )
+    out = attach_survey_to_metacatalog(
+        meta,
+        vlass,
+        "VLASS",
+        lwa_radius=CrossmatchRadiusSpec(mode="fixed", fixed_arcsec=3600.0),
+        reference_radius=CrossmatchRadiusSpec(mode="fixed", fixed_arcsec=2.5),
+        footprint_filter=False,
+    )
+    row = out.iloc[0]
+    assert int(row["n_assoc_VLASS"]) == 2
+    assert float(row["Total_flux_VLASS"]) == 0.8
+    assert float(row["Peak_flux_VLASS"]) == 0.1
+
+
 def test_attach_survey_picks_brightest_of_multiple_hits() -> None:
     meta = pd.DataFrame([_meta_row(bmaj=1.0)])
     nvss = pd.DataFrame(

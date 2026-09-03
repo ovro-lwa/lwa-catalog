@@ -2,7 +2,8 @@
 
 Unmatched survey sources are not seeded as new rows. Top-level LWA astrometry
 and ``BMAJ_match`` are left unchanged. Stored survey flux is the brightest
-associated hit; ``n_assoc_{band}`` counts every hit inside the match radius.
+associated hit (preferring ``Total_flux`` when available, else peak);
+``n_assoc_{band}`` counts every hit inside the match radius.
 """
 
 from __future__ import annotations

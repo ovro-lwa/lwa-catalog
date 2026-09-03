@@ -17,8 +17,11 @@ from lwa_catalog.analyze.nedlvs import (
     build_sfr_radio_luminosity_table,
     load_nedlvs_catalog,
     match_catalog_to_nedlvs,
+    resolve_band_flux,
     resolve_centroid_sigma_deg,
+    resolve_highest_frequency_flux,
     resolve_highest_frequency_peak_flux,
+    resolve_row_flux,
     select_bijective_nedlvs_flags,
     select_metacatalog,
     select_unique_nedlvs_matches,
@@ -201,6 +204,52 @@ def test_resolve_highest_frequency_peak_flux() -> None:
     assert band == "Blue"
     assert flux == pytest.approx(2.0)
     assert freq == pytest.approx(BAND_FREQ_HZ["Blue"])
+
+
+def test_resolve_highest_frequency_flux_prefers_total() -> None:
+    row = pd.Series(
+        {
+            "bands_present": "82MHz,18MHz",
+            "Peak_flux_82MHz": 2.0,
+            "Total_flux_82MHz": 3.5,
+            "Peak_flux_18MHz": 1.0,
+            "Total_flux_18MHz": 1.2,
+        }
+    )
+    flux, freq, band = resolve_highest_frequency_flux(row, prefer_total=True)
+    assert band == "82MHz"
+    assert flux == pytest.approx(3.5)
+    assert freq == pytest.approx(82e6)
+
+
+def test_resolve_highest_frequency_flux_falls_back_to_peak() -> None:
+    row = pd.Series(
+        {
+            "bands_present": "73MHz",
+            "Peak_flux_73MHz": 1.5,
+        }
+    )
+    flux, freq, band = resolve_highest_frequency_flux(row, prefer_total=True)
+    assert band == "73MHz"
+    assert flux == pytest.approx(1.5)
+    assert freq == pytest.approx(73e6)
+
+
+def test_resolve_band_and_row_flux() -> None:
+    meta = pd.Series(
+        {
+            "origin_band": "82MHz",
+            "Total_flux_82MHz": 4.0,
+            "Peak_flux_82MHz": 2.0,
+        }
+    )
+    assert resolve_band_flux(meta, "82MHz", prefer_total=True) == pytest.approx(4.0)
+    assert resolve_band_flux(meta, "82MHz", prefer_total=False) == pytest.approx(2.0)
+
+    ref = pd.Series({"Peak_intensity": 0.05})
+    assert resolve_row_flux(ref, prefer_total=True) == pytest.approx(0.05)
+    ref_total = pd.Series({"Total_flux": 0.2, "Peak_flux": 0.1})
+    assert resolve_row_flux(ref_total, prefer_total=True) == pytest.approx(0.2)
 
 
 def test_select_metacatalog_blue() -> None:

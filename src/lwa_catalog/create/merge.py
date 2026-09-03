@@ -88,18 +88,21 @@ def _pick_highest_elevation_row(
 
 
 def _pick_peak_flux_row(df: pd.DataFrame) -> pd.Series:
-    """Return the row with the highest finite ``Peak_flux`` (or ``Peak_intensity``)."""
+    """Return the row with the highest finite flux.
+
+    Prefers ``Total_flux`` when any positive values exist, otherwise
+    ``Peak_flux`` / ``Peak_intensity``.
+    """
     if len(df) == 1:
         return df.iloc[0]
-    if "Peak_flux" in df.columns:
-        flux = pd.to_numeric(df["Peak_flux"], errors="coerce").to_numpy(dtype=float)
-    elif "Peak_intensity" in df.columns:
-        flux = pd.to_numeric(df["Peak_intensity"], errors="coerce").to_numpy(dtype=float)
-    else:
-        return df.iloc[0]
-    if not np.isfinite(flux).any():
-        return df.iloc[0]
-    return df.iloc[int(np.nanargmax(flux))]
+
+    for col in ("Total_flux", "Peak_flux", "Peak_intensity"):
+        if col not in df.columns:
+            continue
+        flux = pd.to_numeric(df[col], errors="coerce").to_numpy(dtype=float)
+        if np.isfinite(flux).any() and np.nanmax(flux) > 0.0:
+            return df.iloc[int(np.nanargmax(flux))]
+    return df.iloc[0]
 
 
 def _pick_associated_row(
