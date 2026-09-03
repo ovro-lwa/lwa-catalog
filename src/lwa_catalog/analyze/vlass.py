@@ -107,14 +107,18 @@ def load_vlass_catalog(
 ) -> pd.DataFrame:
     """Load the CIRADA VLASS QL epoch 1 component table for cross-matching.
 
-    Expects the gzipped component CSV from
+    Expects the component CSV from
     `CIRADA VLASS catalogues <https://cirada.ca/catalogues>`_ (Gordon et al.
-    2021, ApJS 255, 30). By default applies recommended quality cuts
-    (``Duplicate_flag <= 1``, ``Quality_flag in (0, 4)``, ``S_Code != 'E'``).
+    2021, ApJS 255, 30); ``.csv`` or ``.csv.gz`` both work. By default applies
+    recommended quality cuts (``Duplicate_flag <= 1``, ``Quality_flag in (0, 4)``,
+    ``S_Code != 'E'``).
+
+    CIRADA publishes ``Peak_flux`` / ``Total_flux`` in **mJy**; this loader
+    converts both to **Jy** for consistency with LWA / NVSS / VLSSR.
 
     Returns columns ``RA``, ``DEC``, PyBDSF ``E_RA``/``E_DEC`` (1σ degrees),
-    ``Peak_flux``, ``Total_flux``, deconvolved ``Maj``/``Min``/``PA`` (arcsec),
-    ``Component_name``, and ``BMAJ``/``BMIN`` in degrees for
+    ``Peak_flux``, ``Total_flux`` (Jy), deconvolved ``Maj``/``Min``/``PA``
+    (arcsec), ``Component_name``, and ``BMAJ``/``BMIN`` in degrees for
     :func:`~lwa_catalog.create.merge.associate_catalogs`.
     """
     cfg = config or VlassMatchConfig()
@@ -122,7 +126,7 @@ def load_vlass_catalog(
     if not catalog_path.is_file():
         msg = (
             f"VLASS catalog not found: {catalog_path}. "
-            f"Download CIRADA_VLASS1QLv3.1_table1_components.csv.gz into "
+            f"Download CIRADA_VLASS1QLv3.1_table1_components.csv into "
             f"{VLASS_DEFAULT_PATH.parent} from https://cirada.ca/catalogues"
         )
         raise FileNotFoundError(msg)
@@ -133,6 +137,10 @@ def load_vlass_catalog(
     if missing:
         msg = f"VLASS table missing expected columns: {missing}"
         raise ValueError(msg)
+
+    # CIRADA component table fluxes are mJy → Jy.
+    for flux_col in ("Peak_flux", "Total_flux"):
+        df[flux_col] = pd.to_numeric(df[flux_col], errors="coerce") / 1000.0
 
     if cfg.apply_quality_filter:
         n_before = len(df)

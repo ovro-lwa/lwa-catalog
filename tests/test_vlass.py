@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import gzip
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -24,18 +22,18 @@ from lwa_catalog.constants import VLASS_BMAJ_DEG, VLASS_DEC_MIN_DEG
 
 
 def _write_mini_vlass_csv(path) -> None:
+    # Peak_flux / Total_flux are CIRADA mJy values (loader converts to Jy).
     lines = [
         "Component_name,RA,DEC,E_RA,E_DEC,Peak_flux,Total_flux,Maj,Min,PA,BMAJ,BMIN,BPA,"
         "Duplicate_flag,Quality_flag,S_Code",
-        "VLASS1QLCIR J100000.00+200000.0,10.0,20.0,0.0001,0.0002,0.05,0.08,1.0,0.8,45.0,"
+        "VLASS1QLCIR J100000.00+200000.0,10.0,20.0,0.0001,0.0002,50.0,80.0,1.0,0.8,45.0,"
         "2.5,2.0,0.0,0.0,0,S",
-        "VLASS1QLCIR J100003.60+200000.0,10.01,20.0,0.0001,0.0002,0.04,0.07,1.0,0.8,45.0,"
+        "VLASS1QLCIR J100003.60+200000.0,10.01,20.0,0.0001,0.0002,40.0,70.0,1.0,0.8,45.0,"
         "2.5,2.0,0.0,0.0,0,S",
-        "VLASS1QLCIR J100000.00+200000.0,10.0,20.0,0.0001,0.0002,0.03,0.06,1.0,0.8,45.0,"
+        "VLASS1QLCIR J100000.00+200000.0,10.0,20.0,0.0001,0.0002,30.0,60.0,1.0,0.8,45.0,"
         "2.5,2.0,0.0,5.0,0,E",
     ]
-    with gzip.open(path, "wt") as handle:
-        handle.write("\n".join(lines))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _meta_row(
@@ -57,14 +55,16 @@ def _meta_row(
 
 
 def test_load_vlass_catalog_applies_quality_filter(tmp_path) -> None:
-    catalog_path = tmp_path / "vlass.csv.gz"
+    catalog_path = tmp_path / "vlass.csv"
     _write_mini_vlass_csv(catalog_path)
 
     loaded = load_vlass_catalog(catalog_path)
 
     assert len(loaded) == 2
     assert (loaded["BMAJ"] > 0).all()
+    # 50 mJy → 0.05 Jy
     assert loaded.iloc[0]["Peak_flux"] == pytest.approx(0.05)
+    assert loaded.iloc[0]["Total_flux"] == pytest.approx(0.08)
     assert "E_RA" in loaded.columns
     assert "E_DEC" in loaded.columns
     assert loaded.iloc[0]["E_RA"] == pytest.approx(0.0001)
@@ -72,7 +72,7 @@ def test_load_vlass_catalog_applies_quality_filter(tmp_path) -> None:
 
 
 def test_vlass_default_radius_uses_localization(tmp_path) -> None:
-    catalog_path = tmp_path / "vlass.csv.gz"
+    catalog_path = tmp_path / "vlass.csv"
     _write_mini_vlass_csv(catalog_path)
     loaded = load_vlass_catalog(catalog_path)
     radius = match_radius_deg(loaded.iloc[0], VLASS_REFERENCE_RADIUS_LOCALIZATION)
@@ -81,7 +81,7 @@ def test_vlass_default_radius_uses_localization(tmp_path) -> None:
 
 
 def test_load_vlass_catalog_missing_file(tmp_path) -> None:
-    missing = tmp_path / "missing.csv.gz"
+    missing = tmp_path / "missing.csv"
     with pytest.raises(FileNotFoundError, match="VLASS catalog not found"):
         load_vlass_catalog(missing)
 
@@ -101,7 +101,7 @@ def test_footprint_filter_vlass_applies_dec_limit() -> None:
 
 
 def test_match_completeness_single_hit(tmp_path) -> None:
-    catalog_path = tmp_path / "vlass.csv.gz"
+    catalog_path = tmp_path / "vlass.csv"
     _write_mini_vlass_csv(catalog_path)
     vlass = load_vlass_catalog(catalog_path).iloc[:1]
     meta = pd.DataFrame([_meta_row(meta_id=7)])
@@ -117,7 +117,7 @@ def test_select_unique_vlass_matches() -> None:
 
 
 def test_summarize_vlass_match_includes_key_metrics(tmp_path) -> None:
-    catalog_path = tmp_path / "vlass.csv.gz"
+    catalog_path = tmp_path / "vlass.csv"
     _write_mini_vlass_csv(catalog_path)
     vlass = load_vlass_catalog(catalog_path)
     meta = pd.DataFrame([_meta_row()])
