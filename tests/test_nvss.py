@@ -16,6 +16,7 @@ from lwa_catalog.analyze.nvss import (
     select_unique_nvss_matches,
     summarize_nvss_match,
 )
+from lwa_catalog.analyze.crossmatch_radius import LWA_CROSSMATCH_RADIUS_BEAM
 from lwa_catalog.constants import NVSS_BMAJ_DEG, NVSS_DEC_MIN_DEG
 
 
@@ -179,6 +180,6 @@ def test_catalog_match_frame_uses_primary_coords() -> None:
             }
         ]
     )
-    frame = _catalog_match_frame(catalog)
+    frame = _catalog_match_frame(catalog, LWA_CROSSMATCH_RADIUS_BEAM)
     assert frame.iloc[0]["RA"] == pytest.approx(10.0)
     assert frame.iloc[0]["BMAJ"] == pytest.approx(0.5)

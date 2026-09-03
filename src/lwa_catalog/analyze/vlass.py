@@ -9,7 +9,13 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
-from lwa_catalog.analyze.reliability import resolve_bmaj
+from lwa_catalog.analyze.crossmatch_radius import (
+    CrossmatchRadiusSpec,
+    LWA_CROSSMATCH_RADIUS_BEAM,
+    VLASS_REFERENCE_RADIUS_BEAM,
+    apply_match_radius,
+    catalog_match_frame,
+)
 from lwa_catalog.analyze.vlssr import select_blue_associated_rows
 from lwa_catalog.constants import (
     VLASS_BMAJ_DEG,
@@ -50,6 +56,8 @@ class VlassMatchConfig:
     max_duplicate_flag: int = 1
     quality_flags: tuple[int, ...] = (0, 4)
     exclude_s_code_e: bool = True
+    lwa_radius: CrossmatchRadiusSpec = LWA_CROSSMATCH_RADIUS_BEAM
+    reference_radius: CrossmatchRadiusSpec = VLASS_REFERENCE_RADIUS_BEAM
 
 
 @dataclass
@@ -155,27 +163,11 @@ def select_unique_vlass_matches(meta_flags: pd.DataFrame) -> pd.DataFrame:
     return meta_flags.loc[meta_flags["n_vlass"] == 1].copy()
 
 
-def _catalog_match_frame(catalog: pd.DataFrame) -> pd.DataFrame:
-    """Build ``RA`` / ``DEC`` / ``BMAJ`` columns for beam-radius matching."""
-    records: list[dict[str, float]] = []
-    indices: list[object] = []
-    for idx, row in catalog.iterrows():
-        try:
-            ra = float(row["RA"])
-            dec = float(row["DEC"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if not np.isfinite(ra) or not np.isfinite(dec):
-            continue
-        bmaj = resolve_bmaj(row)
-        if not np.isfinite(bmaj):
-            bmaj = 0.0
-        records.append({"RA": ra, "DEC": dec, "BMAJ": bmaj})
-        indices.append(idx)
-
-    if not records:
-        return pd.DataFrame(columns=["RA", "DEC", "BMAJ"])
-    return pd.DataFrame(records, index=indices)
+def _catalog_match_frame(
+    catalog: pd.DataFrame,
+    spec: CrossmatchRadiusSpec,
+) -> pd.DataFrame:
+    return catalog_match_frame(catalog, spec)
 
 
 def _footprint_filter_vlass(
@@ -273,14 +265,15 @@ def match_catalog_to_vlass(
         )
 
     vlass_footprint = _footprint_filter_vlass(vlass, target, dec_min_deg=cfg.dec_min_deg)
-    lwa_match = _catalog_match_frame(target)
+    ref_match = apply_match_radius(vlass_footprint, cfg.reference_radius)
+    lwa_match = _catalog_match_frame(target, cfg.lwa_radius)
     n_vlass_footprint = len(vlass_footprint)
 
     meta_hits: dict[int, list[int]] = {}
     vlass_hits: dict[int, list[int]] = {}
-    if not lwa_match.empty and not vlass_footprint.empty:
-        meta_hits, _ = associate_catalogs(lwa_match, vlass_footprint)
-        vlass_hits, _ = associate_catalogs(vlass_footprint, lwa_match)
+    if not lwa_match.empty and not ref_match.empty:
+        meta_hits, _ = associate_catalogs(lwa_match, ref_match)
+        vlass_hits, _ = associate_catalogs(ref_match, lwa_match)
 
     index_to_match_pos = {idx: pos for pos, idx in enumerate(lwa_match.index.tolist())}
     match_pos_to_index = {pos: idx for idx, pos in index_to_match_pos.items()}

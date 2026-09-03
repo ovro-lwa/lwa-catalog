@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from lwa_catalog.analyze.crossmatch_radius import LWA_CROSSMATCH_RADIUS_BEAM
 from lwa_catalog.analyze.vlssr import (
     VlssrMatchConfig,
     _catalog_match_frame,
@@ -112,7 +113,7 @@ def test_catalog_match_frame_uses_primary_coords_and_bmaj_match() -> None:
             {"RA": float("nan"), "DEC": 30.0, "BMAJ_match": 0.5},
         ]
     )
-    frame = _catalog_match_frame(catalog)
+    frame = _catalog_match_frame(catalog, LWA_CROSSMATCH_RADIUS_BEAM)
     assert len(frame) == 1
     assert frame.iloc[0]["RA"] == pytest.approx(10.0)
     assert frame.iloc[0]["DEC"] == pytest.approx(20.0)

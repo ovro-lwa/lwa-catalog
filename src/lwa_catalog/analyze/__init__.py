@@ -6,6 +6,16 @@ workflows (band coverage, association stats, sky selection helpers).
 
 from __future__ import annotations
 
+from lwa_catalog.analyze.crossmatch_radius import (
+    CrossmatchRadiusSpec,
+    LWA_CROSSMATCH_RADIUS_BEAM,
+    LWA_CROSSMATCH_RADIUS_LOCALIZATION,
+    NVSS_REFERENCE_RADIUS_BEAM,
+    VLASS_REFERENCE_RADIUS_BEAM,
+    VLSSR_REFERENCE_RADIUS_BEAM,
+    describe_crossmatch_radius,
+    match_radius_deg,
+)
 from lwa_catalog.analyze.healpix_map import (
     metacatalog_to_healpix,
     metacatalog_to_hips,
@@ -94,6 +104,14 @@ from lwa_catalog.analyze.vlssr import (
 )
 
 __all__ = [
+    "CrossmatchRadiusSpec",
+    "LWA_CROSSMATCH_RADIUS_BEAM",
+    "LWA_CROSSMATCH_RADIUS_LOCALIZATION",
+    "NVSS_REFERENCE_RADIUS_BEAM",
+    "VLASS_REFERENCE_RADIUS_BEAM",
+    "VLSSR_REFERENCE_RADIUS_BEAM",
+    "describe_crossmatch_radius",
+    "match_radius_deg",
     "OR_HESL_EXCLUDE_FLAGS",
     "OR_HESL_EXCLUDE_MASK",
     "QualityFlagResult",

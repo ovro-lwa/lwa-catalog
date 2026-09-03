@@ -10,7 +10,13 @@ import numpy as np
 import pandas as pd
 from astropy.table import Table
 
-from lwa_catalog.analyze.reliability import resolve_bmaj
+from lwa_catalog.analyze.crossmatch_radius import (
+    CrossmatchRadiusSpec,
+    LWA_CROSSMATCH_RADIUS_BEAM,
+    NVSS_REFERENCE_RADIUS_BEAM,
+    apply_match_radius,
+    catalog_match_frame,
+)
 from lwa_catalog.analyze.vlssr import select_blue_associated_rows
 from lwa_catalog.constants import (
     NVSS_BMAJ_DEG,
@@ -41,6 +47,8 @@ class NvssMatchConfig:
     catalog_path: Path = NVSS_DEFAULT_PATH
     target: NvssTarget = "metacatalog"
     dec_min_deg: float = NVSS_DEC_MIN_DEG
+    lwa_radius: CrossmatchRadiusSpec = LWA_CROSSMATCH_RADIUS_BEAM
+    reference_radius: CrossmatchRadiusSpec = NVSS_REFERENCE_RADIUS_BEAM
 
 
 @dataclass
@@ -121,27 +129,11 @@ def select_unique_nvss_matches(meta_flags: pd.DataFrame) -> pd.DataFrame:
     return meta_flags.loc[meta_flags["n_nvss"] == 1].copy()
 
 
-def _catalog_match_frame(catalog: pd.DataFrame) -> pd.DataFrame:
-    """Build ``RA`` / ``DEC`` / ``BMAJ`` columns for beam-radius matching."""
-    records: list[dict[str, float]] = []
-    indices: list[object] = []
-    for idx, row in catalog.iterrows():
-        try:
-            ra = float(row["RA"])
-            dec = float(row["DEC"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if not np.isfinite(ra) or not np.isfinite(dec):
-            continue
-        bmaj = resolve_bmaj(row)
-        if not np.isfinite(bmaj):
-            bmaj = 0.0
-        records.append({"RA": ra, "DEC": dec, "BMAJ": bmaj})
-        indices.append(idx)
-
-    if not records:
-        return pd.DataFrame(columns=["RA", "DEC", "BMAJ"])
-    return pd.DataFrame(records, index=indices)
+def _catalog_match_frame(
+    catalog: pd.DataFrame,
+    spec: CrossmatchRadiusSpec,
+) -> pd.DataFrame:
+    return catalog_match_frame(catalog, spec)
 
 
 def _footprint_filter_nvss(
@@ -252,14 +244,15 @@ def match_catalog_to_nvss(
         )
 
     nvss_footprint = _footprint_filter_nvss(nvss, target, dec_min_deg=cfg.dec_min_deg)
-    lwa_match = _catalog_match_frame(target)
+    ref_match = apply_match_radius(nvss_footprint, cfg.reference_radius)
+    lwa_match = _catalog_match_frame(target, cfg.lwa_radius)
     n_nvss_footprint = len(nvss_footprint)
 
     meta_hits: dict[int, list[int]] = {}
     nvss_hits: dict[int, list[int]] = {}
-    if not lwa_match.empty and not nvss_footprint.empty:
-        meta_hits, _ = associate_catalogs(lwa_match, nvss_footprint)
-        nvss_hits, _ = associate_catalogs(nvss_footprint, lwa_match)
+    if not lwa_match.empty and not ref_match.empty:
+        meta_hits, _ = associate_catalogs(lwa_match, ref_match)
+        nvss_hits, _ = associate_catalogs(ref_match, lwa_match)
 
     index_to_match_pos = {idx: pos for pos, idx in enumerate(lwa_match.index.tolist())}
     match_pos_to_index = {pos: idx for idx, pos in index_to_match_pos.items()}
