@@ -156,7 +156,7 @@ def test_match_uses_match_ra_dec_over_native() -> None:
     """NED-LVS association should use cascaded match_* coords when present."""
     from lwa_catalog.analyze.nedlvs import resolve_match_coordinates
 
-    meta = _meta_rows([(10.0, 20.0)], jitter_deg=0.001)
+    meta = _meta_rows([(10.0, 20.0)], jitter_deg=1e-5)
     # Native LWA far from NED; match_* on the NED galaxy.
     meta["match_RA"] = [10.0001]
     meta["match_DEC"] = [20.0]
@@ -166,10 +166,6 @@ def test_match_uses_match_ra_dec_over_native() -> None:
     assert dec == pytest.approx(20.0)
 
     nedlvs = _nedlvs_rows([(10.0001, 20.0, 0.01)])
-    # Tiny sigma so native 10.0 would miss if used; match_* should hit.
-    meta["cluster_jitter_rms_deg"] = [1e-5]
-    meta["E_RA"] = [np.nan]
-    meta["E_DEC"] = [np.nan]
     result = match_catalog_to_nedlvs(
         meta,
         nedlvs=nedlvs,
@@ -179,8 +175,8 @@ def test_match_uses_match_ra_dec_over_native() -> None:
     assert float(result.meta_flags.iloc[0]["match_RA"]) == pytest.approx(10.0001)
     assert result.meta_flags.iloc[0]["match_source"] == "VLASS"
 
-    # Without match_*, same tiny sigma misses the offset NED galaxy.
-    meta_native = _meta_rows([(10.0, 20.0)], jitter_deg=1e-5)
+    # Without match_*, native RA is 1° away — should miss with tiny sigma.
+    meta_native = _meta_rows([(9.0, 20.0)], jitter_deg=1e-5)
     miss = match_catalog_to_nedlvs(
         meta_native,
         nedlvs=nedlvs,

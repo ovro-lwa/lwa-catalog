@@ -138,6 +138,23 @@ def resolve_centroid_sigma_deg(
     return float(default_centroid_sigma_deg)
 
 
+def resolve_match_coordinates(row: pd.Series) -> tuple[float, float]:
+    """Return ``(RA, DEC)`` degrees, preferring ``match_RA``/``match_DEC``.
+
+    Cascaded radio cross-match writes those columns when a bijective survey
+    position is available. Falls back to top-level ``RA``/``DEC``.
+    """
+    for ra_key, dec_key in (("match_RA", "match_DEC"), ("RA", "DEC")):
+        try:
+            ra = float(pd.to_numeric(row.get(ra_key), errors="coerce"))
+            dec = float(pd.to_numeric(row.get(dec_key), errors="coerce"))
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(ra) and np.isfinite(dec):
+            return ra, dec
+    return float("nan"), float("nan")
+
+
 def _positive_flux(row: pd.Series, *columns: str) -> float:
     """Return the first positive finite flux among *columns*, else NaN."""
     for col in columns:
@@ -310,13 +327,28 @@ def select_bijective_nedlvs_flags(
 
 
 def _footprint_filter_nedlvs(nedlvs: pd.DataFrame, lwa: pd.DataFrame) -> pd.DataFrame:
-    """Keep NED-LVS rows whose Dec lies within the finite Dec range of *lwa*."""
+    """Keep NED-LVS rows whose Dec lies within the finite Dec range of *lwa*.
+
+    Uses ``match_DEC`` when present and finite, else ``DEC``.
+    """
     if nedlvs.empty:
         return nedlvs.copy()
-    if lwa.empty or "DEC" not in lwa.columns:
+    if lwa.empty:
         return nedlvs.iloc[0:0].copy()
 
-    lwa_dec = pd.to_numeric(lwa["DEC"], errors="coerce")
+    if "match_DEC" in lwa.columns:
+        match_dec = pd.to_numeric(lwa["match_DEC"], errors="coerce")
+        native_dec = (
+            pd.to_numeric(lwa["DEC"], errors="coerce")
+            if "DEC" in lwa.columns
+            else pd.Series(np.nan, index=lwa.index)
+        )
+        lwa_dec = match_dec.where(np.isfinite(match_dec.to_numpy(dtype=float)), native_dec)
+    elif "DEC" in lwa.columns:
+        lwa_dec = pd.to_numeric(lwa["DEC"], errors="coerce")
+    else:
+        return nedlvs.iloc[0:0].copy()
+
     finite_lwa = lwa_dec[np.isfinite(lwa_dec.to_numpy(dtype=float))]
     if finite_lwa.empty:
         return nedlvs.iloc[0:0].copy()
@@ -527,8 +559,10 @@ def match_catalog_to_nedlvs(
 
     Matching uses metacatalog centroid uncertainty (``E_RA``/``E_DEC`` or
     ``cluster_jitter_rms_deg``) scaled by ``config.position_sigma_scale``,
-    combined in quadrature with a small NED catalog position sigma. NED-LVS
-    rows above ``config.max_redshift`` are excluded when that limit is set.
+    combined in quadrature with a small NED catalog position sigma. Coordinates
+    prefer ``match_RA``/``match_DEC`` when present (cascaded radio best
+    position), else top-level ``RA``/``DEC``. NED-LVS rows above
+    ``config.max_redshift`` are excluded when that limit is set.
     """
     cfg = config or NedlvsMatchConfig()
     warnings: list[str] = []
@@ -547,6 +581,8 @@ def match_catalog_to_nedlvs(
                     "meta_id",
                     "RA",
                     "DEC",
+                    "match_RA",
+                    "match_DEC",
                     "centroid_sigma_deg",
                     "n_nedlvs",
                     "nedlvs_positions",
@@ -606,6 +642,7 @@ def match_catalog_to_nedlvs(
         match_pos = index_to_match_pos.get(idx)
         hit_nedlvs = meta_hits.get(match_pos, []) if match_pos is not None else []
         n_nedlvs = len(hit_nedlvs)
+        match_ra, match_dec = resolve_match_coordinates(row)
         sigma = (
             float(lwa_match.loc[idx, "SIGMA"])
             if match_pos is not None and idx in lwa_match.index
@@ -616,11 +653,15 @@ def match_catalog_to_nedlvs(
         record: dict = {
             "RA": row.get("RA", np.nan),
             "DEC": row.get("DEC", np.nan),
+            "match_RA": match_ra,
+            "match_DEC": match_dec,
             "centroid_sigma_deg": sigma,
             "n_nedlvs": n_nedlvs,
             "nedlvs_positions": list(hit_nedlvs),
             "matched": n_nedlvs >= 1,
         }
+        if "match_source" in target.columns:
+            record["match_source"] = row.get("match_source", "LWA")
         if "meta_id" in target.columns:
             record["meta_id"] = row.get("meta_id", np.nan)
         meta_records.append(record)
@@ -631,11 +672,15 @@ def match_catalog_to_nedlvs(
             "meta_id",
             "RA",
             "DEC",
+            "match_RA",
+            "match_DEC",
             "centroid_sigma_deg",
             "n_nedlvs",
             "nedlvs_positions",
             "matched",
         ]
+        if "match_source" in meta_flags.columns:
+            cols.insert(6, "match_source")
         meta_flags = meta_flags[cols]
 
     nedlvs_records: list[dict] = []
@@ -718,15 +763,14 @@ def _centroid_match_frame(
     *,
     default_centroid_sigma_deg: float,
 ) -> pd.DataFrame:
-    """Build ``RA`` / ``DEC`` / ``SIGMA`` (1σ degrees) for centroid matching."""
+    """Build ``RA`` / ``DEC`` / ``SIGMA`` (1σ degrees) for centroid matching.
+
+    Prefers ``match_RA``/``match_DEC`` when present and finite.
+    """
     records: list[dict[str, float]] = []
     indices: list[object] = []
     for idx, row in catalog.iterrows():
-        try:
-            ra = float(row["RA"])
-            dec = float(row["DEC"])
-        except (KeyError, TypeError, ValueError):
-            continue
+        ra, dec = resolve_match_coordinates(row)
         if not np.isfinite(ra) or not np.isfinite(dec):
             continue
         sigma = resolve_centroid_sigma_deg(

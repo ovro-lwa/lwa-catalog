@@ -47,7 +47,7 @@ VLASS_BMAJ_ARCSEC: float = 2.5
 VLASS_BMAJ_DEG: float = VLASS_BMAJ_ARCSEC / 3600.0
 VLASS_DEC_MIN_DEG: float = -40.0
 VLASS_DEFAULT_PATH: Path = (
-    REFERENCE_CATALOGS_DIR / "vlass" / "CIRADA_VLASS1QLv3.1_table1_components.csv.gz"
+    REFERENCE_CATALOGS_DIR / "vlass" / "CIRADA_VLASS1QLv3.1_table1_components.csv"
 )
 
 # NED Local Volume Sample (Cook et al. 2023; latest FITS from NED-LVS page).
