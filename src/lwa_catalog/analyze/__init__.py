@@ -6,6 +6,14 @@ workflows (band coverage, association stats, sky selection helpers).
 
 from __future__ import annotations
 
+from lwa_catalog.analyze.bootstrap import (
+    advance_bootstrap_frame,
+    advance_from_match,
+    bijective_map_from_hits,
+    bootstrap_source_counts,
+    native_lwa_frame,
+    select_bijective_pairs,
+)
 from lwa_catalog.analyze.crossmatch_radius import (
     LWA_CROSSMATCH_RADIUS_BEAM,
     LWA_CROSSMATCH_RADIUS_LOCALIZATION,
@@ -84,6 +92,7 @@ from lwa_catalog.analyze.spectral import (
 )
 from lwa_catalog.analyze.summary import bands_present_counts, summarize_metacatalog
 from lwa_catalog.analyze.survey_attach import (
+    CASCADE_SURVEY_BANDS,
     RADIO_SURVEY_BANDS,
     attach_radio_surveys_to_metacatalog,
     attach_survey_to_metacatalog,
@@ -127,6 +136,13 @@ __all__ = [
     "VLSSR_REFERENCE_RADIUS_FIXED",
     "describe_crossmatch_radius",
     "match_radius_deg",
+    "advance_bootstrap_frame",
+    "advance_from_match",
+    "bijective_map_from_hits",
+    "bootstrap_source_counts",
+    "native_lwa_frame",
+    "select_bijective_pairs",
+    "CASCADE_SURVEY_BANDS",
     "RADIO_SURVEY_BANDS",
     "attach_radio_surveys_to_metacatalog",
     "attach_survey_to_metacatalog",

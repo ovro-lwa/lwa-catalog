@@ -43,16 +43,22 @@ def test_analyze_summary() -> None:
 
 def test_analyze_survey_attach_exports() -> None:
     from lwa_catalog.analyze import (
+        CASCADE_SURVEY_BANDS,
         RADIO_SURVEY_BANDS,
         attach_radio_surveys_to_metacatalog,
         attach_survey_to_metacatalog,
         normalize_survey_band_catalog,
+        native_lwa_frame,
+        advance_from_match,
     )
 
     assert RADIO_SURVEY_BANDS == ("VLASS", "NVSS", "VLSSR")
+    assert CASCADE_SURVEY_BANDS == ("VLSSR", "NVSS", "VLASS")
     assert callable(attach_radio_surveys_to_metacatalog)
     assert callable(attach_survey_to_metacatalog)
     assert callable(normalize_survey_band_catalog)
+    assert callable(native_lwa_frame)
+    assert callable(advance_from_match)
 
 
 def test_analyze_vlssr_exports() -> None:

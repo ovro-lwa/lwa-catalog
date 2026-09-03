@@ -227,6 +227,7 @@ def match_catalog_to_vlass(
     vlass: pd.DataFrame | None = None,
     *,
     config: VlassMatchConfig | None = None,
+    lwa_match: pd.DataFrame | None = None,
 ) -> VlassMatchResult:
     """Cross-match an LWA catalog against VLASS and compute association metrics.
 
@@ -235,6 +236,12 @@ def match_catalog_to_vlass(
     :func:`~lwa_catalog.create.merge.associate_catalogs`. VLASS components
     outside the survey (Dec ``< config.dec_min_deg``, default −40°) are excluded
     from the footprint.
+
+    Parameters
+    ----------
+    lwa_match
+        Optional prebuilt match frame (``RA``/``DEC``/``BMAJ``), iloc-aligned
+        with the selected target. Used for cascaded NVSS→VLASS bootstrap.
     """
     cfg = config or VlassMatchConfig()
     warnings: list[str] = []
@@ -269,16 +276,28 @@ def match_catalog_to_vlass(
 
     vlass_footprint = _footprint_filter_vlass(vlass, target, dec_min_deg=cfg.dec_min_deg)
     ref_match = apply_match_radius(vlass_footprint, cfg.reference_radius)
-    lwa_match = _catalog_match_frame(target, cfg.lwa_radius)
+    if lwa_match is None:
+        resolved_lwa_match = _catalog_match_frame(target, cfg.lwa_radius)
+    else:
+        if len(lwa_match) != len(target):
+            msg = (
+                f"lwa_match length {len(lwa_match)} does not match target "
+                f"length {len(target)}"
+            )
+            raise ValueError(msg)
+        resolved_lwa_match = lwa_match[["RA", "DEC", "BMAJ"]].copy()
+        resolved_lwa_match.index = target.index
     n_vlass_footprint = len(vlass_footprint)
 
     meta_hits: dict[int, list[int]] = {}
     vlass_hits: dict[int, list[int]] = {}
-    if not lwa_match.empty and not ref_match.empty:
-        meta_hits, _ = associate_catalogs(lwa_match, ref_match)
-        vlass_hits, _ = associate_catalogs(ref_match, lwa_match)
+    if not resolved_lwa_match.empty and not ref_match.empty:
+        meta_hits, _ = associate_catalogs(resolved_lwa_match, ref_match)
+        vlass_hits, _ = associate_catalogs(ref_match, resolved_lwa_match)
 
-    index_to_match_pos = {idx: pos for pos, idx in enumerate(lwa_match.index.tolist())}
+    index_to_match_pos = {
+        idx: pos for pos, idx in enumerate(resolved_lwa_match.index.tolist())
+    }
     match_pos_to_index = {pos: idx for idx, pos in index_to_match_pos.items()}
     has_meta_id = "meta_id" in target.columns
 

@@ -677,12 +677,17 @@ def associate_band_into_metacatalog(
     update_bmaj_match: bool = True,
     representative: Literal["elevation", "peak_flux"] = "elevation",
     base_bmaj: np.ndarray | None = None,
+    base_ra: np.ndarray | None = None,
+    base_dec: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Cross-match one band onto the current metacatalog.
 
     By default unmatched *band_df* rows are appended as new metacatalog seeds.
     Photometric survey attach uses ``append_unmatched=False``,
     ``update_bmaj_match=False``, and ``representative="peak_flux"``.
+
+    Optional *base_ra* / *base_dec* / *base_bmaj* override the match-frame
+    coordinates and radii without mutating stored metacatalog astrometry.
     """
     band_df = band_df.reset_index(drop=True)
     if band_freq_hz is None:
@@ -707,11 +712,26 @@ def associate_band_into_metacatalog(
         return out
 
     meta_df = meta_df.reset_index(drop=True)
-    match_base = meta_df[["RA", "DEC"]].copy()
+    n_meta = len(meta_df)
+    if base_ra is not None:
+        ra = np.asarray(base_ra, dtype=float)
+        if ra.shape != (n_meta,):
+            msg = f"base_ra length {ra.size} does not match metacatalog rows {n_meta}"
+            raise ValueError(msg)
+    else:
+        ra = meta_df["RA"].to_numpy(dtype=float)
+    if base_dec is not None:
+        dec = np.asarray(base_dec, dtype=float)
+        if dec.shape != (n_meta,):
+            msg = f"base_dec length {dec.size} does not match metacatalog rows {n_meta}"
+            raise ValueError(msg)
+    else:
+        dec = meta_df["DEC"].to_numpy(dtype=float)
+    match_base = pd.DataFrame({"RA": ra, "DEC": dec})
     if base_bmaj is not None:
         radii = np.asarray(base_bmaj, dtype=float)
-        if radii.shape != (len(meta_df),):
-            msg = f"base_bmaj length {radii.size} does not match metacatalog rows {len(meta_df)}"
+        if radii.shape != (n_meta,):
+            msg = f"base_bmaj length {radii.size} does not match metacatalog rows {n_meta}"
             raise ValueError(msg)
         match_base["BMAJ"] = radii
     else:
