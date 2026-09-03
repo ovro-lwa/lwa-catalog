@@ -8,6 +8,7 @@ import pandas as pd
 from lwa_catalog.constants import BAND_FREQ_HZ
 from lwa_catalog.create.merge import (
     add_spectral_indices,
+    associate_band_into_metacatalog,
     build_global_metacatalog,
     build_subband_metacatalog,
     merge_lst_metacatalog,
@@ -59,18 +60,13 @@ def test_build_global_metacatalog_propagates_cluster_jitter() -> None:
     lst_full = merge_lst_metacatalog(
         [
             pd.DataFrame(
-                [
-                    _src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")
-                    | {"S_Code": "C"}
-                ]
+                [_src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full") | {"S_Code": "C"}]
             ),
             pd.DataFrame([_src(ra=10.01, dec=20.0, peak=1.1, lst_hour="02h", band="Full")]),
         ],
         band="Full",
     )
-    lst_blue = pd.DataFrame(
-        [_src(ra=50.0, dec=0.0, peak=0.5, lst_hour="01h", band="Blue")]
-    )
+    lst_blue = pd.DataFrame([_src(ra=50.0, dec=0.0, peak=0.5, lst_hour="01h", band="Blue")])
     meta = build_global_metacatalog(
         {"Full": lst_full, "Blue": lst_blue, "Green": pd.DataFrame(), "Red": pd.DataFrame()}
     )
@@ -183,9 +179,7 @@ def test_build_global_picks_highest_elevation_blue_when_multiple_in_beam() -> No
     )
     green = pd.DataFrame([])
     red = pd.DataFrame([])
-    meta = build_global_metacatalog(
-        {"Full": full, "Blue": blue, "Green": green, "Red": red}
-    )
+    meta = build_global_metacatalog({"Full": full, "Blue": blue, "Green": green, "Red": red})
     assert len(meta) == 1
     row = meta.iloc[0]
     assert int(row["n_assoc_Blue"]) == 2
@@ -224,9 +218,7 @@ def test_build_global_associates_matching_bands() -> None:
         ]
     )
     red = pd.DataFrame([])
-    meta = build_global_metacatalog(
-        {"Full": full, "Blue": blue, "Green": green, "Red": red}
-    )
+    meta = build_global_metacatalog({"Full": full, "Blue": blue, "Green": green, "Red": red})
     # One Full+Blue association + one Green-only seed
     assert len(meta) == 2
     assoc = meta[meta["origin_band"] == "Full"].iloc[0]
@@ -356,9 +348,7 @@ def test_build_global_computes_alpha_when_rgb_associated() -> None:
             }
         ]
     )
-    meta = build_global_metacatalog(
-        {"Full": full, "Blue": blue, "Green": green, "Red": red}
-    )
+    meta = build_global_metacatalog({"Full": full, "Blue": blue, "Green": green, "Red": red})
     assert len(meta) == 1
     row = meta.iloc[0]
     assert set(str(row["bands_present"]).split(",")) >= {"Full", "Blue", "Green", "Red"}
@@ -577,3 +567,95 @@ def test_build_global_metacatalog_frequency_subbands() -> None:
     assert int(row["n_assoc_23MHz"]) >= 1
     assert int(row["n_assoc_18MHz"]) >= 1
     assert "alpha_18_23" not in meta.columns
+
+
+def _meta_seed_row(*, ra: float = 10.0, dec: float = 20.0, bmaj: float = 0.5) -> dict:
+    return {
+        "meta_id": 0,
+        "RA": ra,
+        "DEC": dec,
+        "Maj": 0.1,
+        "Min": 0.05,
+        "PA": 0.0,
+        "DC_Maj": 0.1,
+        "DC_Min": 0.05,
+        "DC_PA": 0.0,
+        "BMAJ_match": bmaj,
+        "origin_band": "82MHz",
+        "astrometry_band": "82MHz",
+        "bands_present": "82MHz,18MHz",
+        "Peak_flux_82MHz": 2.0,
+        "n_lst_contributions": 1,
+    }
+
+
+def test_associate_band_append_unmatched_false_keeps_row_count() -> None:
+    meta = pd.DataFrame([_meta_seed_row()])
+    survey = pd.DataFrame(
+        [
+            _src(ra=10.01, dec=20.0, peak=0.4, lst_hour="01h", band="NVSS"),
+            _src(ra=80.0, dec=0.0, peak=5.0, lst_hour="01h", band="NVSS"),
+        ]
+    )
+    out = associate_band_into_metacatalog(
+        meta,
+        survey,
+        "NVSS",
+        assoc_bands=("NVSS",),
+        band_fields=("Peak_flux", "Total_flux"),
+        color_bands=("82MHz", "18MHz", "NVSS"),
+        primary_flux=False,
+        astrometry_from_highest_frequency=False,
+        append_unmatched=False,
+        update_bmaj_match=False,
+        representative="peak_flux",
+    )
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert float(row["RA"]) == 10.0
+    assert row["astrometry_band"] == "82MHz"
+    assert float(row["BMAJ_match"]) == 0.5
+    assert int(row["n_assoc_NVSS"]) == 1
+    assert float(row["Peak_flux_NVSS"]) == 0.4
+    assert "NVSS" in str(row["bands_present"])
+    assert "82MHz" in str(row["bands_present"])
+
+
+def test_associate_band_peak_flux_picks_brightest() -> None:
+    meta = pd.DataFrame([_meta_seed_row(bmaj=1.0)])
+    survey = pd.DataFrame(
+        [
+            _src(ra=10.05, dec=20.0, peak=0.2, lst_hour="01h", band="NVSS"),
+            _src(ra=10.08, dec=20.0, peak=0.9, lst_hour="01h", band="NVSS"),
+        ]
+    )
+    out = associate_band_into_metacatalog(
+        meta,
+        survey,
+        "NVSS",
+        assoc_bands=("NVSS",),
+        band_fields=("Peak_flux",),
+        color_bands=("82MHz", "NVSS"),
+        primary_flux=False,
+        append_unmatched=False,
+        update_bmaj_match=False,
+        representative="peak_flux",
+    )
+    row = out.iloc[0]
+    assert int(row["n_assoc_NVSS"]) == 2
+    assert float(row["Peak_flux_NVSS"]) == 0.9
+
+
+def test_associate_band_empty_meta_does_not_seed_when_append_false() -> None:
+    survey = pd.DataFrame([_src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="NVSS")])
+    out = associate_band_into_metacatalog(
+        pd.DataFrame(),
+        survey,
+        "NVSS",
+        assoc_bands=("NVSS",),
+        band_fields=("Peak_flux",),
+        append_unmatched=False,
+        update_bmaj_match=False,
+        representative="peak_flux",
+    )
+    assert len(out) == 0

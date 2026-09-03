@@ -7,12 +7,12 @@ workflows (band coverage, association stats, sky selection helpers).
 from __future__ import annotations
 
 from lwa_catalog.analyze.crossmatch_radius import (
-    CrossmatchRadiusSpec,
     LWA_CROSSMATCH_RADIUS_BEAM,
     LWA_CROSSMATCH_RADIUS_LOCALIZATION,
     NVSS_REFERENCE_RADIUS_BEAM,
     VLASS_REFERENCE_RADIUS_BEAM,
     VLSSR_REFERENCE_RADIUS_BEAM,
+    CrossmatchRadiusSpec,
     describe_crossmatch_radius,
     match_radius_deg,
 )
@@ -30,10 +30,19 @@ from lwa_catalog.analyze.nedlvs import (
     radio_luminosity_nu,
     resolve_centroid_sigma_deg,
     resolve_highest_frequency_peak_flux,
-    select_metacatalog,
     select_bijective_nedlvs_flags,
+    select_metacatalog,
     select_unique_nedlvs_matches,
     summarize_nedlvs_match,
+)
+from lwa_catalog.analyze.nvss import (
+    NvssMatchConfig,
+    NvssMatchResult,
+    load_nvss_catalog,
+    match_catalog_to_nvss,
+    predict_flux_at_frequency_hz,
+    select_unique_nvss_matches,
+    summarize_nvss_match,
 )
 from lwa_catalog.analyze.reliability import (
     OR_HESL_EXCLUDE_FLAGS,
@@ -68,6 +77,12 @@ from lwa_catalog.analyze.spectral import (
     summarize_spectral_fit,
 )
 from lwa_catalog.analyze.summary import bands_present_counts, summarize_metacatalog
+from lwa_catalog.analyze.survey_attach import (
+    RADIO_SURVEY_BANDS,
+    attach_radio_surveys_to_metacatalog,
+    attach_survey_to_metacatalog,
+    normalize_survey_band_catalog,
+)
 from lwa_catalog.analyze.trace import (
     SourceTrace,
     plot_maj_min_scatter,
@@ -76,15 +91,6 @@ from lwa_catalog.analyze.trace import (
     plot_ra_dec_scatter,
     preferred_trace_columns,
     rematch_meta_source,
-)
-from lwa_catalog.analyze.nvss import (
-    NvssMatchConfig,
-    NvssMatchResult,
-    load_nvss_catalog,
-    match_catalog_to_nvss,
-    predict_flux_at_frequency_hz,
-    select_unique_nvss_matches,
-    summarize_nvss_match,
 )
 from lwa_catalog.analyze.vlass import (
     VlassMatchConfig,
@@ -112,6 +118,10 @@ __all__ = [
     "VLSSR_REFERENCE_RADIUS_BEAM",
     "describe_crossmatch_radius",
     "match_radius_deg",
+    "RADIO_SURVEY_BANDS",
+    "attach_radio_surveys_to_metacatalog",
+    "attach_survey_to_metacatalog",
+    "normalize_survey_band_catalog",
     "OR_HESL_EXCLUDE_FLAGS",
     "OR_HESL_EXCLUDE_MASK",
     "QualityFlagResult",

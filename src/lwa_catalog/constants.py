@@ -24,6 +24,7 @@ OVRO_LATITUDE_DEG: float = 37.239777
 REFERENCE_CATALOGS_DIR: Path = Path("/fast/claw/catalogs")
 
 # VLSSR reference catalog (external; circular 80″ PSF, peak flux in Jy).
+VLSSR_FREQ_HZ: float = 74e6
 VLSSR_BMAJ_ARCSEC: float = 80.0
 VLSSR_BMAJ_DEG: float = VLSSR_BMAJ_ARCSEC / 3600.0
 VLSSR_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "vlssr_radecpeak.txt"
@@ -164,6 +165,7 @@ def band_frequency_hz(band: str) -> float:
     if match:
         return float(match.group(1)) * 1e6
     return float("nan")
+
 
 # Rest-frame center frequencies (Hz) from RESTFRQ on OVRO-LWA deep color products.
 BAND_FREQ_HZ: dict[str, float] = {

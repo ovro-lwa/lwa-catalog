@@ -41,6 +41,20 @@ def test_analyze_summary() -> None:
     assert int(counts["Full"]) == 1
 
 
+def test_analyze_survey_attach_exports() -> None:
+    from lwa_catalog.analyze import (
+        RADIO_SURVEY_BANDS,
+        attach_radio_surveys_to_metacatalog,
+        attach_survey_to_metacatalog,
+        normalize_survey_band_catalog,
+    )
+
+    assert RADIO_SURVEY_BANDS == ("VLASS", "NVSS", "VLSSR")
+    assert callable(attach_radio_surveys_to_metacatalog)
+    assert callable(attach_survey_to_metacatalog)
+    assert callable(normalize_survey_band_catalog)
+
+
 def test_analyze_vlssr_exports() -> None:
     from lwa_catalog.analyze import (
         VlssrMatchConfig,

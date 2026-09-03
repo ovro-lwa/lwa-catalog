@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
+from typing import Literal
 
 import astropy.units as u
 import numpy as np
@@ -80,13 +81,34 @@ def _pick_highest_elevation_row(
     dec = float(np.nanmedian(df["DEC"].to_numpy(dtype=float)))
     lst_col = _lst_label_column(df)
     elev = np.asarray(
-        [
-            _elevation_deg(ra, dec, lst, latitude_deg=latitude_deg)
-            for lst in df[lst_col].to_numpy()
-        ],
+        [_elevation_deg(ra, dec, lst, latitude_deg=latitude_deg) for lst in df[lst_col].to_numpy()],
         dtype=float,
     )
     return df.iloc[int(np.nanargmax(elev))]
+
+
+def _pick_peak_flux_row(df: pd.DataFrame) -> pd.Series:
+    """Return the row with the highest finite ``Peak_flux`` (or ``Peak_intensity``)."""
+    if len(df) == 1:
+        return df.iloc[0]
+    if "Peak_flux" in df.columns:
+        flux = pd.to_numeric(df["Peak_flux"], errors="coerce").to_numpy(dtype=float)
+    elif "Peak_intensity" in df.columns:
+        flux = pd.to_numeric(df["Peak_intensity"], errors="coerce").to_numpy(dtype=float)
+    else:
+        return df.iloc[0]
+    if not np.isfinite(flux).any():
+        return df.iloc[0]
+    return df.iloc[int(np.nanargmax(flux))]
+
+
+def _pick_associated_row(
+    df: pd.DataFrame,
+    representative: Literal["elevation", "peak_flux"],
+) -> pd.Series:
+    if representative == "peak_flux":
+        return _pick_peak_flux_row(df)
+    return _pick_highest_elevation_row(df)
 
 
 def source_elevation_deg(
@@ -285,9 +307,7 @@ def _cluster_by_sky_position(
         return [work]
 
     if bmaj_col in work.columns:
-        bmaj = np.nan_to_num(
-            work[bmaj_col].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0
-        )
+        bmaj = np.nan_to_num(work[bmaj_col].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0)
     else:
         bmaj = np.zeros(len(work), dtype=float)
     coords = _skycoord_from_columns(work)
@@ -490,13 +510,7 @@ def add_spectral_indices(
         if err_a_col in out.columns and err_b_col in out.columns:
             e_a = out[err_a_col].to_numpy(dtype=float)
             e_b = out[err_b_col].to_numpy(dtype=float)
-            err_ok = (
-                valid
-                & np.isfinite(e_a)
-                & np.isfinite(e_b)
-                & (e_a >= 0.0)
-                & (e_b >= 0.0)
-            )
+            err_ok = valid & np.isfinite(e_a) & np.isfinite(e_b) & (e_a >= 0.0) & (e_b >= 0.0)
             ln_nu = abs(np.log(nu_a / nu_b))
             if err_ok.any() and ln_nu > 0.0:
                 e_alpha[err_ok] = (
@@ -514,9 +528,22 @@ def _update_bands_present(
     *bands: str,
     color_bands: Sequence[str] = COLOR_BANDS,
 ) -> None:
-    present = {b for b in str(entry.get("bands_present", "")).split(",") if b}
+    original = [b for b in str(entry.get("bands_present", "")).split(",") if b]
+    present = set(original)
     present.update(bands)
-    entry["bands_present"] = ",".join(b for b in color_bands if b in present)
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def _append(seq: Sequence[str]) -> None:
+        for band in seq:
+            if band in present and band not in seen:
+                ordered.append(band)
+                seen.add(band)
+
+    _append(color_bands)
+    _append(original)
+    _append(bands)
+    entry["bands_present"] = ",".join(ordered)
 
 
 def _seed_row_from_band(
@@ -556,9 +583,7 @@ def _seed_row_from_band(
         if band_freq_hz is None:
             msg = "band_freq_hz is required when astrometry_from_highest_frequency=True"
             raise ValueError(msg)
-        _maybe_update_astrometry_from_band(
-            entry, band_row, band, band_freq_hz=band_freq_hz
-        )
+        _maybe_update_astrometry_from_band(entry, band_row, band, band_freq_hz=band_freq_hz)
     else:
         _copy_lst_merge_qa(entry, band_row)
     return entry
@@ -618,16 +643,12 @@ def merge_full_and_blue(
         if assoc_hits:
             sub = assoc_df.iloc[assoc_hits]
             best = _pick_highest_elevation_row(sub)
-            _attach_band_columns(
-                entry, best, assoc_band, len(assoc_hits), band_fields=band_fields
-            )
+            _attach_band_columns(entry, best, assoc_band, len(assoc_hits), band_fields=band_fields)
             if astrometry_from_highest_frequency:
                 _maybe_update_astrometry_from_band(
                     entry, best, assoc_band, band_freq_hz=band_freq_hz
                 )
-            _update_bands_present(
-                entry, seed_band, assoc_band, color_bands=color_bands
-            )
+            _update_bands_present(entry, seed_band, assoc_band, color_bands=color_bands)
             entry["BMAJ_match"] = max(float(entry["BMAJ_match"]), float(best["BMAJ"]))
         rows.append(entry)
 
@@ -649,8 +670,17 @@ def associate_band_into_metacatalog(
     primary_flux: bool = True,
     astrometry_from_highest_frequency: bool = False,
     band_freq_hz: Mapping[str, float] | None = None,
+    append_unmatched: bool = True,
+    update_bmaj_match: bool = True,
+    representative: Literal["elevation", "peak_flux"] = "elevation",
+    base_bmaj: np.ndarray | None = None,
 ) -> pd.DataFrame:
-    """Cross-match one band onto the current metacatalog; append unmatched band rows."""
+    """Cross-match one band onto the current metacatalog.
+
+    By default unmatched *band_df* rows are appended as new metacatalog seeds.
+    Photometric survey attach uses ``append_unmatched=False``,
+    ``update_bmaj_match=False``, and ``representative="peak_flux"``.
+    """
     band_df = band_df.reset_index(drop=True)
     if band_freq_hz is None:
         band_freq_hz = BAND_FREQ_HZ
@@ -662,35 +692,50 @@ def associate_band_into_metacatalog(
         astrometry_from_highest_frequency=astrometry_from_highest_frequency,
         band_freq_hz=band_freq_hz,
     )
+    empty_cols = _empty_band_cols(assoc_bands=(band,), band_fields=band_fields)
     if meta_df.empty:
-        return pd.DataFrame(
-            [_seed_row_from_band(brow, band, **seed_kw) for _, brow in band_df.iterrows()]
-        )
+        if append_unmatched:
+            return pd.DataFrame(
+                [_seed_row_from_band(brow, band, **seed_kw) for _, brow in band_df.iterrows()]
+            )
+        out = meta_df.copy()
+        for col, value in empty_cols.items():
+            out[col] = pd.Series(dtype=type(value) if not isinstance(value, float) else float)
+        return out
 
     meta_df = meta_df.reset_index(drop=True)
     match_base = meta_df[["RA", "DEC"]].copy()
-    match_base["BMAJ"] = meta_df["BMAJ_match"].to_numpy(dtype=float)
+    if base_bmaj is not None:
+        radii = np.asarray(base_bmaj, dtype=float)
+        if radii.shape != (len(meta_df),):
+            msg = f"base_bmaj length {radii.size} does not match metacatalog rows {len(meta_df)}"
+            raise ValueError(msg)
+        match_base["BMAJ"] = radii
+    else:
+        match_base["BMAJ"] = meta_df["BMAJ_match"].to_numpy(dtype=float)
     hits, matched_band = _associate_catalogs(match_base, band_df)
 
     rows: list[dict] = []
     for i, mrow in meta_df.iterrows():
         entry = mrow.to_dict()
+        for col, value in empty_cols.items():
+            entry.setdefault(col, value)
         band_hits = hits.get(i, [])
         if band_hits:
             sub = band_df.iloc[band_hits]
-            best = _pick_highest_elevation_row(sub)
+            best = _pick_associated_row(sub, representative)
             _attach_band_columns(entry, best, band, len(band_hits), band_fields=band_fields)
             if astrometry_from_highest_frequency:
-                _maybe_update_astrometry_from_band(
-                    entry, best, band, band_freq_hz=band_freq_hz
-                )
+                _maybe_update_astrometry_from_band(entry, best, band, band_freq_hz=band_freq_hz)
             _update_bands_present(entry, band, color_bands=color_bands)
-            entry["BMAJ_match"] = max(float(entry["BMAJ_match"]), float(best["BMAJ"]))
+            if update_bmaj_match:
+                entry["BMAJ_match"] = max(float(entry["BMAJ_match"]), float(best["BMAJ"]))
         rows.append(entry)
 
-    for j, brow in band_df.iterrows():
-        if j not in matched_band:
-            rows.append(_seed_row_from_band(brow, band, **seed_kw))
+    if append_unmatched:
+        for j, brow in band_df.iterrows():
+            if j not in matched_band:
+                rows.append(_seed_row_from_band(brow, band, **seed_kw))
     return pd.DataFrame(rows)
 
 
@@ -769,9 +814,7 @@ def build_global_metacatalog(
                 band,
                 **build_kw,
             )
-    meta = add_spectral_indices(
-        temp, band_freq_hz=band_freq_hz, pairs=spectral_index_pairs
-    )
+    meta = add_spectral_indices(temp, band_freq_hz=band_freq_hz, pairs=spectral_index_pairs)
     meta = normalize_ra_columns(meta)
     meta.insert(0, "meta_id", range(len(meta)))
     if primary_flux:
@@ -779,9 +822,7 @@ def build_global_metacatalog(
     else:
         meta["_sort_peak_flux"] = _representative_peak_flux(meta, color_bands)
         sort_col = "_sort_peak_flux"
-    meta = meta.sort_values(sort_col, ascending=False, na_position="last").reset_index(
-        drop=True
-    )
+    meta = meta.sort_values(sort_col, ascending=False, na_position="last").reset_index(drop=True)
     if not primary_flux:
         meta = meta.drop(columns=["_sort_peak_flux"])
     return meta
