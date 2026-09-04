@@ -5,26 +5,57 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from pathlib import Path
 
-# Public remote HiPS roots for radio-survey visual QA (browser-fetched).
+# Public remote HiPS roots / Aladin IDs for radio-survey visual QA (browser-fetched).
+# VLASS is the Quicklook Median Stack (CDS/Aladin ID ``NRAO/P/VLASS-Quicklook-MedianStack``).
+# NRAO's VLASS image cache is sometimes offline; when tile fetches fail, Aladin may keep
+# showing the previous survey (e.g. NVSS). Override with a local mirror if needed.
 SURVEY_HIPS_URLS: dict[str, str] = {
     "VLSSR": "https://alasky.cds.unistra.fr/VLSSr/",
     "NVSS": "https://alasky.cds.unistra.fr/NVSS/intensity/",
     "VLASS": "https://vlass-dl.nrao.edu/vlass/HiPS/MedianStack/Quicklook/",
 }
 
+# Canonical Aladin Lite / CDS HiPS identifier for the VLASS median stack.
+VLASS_MEDIAN_HIPS_ID: str = "NRAO/P/VLASS-Quicklook-MedianStack"
 
-def survey_hips_url(survey: str) -> str:
-    """Return the public HiPS root URL for *survey* (``VLSSR`` / ``NVSS`` / ``VLASS``)."""
+
+def _normalize_hips_ref(ref: str) -> str:
+    """Ensure HTTP HiPS roots end with ``/``; leave Aladin survey IDs unchanged."""
+    text = str(ref).strip()
+    if text.startswith("http://") or text.startswith("https://"):
+        return text if text.endswith("/") else f"{text}/"
+    return text
+
+
+def survey_hips_url(
+    survey: str,
+    *,
+    overrides: Mapping[str, str] | None = None,
+) -> str:
+    """Return the HiPS root URL or Aladin ID for *survey* (``VLSSR`` / ``NVSS`` / ``VLASS``).
+
+    Parameters
+    ----------
+    survey
+        Survey name (case-insensitive).
+    overrides
+        Optional mapping of survey name → HiPS URL or Aladin ID. Keys are
+        matched case-insensitively and replace the built-in defaults.
+    """
     key = str(survey).strip().upper()
+    table = dict(SURVEY_HIPS_URLS)
+    if overrides:
+        table.update({str(k).strip().upper(): str(v).strip() for k, v in overrides.items()})
     try:
-        url = SURVEY_HIPS_URLS[key]
+        ref = table[key]
     except KeyError as exc:
-        known = ", ".join(sorted(SURVEY_HIPS_URLS))
+        known = ", ".join(sorted(table))
         msg = f"unknown survey HiPS {survey!r}; expected one of: {known}"
         raise ValueError(msg) from exc
-    return url if url.endswith("/") else f"{url}/"
+    return _normalize_hips_ref(ref)
 
 
 def discover_local_hips_surveys(catalog_dir: Path) -> list[str]:

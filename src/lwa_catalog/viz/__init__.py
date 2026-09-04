@@ -23,6 +23,7 @@ from lwa_catalog.viz.bands import band_overlay_color, resolve_band_labels
 from lwa_catalog.viz.coordinates import format_coordinate_deg, parse_coordinate
 from lwa_catalog.viz.hips import (
     SURVEY_HIPS_URLS,
+    VLASS_MEDIAN_HIPS_ID,
     default_hips_survey,
     discover_local_hips_surveys,
     fetch_hips_surveys,
@@ -34,6 +35,7 @@ __all__ = [
     "DebouncedAladinViewRefresh",
     "OverlayResult",
     "SURVEY_HIPS_URLS",
+    "VLASS_MEDIAN_HIPS_ID",
     "aladin_view_center_fov",
     "band_overlay_color",
     "catalog_name_from_file",

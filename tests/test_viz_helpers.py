@@ -75,7 +75,19 @@ def test_survey_hips_url_known() -> None:
     assert survey_hips_url("NVSS").startswith("https://")
     assert survey_hips_url("nvss").endswith("/")
     assert "VLSSr" in survey_hips_url("VLSSR")
-    assert "VLASS" in survey_hips_url("VLASS").upper() or "vlass" in survey_hips_url("VLASS")
+    vlass = survey_hips_url("VLASS")
+    assert "MedianStack" in vlass
+    assert vlass.endswith("/")
+
+
+def test_survey_hips_url_override_and_aladin_id() -> None:
+    assert survey_hips_url("VLASS", overrides={"VLASS": "NRAO/P/VLASS-Quicklook-MedianStack"}) == (
+        "NRAO/P/VLASS-Quicklook-MedianStack"
+    )
+    assert survey_hips_url(
+        "VLASS",
+        overrides={"vlass": "http://localhost:8000/VLASS_median.hips"},
+    ) == "http://localhost:8000/VLASS_median.hips/"
 
 
 def test_survey_hips_url_unknown_raises() -> None:
