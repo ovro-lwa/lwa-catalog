@@ -6,6 +6,18 @@ workflows (band coverage, association stats, sky selection helpers).
 
 from __future__ import annotations
 
+from lwa_catalog.analyze.anomaly import (
+    CATEGORICAL_FEATURE_COLUMNS,
+    DEFAULT_MAHALANOBIS_COLUMNS,
+    MahalanobisConfig,
+    MahalanobisResult,
+    candidate_feature_columns,
+    continuous_feature_columns,
+    is_categorical_feature,
+    mahalanobis_outlier_scores,
+    numeric_feature_matrix,
+    resolve_mahalanobis_columns,
+)
 from lwa_catalog.analyze.bootstrap import (
     advance_bootstrap_frame,
     advance_from_match,
@@ -126,6 +138,16 @@ from lwa_catalog.analyze.vlssr import (
 )
 
 __all__ = [
+    "CATEGORICAL_FEATURE_COLUMNS",
+    "DEFAULT_MAHALANOBIS_COLUMNS",
+    "MahalanobisConfig",
+    "MahalanobisResult",
+    "candidate_feature_columns",
+    "continuous_feature_columns",
+    "is_categorical_feature",
+    "mahalanobis_outlier_scores",
+    "numeric_feature_matrix",
+    "resolve_mahalanobis_columns",
     "CrossmatchRadiusSpec",
     "LWA_CROSSMATCH_RADIUS_BEAM",
     "LWA_CROSSMATCH_RADIUS_LOCALIZATION",
