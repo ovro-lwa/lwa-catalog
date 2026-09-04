@@ -13,8 +13,20 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 
-from lwa_catalog.constants import COLOR_BANDS
+from lwa_catalog.constants import (
+    COLOR_BANDS,
+    NVSS_BMAJ_DEG,
+    VLASS_BMAJ_DEG,
+    VLSSR_BMAJ_DEG,
+)
 from lwa_catalog.viz.bands import band_overlay_color, resolve_band_labels
+
+# Circular restoring beams for external-survey marker overlays (degrees).
+_SURVEY_BEAM_DEG: dict[str, float] = {
+    "VLSSR": VLSSR_BMAJ_DEG,
+    "NVSS": NVSS_BMAJ_DEG,
+    "VLASS": VLASS_BMAJ_DEG,
+}
 
 if TYPE_CHECKING:
     from ipyaladin import Aladin
@@ -80,6 +92,27 @@ def shape_complete_mask(df: pd.DataFrame) -> pd.Series:
     min_ = pd.to_numeric(df["Min"], errors="coerce")
     pa = pd.to_numeric(df["PA"], errors="coerce")
     return maj.notna() & min_.notna() & pa.notna() & (maj > 0) & (min_ > 0)
+
+
+def catalog_with_survey_beam(df: pd.DataFrame, survey: str) -> pd.DataFrame:
+    """Return a copy with beam columns set for the selected image-survey overlay.
+
+    ``LWA`` keeps catalog ``Maj`` / ``Min`` / ``PA``. ``VLSSR`` / ``NVSS`` /
+    ``VLASS`` replace those with a circular beam at the survey ``BMAJ``.
+    """
+    key = str(survey).strip().upper()
+    if key == "LWA":
+        return df.copy()
+    if key not in _SURVEY_BEAM_DEG:
+        known = ", ".join(["LWA", *sorted(_SURVEY_BEAM_DEG)])
+        msg = f"unknown survey beam {survey!r}; expected one of: {known}"
+        raise ValueError(msg)
+    out = df.copy()
+    beam = float(_SURVEY_BEAM_DEG[key])
+    out["Maj"] = beam
+    out["Min"] = beam
+    out["PA"] = 0.0
+    return out
 
 
 def filter_catalog_fov(
@@ -360,6 +393,7 @@ def overlay_catalog_by_band(
     replace: bool = True,
     source_size: int = 8,
     selection_source_size: int = 12,
+    color: str | None = None,
 ) -> OverlayResult:
     """FOV-filter, cap, and draw band-colored beam ellipses (cross fallback).
 
@@ -370,6 +404,8 @@ def overlay_catalog_by_band(
     ----------
     selection_idx
         ``.iloc`` index into ``df`` for the emphasized selection overlay.
+    color
+        Optional single overlay color (overrides per-band colors).
     """
     if replace:
         _remove_overlays(aladin, name_prefix)
@@ -386,13 +422,14 @@ def overlay_catalog_by_band(
         band_labels,
         name_prefix=name_prefix,
         source_size=source_size,
+        color_override=color,
     )
     drawn = int(sum(per_band.values()))
 
     if selection_idx is not None and 0 <= selection_idx < len(df):
         row = df.iloc[selection_idx : selection_idx + 1]
         row_labels = resolve_band_labels(row, catalog_name)
-        sel_color = band_overlay_color(str(row_labels.iloc[0]))
+        sel_color = color or band_overlay_color(str(row_labels.iloc[0]))
         _add_band_overlay(
             aladin,
             row,

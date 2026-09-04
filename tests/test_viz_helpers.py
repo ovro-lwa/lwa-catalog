@@ -16,7 +16,14 @@ from lwa_catalog.viz.aladin import (
     overlay_trace_members,
 )
 from lwa_catalog.viz.coordinates import format_coordinate_deg, parse_coordinate
-from lwa_catalog.viz.hips import default_hips_survey, discover_local_hips_surveys, fetch_hips_surveys
+from lwa_catalog.constants import NVSS_BMAJ_DEG, VLASS_BMAJ_DEG, VLSSR_BMAJ_DEG
+from lwa_catalog.viz.aladin import catalog_with_survey_beam
+from lwa_catalog.viz.hips import (
+    default_hips_survey,
+    discover_local_hips_surveys,
+    fetch_hips_surveys,
+    survey_hips_url,
+)
 
 
 def test_parse_coordinate_decimal() -> None:
@@ -62,6 +69,63 @@ def test_default_hips_survey_prefers_configured() -> None:
         ["other", "metacatalog_coadd2_full.hips"],
         default_survey="metacatalog_coadd2_full.hips",
     ) == "metacatalog_coadd2_full.hips"
+
+
+def test_survey_hips_url_known() -> None:
+    assert survey_hips_url("NVSS").startswith("https://")
+    assert survey_hips_url("nvss").endswith("/")
+    assert "VLSSr" in survey_hips_url("VLSSR")
+    assert "VLASS" in survey_hips_url("VLASS").upper() or "vlass" in survey_hips_url("VLASS")
+
+
+def test_survey_hips_url_unknown_raises() -> None:
+    with pytest.raises(ValueError, match="unknown survey HiPS"):
+        survey_hips_url("NOT_A_SURVEY")
+
+
+def test_catalog_with_survey_beam_lwa_preserves_shapes() -> None:
+    df = pd.DataFrame(
+        {
+            "RA": [10.0],
+            "DEC": [20.0],
+            "Maj": [0.2],
+            "Min": [0.1],
+            "PA": [30.0],
+        }
+    )
+    out = catalog_with_survey_beam(df, "LWA")
+    assert out["Maj"].tolist() == [0.2]
+    assert out["Min"].tolist() == [0.1]
+    assert out["PA"].tolist() == [30.0]
+
+
+@pytest.mark.parametrize(
+    ("survey", "beam"),
+    [
+        ("VLSSR", VLSSR_BMAJ_DEG),
+        ("NVSS", NVSS_BMAJ_DEG),
+        ("VLASS", VLASS_BMAJ_DEG),
+    ],
+)
+def test_catalog_with_survey_beam_circular(survey: str, beam: float) -> None:
+    df = pd.DataFrame(
+        {
+            "RA": [10.0],
+            "DEC": [20.0],
+            "Maj": [0.2],
+            "Min": [0.1],
+            "PA": [30.0],
+        }
+    )
+    out = catalog_with_survey_beam(df, survey)
+    assert out["Maj"].tolist() == pytest.approx([beam])
+    assert out["Min"].tolist() == pytest.approx([beam])
+    assert out["PA"].tolist() == [0.0]
+
+
+def test_catalog_with_survey_beam_unknown_raises() -> None:
+    with pytest.raises(ValueError, match="unknown survey beam"):
+        catalog_with_survey_beam(pd.DataFrame({"RA": [0.0], "DEC": [0.0]}), "OTHER")
 
 
 def test_overlay_trace_members_mock_aladin() -> None:

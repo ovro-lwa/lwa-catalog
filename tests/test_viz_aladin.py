@@ -158,6 +158,36 @@ def test_ellipse_regions_use_catalog_pa_offset() -> None:
     assert regions[0].angle.to_value(u.deg) == pytest.approx(120.0)
 
 
+def test_overlay_catalog_by_band_color_override() -> None:
+    center = SkyCoord(ra=0.0 * u.deg, dec=0.0 * u.deg, frame="icrs")
+    df = pd.DataFrame(
+        {
+            "RA": [0.0],
+            "DEC": [0.0],
+            "Maj": [0.2],
+            "Min": [0.1],
+            "PA": [10.0],
+            "origin_band": ["Red"],
+        }
+    )
+    aladin = MagicMock()
+    aladin.remove_overlay = MagicMock()
+    aladin.overlays = []
+    overlay_catalog_by_band(
+        aladin,
+        df,
+        "metacatalog",
+        center,
+        fov_deg=5.0,
+        color="#00bcd4",
+    )
+    colors = {
+        call.kwargs.get("color")
+        for call in aladin.add_graphic_overlay_from_region.call_args_list
+    }
+    assert colors == {"#00bcd4"}
+
+
 def test_overlay_catalog_by_band_mock_aladin() -> None:
     center = SkyCoord(ra=0.0 * u.deg, dec=0.0 * u.deg, frame="icrs")
     df = pd.DataFrame(

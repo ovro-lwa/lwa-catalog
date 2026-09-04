@@ -10,6 +10,7 @@ from lwa_catalog.viz.aladin import (
     OverlayResult,
     catalog_name_from_file,
     catalog_to_astropy_table,
+    catalog_with_survey_beam,
     clear_catalog_overlays,
     clear_trace_overlays,
     filter_catalog_fov,
@@ -21,19 +22,23 @@ from lwa_catalog.viz.aladin_view import DebouncedAladinViewRefresh, aladin_view_
 from lwa_catalog.viz.bands import band_overlay_color, resolve_band_labels
 from lwa_catalog.viz.coordinates import format_coordinate_deg, parse_coordinate
 from lwa_catalog.viz.hips import (
+    SURVEY_HIPS_URLS,
     default_hips_survey,
     discover_local_hips_surveys,
     fetch_hips_surveys,
     hips_survey_url,
+    survey_hips_url,
 )
 
 __all__ = [
     "DebouncedAladinViewRefresh",
     "OverlayResult",
+    "SURVEY_HIPS_URLS",
     "aladin_view_center_fov",
     "band_overlay_color",
     "catalog_name_from_file",
     "catalog_to_astropy_table",
+    "catalog_with_survey_beam",
     "clear_catalog_overlays",
     "clear_trace_overlays",
     "default_hips_survey",
@@ -47,4 +52,5 @@ __all__ = [
     "parse_coordinate",
     "resolve_band_labels",
     "shape_complete_mask",
+    "survey_hips_url",
 ]

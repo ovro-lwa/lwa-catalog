@@ -7,6 +7,25 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+# Public remote HiPS roots for radio-survey visual QA (browser-fetched).
+SURVEY_HIPS_URLS: dict[str, str] = {
+    "VLSSR": "https://alasky.cds.unistra.fr/VLSSr/",
+    "NVSS": "https://alasky.cds.unistra.fr/NVSS/intensity/",
+    "VLASS": "https://vlass-dl.nrao.edu/vlass/HiPS/MedianStack/Quicklook/",
+}
+
+
+def survey_hips_url(survey: str) -> str:
+    """Return the public HiPS root URL for *survey* (``VLSSR`` / ``NVSS`` / ``VLASS``)."""
+    key = str(survey).strip().upper()
+    try:
+        url = SURVEY_HIPS_URLS[key]
+    except KeyError as exc:
+        known = ", ".join(sorted(SURVEY_HIPS_URLS))
+        msg = f"unknown survey HiPS {survey!r}; expected one of: {known}"
+        raise ValueError(msg) from exc
+    return url if url.endswith("/") else f"{url}/"
+
 
 def discover_local_hips_surveys(catalog_dir: Path) -> list[str]:
     """Find HiPS tile directories under *catalog_dir* (dirs containing ``properties``)."""
