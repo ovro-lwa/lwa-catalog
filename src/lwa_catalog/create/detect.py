@@ -252,6 +252,28 @@ def _with_constant_rms_fallback(kw: Mapping[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _isolate_in_memory_outdir(
+    kw: Mapping[str, Any],
+    *,
+    lst_hour: str,
+    band: str,
+) -> dict[str, Any]:
+    """Nest ``outdir`` under ``{outdir}/{lst}_{band}`` for in-memory PyBDSF runs.
+
+    ``bdsf.process_image`` on an HDU always uses the placeholder filename
+    ``in_memory.fits``, so parallel detections that share ``outdir`` would
+    clobber logs and ``savefits_rmsim`` products. Isolate each image under a
+    unique subdirectory when an output directory or RMS-map save is requested.
+    """
+    out = dict(kw)
+    base = out.get("outdir")
+    if base is None and not out.get("savefits_rmsim"):
+        return out
+    root = Path(base) if base is not None else Path(".")
+    out["outdir"] = str(root / f"{lst_hour}_{band}")
+    return out
+
+
 def run_pybdsf_on_hdu(
     hdu: fits.PrimaryHDU,
     *,
@@ -335,12 +357,24 @@ def detect_sources(
         ``BMIN`` / ``BPA`` are taken from the native image header.
     **process_kw
         Extra keywords forwarded to ``bdsf.process_image``.
+
+    Notes
+    -----
+    When ``outdir`` and/or ``savefits_rmsim`` are set, PyBDSF outputs (RMS maps,
+    logs) are written under ``{outdir}/{lst_hour}_{band}/`` so parallel
+    in-memory runs do not overwrite each other. RMS maps land at
+    ``{outdir}/{lst_hour}_{band}/in_memory_pybdsf/background/in_memory.pybdsf.rmsd_I.fits``.
     """
     hdu = prepare_hdu(meta.path)
     bmaj, bmin, bpa = beam_from_header(hdu.header)
     if upsample_factor != 1:
         hdu = upsample_hdu(hdu, factor=upsample_factor)
-    table = run_pybdsf_on_hdu(hdu, bdsf_kw=bdsf_kw, **process_kw)
+    merged_kw = dict(bdsf_kw) if bdsf_kw is not None else {}
+    merged_kw.update(process_kw)
+    merged_kw = _isolate_in_memory_outdir(
+        merged_kw, lst_hour=meta.lst_hour, band=meta.band
+    )
+    table = run_pybdsf_on_hdu(hdu, bdsf_kw=merged_kw)
     if table is None or len(table) == 0:
         return empty_sources_dataframe(
             meta,

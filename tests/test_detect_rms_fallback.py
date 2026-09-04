@@ -51,6 +51,25 @@ def test_with_constant_rms_fallback_overrides_adaptive_boxes() -> None:
     assert out["beam"] == (0.1, 0.1, 0.0)
 
 
+def test_isolate_in_memory_outdir_nests_when_outdir_set() -> None:
+    from lwa_catalog.create.detect import _isolate_in_memory_outdir
+
+    out = _isolate_in_memory_outdir(
+        {"outdir": "/tmp/cats", "savefits_rmsim": True},
+        lst_hour="01h",
+        band="Full",
+    )
+    assert out["outdir"] == "/tmp/cats/01h_Full"
+    assert out["savefits_rmsim"] is True
+
+
+def test_isolate_in_memory_outdir_noop_without_outputs() -> None:
+    from lwa_catalog.create.detect import _isolate_in_memory_outdir
+
+    kw = {"thresh": "hard", "quiet": True}
+    assert _isolate_in_memory_outdir(kw, lst_hour="01h", band="Full") == kw
+
+
 def test_run_pybdsf_retries_with_constant_rms_on_divide_by_zero() -> None:
     hdu = fits.PrimaryHDU(
         data=[[1.0, 2.0], [3.0, 4.0]],
