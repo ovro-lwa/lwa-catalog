@@ -70,6 +70,17 @@ def test_isolate_in_memory_outdir_noop_without_outputs() -> None:
     assert _isolate_in_memory_outdir(kw, lst_hour="01h", band="Full") == kw
 
 
+def test_isolate_in_memory_outdir_requires_outdir_with_savefits() -> None:
+    from lwa_catalog.create.detect import _isolate_in_memory_outdir
+
+    with pytest.raises(ValueError, match="requires outdir"):
+        _isolate_in_memory_outdir(
+            {"savefits_rmsim": True},
+            lst_hour="01h",
+            band="27MHz",
+        )
+
+
 def test_run_pybdsf_retries_with_constant_rms_on_divide_by_zero() -> None:
     hdu = fits.PrimaryHDU(
         data=[[1.0, 2.0], [3.0, 4.0]],

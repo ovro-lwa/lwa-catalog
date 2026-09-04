@@ -269,8 +269,13 @@ def _isolate_in_memory_outdir(
     base = out.get("outdir")
     if base is None and not out.get("savefits_rmsim"):
         return out
-    root = Path(base) if base is not None else Path(".")
-    out["outdir"] = str(root / f"{lst_hour}_{band}")
+    if base is None:
+        msg = (
+            "savefits_rmsim=True requires outdir to be set "
+            "(otherwise RMS maps are written under the process cwd)"
+        )
+        raise ValueError(msg)
+    out["outdir"] = str(Path(base) / f"{lst_hour}_{band}")
     return out
 
 
