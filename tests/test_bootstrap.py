@@ -325,6 +325,8 @@ def test_attach_cascade_bootstrap_does_not_mutate_ra() -> None:
     assert float(out.iloc[0]["match_RA"]) == pytest.approx(10.001)
     assert float(out.iloc[0]["match_DEC"]) == pytest.approx(20.0)
     assert out.iloc[0]["match_source"] == "VLSSR"
+    assert "match_sigma_deg" in out.columns
+    assert float(out.iloc[0]["match_sigma_deg"]) > 0.0
 
 
 def test_attach_without_cascade_writes_lwa_match_positions() -> None:

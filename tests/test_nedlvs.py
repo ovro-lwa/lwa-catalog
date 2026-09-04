@@ -121,6 +121,33 @@ def test_resolve_centroid_sigma_default() -> None:
     assert resolve_centroid_sigma_deg(row) == pytest.approx(NEDLVS_DEFAULT_CENTROID_SIGMA_DEG)
 
 
+def test_resolve_centroid_sigma_prefers_match_sigma_deg() -> None:
+    row = pd.Series(
+        {
+            "match_sigma_deg": 1e-4,
+            "match_source": "VLASS",
+            "E_RA": 0.01,
+            "E_DEC": 0.01,
+            "cluster_jitter_rms_deg": 0.05,
+        }
+    )
+    assert resolve_centroid_sigma_deg(row) == pytest.approx(1e-4)
+
+
+def test_resolve_centroid_sigma_uses_match_source_default() -> None:
+    from lwa_catalog.constants import VLASS_BMAJ_ARCSEC
+
+    row = pd.Series(
+        {
+            "match_source": "VLASS",
+            "E_RA": 0.01,
+            "E_DEC": 0.01,
+            "cluster_jitter_rms_deg": 0.05,
+        }
+    )
+    assert resolve_centroid_sigma_deg(row) == pytest.approx(VLASS_BMAJ_ARCSEC / 3600.0)
+
+
 def test_footprint_filter_nedlvs() -> None:
     nedlvs = pd.DataFrame({"DEC": [-10.0, 0.0, 15.0, 30.0]})
     lwa = pd.DataFrame({"DEC": [0.0, 20.0]})
@@ -140,6 +167,31 @@ def test_associate_by_centroid_sigma_single_hit() -> None:
     ref = pd.DataFrame({"RA": [10.0001], "DEC": [20.0], "SIGMA": [0.0001]})
     hits, matched = _associate_by_centroid_sigma(base, ref, position_sigma_scale=3.0)
     assert hits == {0: [0]}
+    assert matched == {0}
+
+
+def test_associate_diam_floor_recovers_offset_host() -> None:
+    """Tight radio σ misses a large galaxy unless Diam floor is applied."""
+    # Separation ~30″; 3σ combined ≪ that; half of 120″ Diam covers it.
+    base = pd.DataFrame(
+        {"RA": [10.0], "DEC": [20.0], "SIGMA": [1e-5], "DIAM_ARCSEC": [0.0]}
+    )
+    ref = pd.DataFrame(
+        {
+            "RA": [10.0 + 30.0 / 3600.0],
+            "DEC": [20.0],
+            "SIGMA": [1e-5],
+            "DIAM_ARCSEC": [120.0],
+        }
+    )
+    miss, _ = _associate_by_centroid_sigma(
+        base, ref, position_sigma_scale=3.0, diam_scale=None
+    )
+    assert miss == {}
+    hit, matched = _associate_by_centroid_sigma(
+        base, ref, position_sigma_scale=3.0, diam_scale=0.5
+    )
+    assert hit == {0: [0]}
     assert matched == {0}
 
 
@@ -338,6 +390,9 @@ def test_select_bijective_nedlvs_flags() -> None:
 
 
 def test_nedlvs_match_config_defaults() -> None:
+    from lwa_catalog.constants import NEDLVS_DEFAULT_DIAM_SCALE
+
     cfg = NedlvsMatchConfig()
     assert cfg.max_redshift == pytest.approx(NEDLVS_DEFAULT_MAX_REDSHIFT)
     assert cfg.position_sigma_scale == pytest.approx(3.0)
+    assert cfg.diam_scale == NEDLVS_DEFAULT_DIAM_SCALE

@@ -1,13 +1,12 @@
 """Attach external radio surveys onto an LWA metacatalog as photometric bands.
 
-Unmatched survey sources are not seeded as new rows. Top-level LWA astrometry
-and ``BMAJ_match`` are left unchanged. Stored survey flux is the brightest
+Unmatched survey sources are not seeded as new rows. ``match_RA`` /
+``match_DEC`` / ``match_source`` / ``match_sigma_deg`` record the best cascaded
+match position and 1σ radius (survey coords after bijective VLSSR→NVSS→VLASS
+when enabled; otherwise native LWA). Top-level LWA astrometry and
+``BMAJ_match`` are left unchanged. Stored survey flux is the brightest
 associated hit (preferring ``Total_flux`` when available, else peak);
 ``n_assoc_{band}`` counts every hit inside the match radius.
-
-``match_RA`` / ``match_DEC`` / ``match_source`` record the best cascaded match
-position (survey coords after bijective VLSSR→NVSS→VLASS when enabled;
-otherwise native LWA).
 """
 
 from __future__ import annotations
@@ -215,8 +214,9 @@ def _prepare_survey_for_attach(
 def _write_match_positions(meta_df: pd.DataFrame, frame: pd.DataFrame) -> pd.DataFrame:
     """Copy bootstrap-frame coords onto *meta_df* as ``match_RA`` / ``match_DEC``.
 
-    Also writes ``match_source`` (``LWA`` / ``VLSSR`` / ``NVSS`` / ``VLASS``).
-    Top-level ``RA``/``DEC`` are unchanged.
+    Also writes ``match_source`` (``LWA`` / ``VLSSR`` / ``NVSS`` / ``VLASS``) and
+    ``match_sigma_deg`` from the frame ``BMAJ`` (adopted 1σ / fixed survey
+    localization radius in degrees). Top-level ``RA``/``DEC`` are unchanged.
     """
     if len(frame) != len(meta_df):
         msg = (
@@ -227,6 +227,9 @@ def _write_match_positions(meta_df: pd.DataFrame, frame: pd.DataFrame) -> pd.Dat
     out = meta_df.copy()
     out["match_RA"] = pd.to_numeric(frame["RA"], errors="coerce").to_numpy(dtype=float)
     out["match_DEC"] = pd.to_numeric(frame["DEC"], errors="coerce").to_numpy(dtype=float)
+    out["match_sigma_deg"] = pd.to_numeric(frame["BMAJ"], errors="coerce").to_numpy(
+        dtype=float
+    )
     if "bootstrap_source" in frame.columns:
         out["match_source"] = frame["bootstrap_source"].astype(str).to_numpy()
     else:
@@ -255,8 +258,9 @@ def attach_radio_surveys_to_metacatalog(
     position/error for the next survey) without rewriting metacatalog
     ``RA``/``DEC``.
 
-    Always adds ``match_RA`` / ``match_DEC`` / ``match_source`` from the final
-    match frame (cascaded survey position when bijective; otherwise LWA).
+    Always adds ``match_RA`` / ``match_DEC`` / ``match_source`` /
+    ``match_sigma_deg`` from the final match frame (cascaded survey position
+    when bijective; otherwise LWA).
     """
     radii = dict(_DEFAULT_REFERENCE_RADIUS)
     if reference_radii is not None:

@@ -17,9 +17,13 @@ from lwa_catalog.analyze.vlssr import select_blue_associated_rows
 from lwa_catalog.constants import (
     NEDLVS_CATALOG_POSITION_SIGMA_DEG,
     NEDLVS_DEFAULT_CENTROID_SIGMA_DEG,
+    NEDLVS_DEFAULT_DIAM_SCALE,
     NEDLVS_DEFAULT_MAX_REDSHIFT,
     NEDLVS_DEFAULT_PATH,
     NEDLVS_DEFAULT_POSITION_SIGMA_SCALE,
+    NVSS_POSITION_ERROR_DEFAULT_ARCSEC,
+    VLASS_BMAJ_ARCSEC,
+    VLSSR_POSITION_ERROR_ARCSEC,
     band_frequency_hz,
 )
 from lwa_catalog.io import read_table
@@ -46,6 +50,14 @@ NEDLVS_LOAD_COLUMNS: tuple[str, ...] = (
     "SFR_W4",
 )
 
+# 1σ defaults (degrees) when ``match_source`` is a cascaded radio survey and
+# ``match_sigma_deg`` is absent (e.g. older metacatalog_radio.parquet).
+_MATCH_SOURCE_SIGMA_DEG: dict[str, float] = {
+    "VLSSR": VLSSR_POSITION_ERROR_ARCSEC / 3600.0,
+    "NVSS": NVSS_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
+    "VLASS": VLASS_BMAJ_ARCSEC / 3600.0,
+}
+
 
 @dataclass(frozen=True)
 class NedlvsMatchConfig:
@@ -57,6 +69,8 @@ class NedlvsMatchConfig:
     max_redshift: float | None = NEDLVS_DEFAULT_MAX_REDSHIFT
     default_centroid_sigma_deg: float = NEDLVS_DEFAULT_CENTROID_SIGMA_DEG
     nedlvs_position_sigma_deg: float = NEDLVS_CATALOG_POSITION_SIGMA_DEG
+    # Floor search radius as ``diam_scale * Diam_arcsec`` (degrees). ``None`` disables.
+    diam_scale: float | None = NEDLVS_DEFAULT_DIAM_SCALE
 
 
 @dataclass
@@ -118,9 +132,22 @@ def resolve_centroid_sigma_deg(
 ) -> float:
     """Return a 1σ sky-position radius in degrees for cross-matching.
 
-    Prefers PyBDSF ``E_RA``/``E_DEC`` when present, else merge-time
-    ``cluster_jitter_rms_deg``, else *default_centroid_sigma_deg*.
+    Preference order:
+
+    1. ``match_sigma_deg`` from cascaded radio attach (bootstrap frame).
+    2. Survey default for ``match_source`` ``VLSSR`` / ``NVSS`` / ``VLASS``.
+    3. PyBDSF ``E_RA``/``E_DEC``.
+    4. Merge-time ``cluster_jitter_rms_deg``.
+    5. *default_centroid_sigma_deg*.
     """
+    match_sigma = pd.to_numeric(row.get("match_sigma_deg"), errors="coerce")
+    if np.isfinite(match_sigma) and float(match_sigma) > 0.0:
+        return float(match_sigma)
+
+    source = str(row.get("match_source", "") or "").strip().upper()
+    if source in _MATCH_SOURCE_SIGMA_DEG:
+        return float(_MATCH_SOURCE_SIGMA_DEG[source])
+
     e_ra = pd.to_numeric(row.get("E_RA"), errors="coerce")
     e_dec = pd.to_numeric(row.get("E_DEC"), errors="coerce")
     if (
@@ -408,8 +435,19 @@ def _associate_by_centroid_sigma(
     ref_df: pd.DataFrame,
     *,
     position_sigma_scale: float,
+    diam_scale: float | None = None,
 ) -> tuple[dict[int, list[int]], set[int]]:
-    """Match catalogs using ``position_sigma_scale * sqrt(sigma_base^2 + sigma_ref^2)``."""
+    """Match catalogs using scaled centroid σ, with optional galaxy Diam floor.
+
+    Pairwise limit (degrees)::
+
+        max(
+            position_sigma_scale * hypot(σ_base, σ_ref),
+            diam_scale * Diam_arcsec / 3600   # when Diam present and diam_scale set
+        )
+
+    ``DIAM_ARCSEC`` may appear on either frame (typically the NED-LVS side).
+    """
     if base_df.empty or ref_df.empty:
         return {}, set()
 
@@ -436,10 +474,31 @@ def _associate_by_centroid_sigma(
         ref_work["SIGMA"].to_numpy(dtype=float), nan=0.0, posinf=0.0, neginf=0.0
     )
 
-    search_radius = float(
+    def _diam_arcsec(work: pd.DataFrame) -> np.ndarray:
+        if "DIAM_ARCSEC" not in work.columns:
+            return np.zeros(len(work), dtype=float)
+        return np.nan_to_num(
+            pd.to_numeric(work["DIAM_ARCSEC"], errors="coerce").to_numpy(dtype=float),
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0,
+        )
+
+    diam_base = _diam_arcsec(base_work)
+    diam_ref = _diam_arcsec(ref_work)
+
+    pos_cap = float(
         position_sigma_scale
         * max(float(sigma_base.max()), float(sigma_ref.max()), 1e-12)
-    ) * u.deg
+    )
+    diam_cap = 0.0
+    if diam_scale is not None and float(diam_scale) > 0.0:
+        diam_cap = float(diam_scale) * max(
+            float(diam_base.max()) if len(diam_base) else 0.0,
+            float(diam_ref.max()) if len(diam_ref) else 0.0,
+            0.0,
+        ) / 3600.0
+    search_radius = max(pos_cap, diam_cap, 1e-12) * u.deg
     idx_ref_w, idx_base_w, sep2d, _ = base_sc.search_around_sky(ref_sc, search_radius)
     if len(idx_base_w) == 0:
         return {}, set()
@@ -449,6 +508,13 @@ def _associate_by_centroid_sigma(
         sigma_base[idx_base_w],
         sigma_ref[idx_ref_w],
     )
+    if diam_scale is not None and float(diam_scale) > 0.0:
+        diam_floor = (
+            float(diam_scale)
+            * np.maximum(diam_base[idx_base_w], diam_ref[idx_ref_w])
+            / 3600.0
+        )
+        limits = np.maximum(limits, diam_floor)
     keep = sep_deg <= limits
     idx_base_w = idx_base_w[keep]
     idx_ref_w = idx_ref_w[keep]
@@ -557,12 +623,15 @@ def match_catalog_to_nedlvs(
 ) -> NedlvsMatchResult:
     """Cross-match an LWA catalog against NED-LVS and compute QA metrics.
 
-    Matching uses metacatalog centroid uncertainty (``E_RA``/``E_DEC`` or
-    ``cluster_jitter_rms_deg``) scaled by ``config.position_sigma_scale``,
-    combined in quadrature with a small NED catalog position sigma. Coordinates
-    prefer ``match_RA``/``match_DEC`` when present (cascaded radio best
-    position), else top-level ``RA``/``DEC``. NED-LVS rows above
-    ``config.max_redshift`` are excluded when that limit is set.
+    Matching uses metacatalog centroid uncertainty scaled by
+    ``config.position_sigma_scale``, combined in quadrature with a small NED
+    catalog position sigma. When ``config.diam_scale`` is set, the pairwise
+    limit is also floored at ``diam_scale * Diam_arcsec``. Coordinates prefer
+    ``match_RA``/``match_DEC`` when present (cascaded radio best position),
+    else top-level ``RA``/``DEC``. Uncertainties prefer ``match_sigma_deg`` or
+    survey defaults for ``match_source``, else LWA ``E_RA``/``E_DEC`` /
+    ``cluster_jitter_rms_deg``. NED-LVS rows above ``config.max_redshift`` are
+    excluded when that limit is set.
     """
     cfg = config or NedlvsMatchConfig()
     warnings: list[str] = []
@@ -626,11 +695,13 @@ def match_catalog_to_nedlvs(
             lwa_match,
             ned_match,
             position_sigma_scale=cfg.position_sigma_scale,
+            diam_scale=cfg.diam_scale,
         )
         nedlvs_hits, _ = _associate_by_centroid_sigma(
             ned_match,
             lwa_match,
             position_sigma_scale=cfg.position_sigma_scale,
+            diam_scale=cfg.diam_scale,
         )
 
     index_to_match_pos = {idx: pos for pos, idx in enumerate(lwa_match.index.tolist())}
@@ -790,12 +861,18 @@ def _nedlvs_match_frame(
     position_sigma_deg: float,
 ) -> pd.DataFrame:
     if nedlvs.empty:
-        return pd.DataFrame(columns=["RA", "DEC", "SIGMA"])
+        return pd.DataFrame(columns=["RA", "DEC", "SIGMA", "DIAM_ARCSEC"])
+    diam = (
+        pd.to_numeric(nedlvs["Diam_arcsec"], errors="coerce")
+        if "Diam_arcsec" in nedlvs.columns
+        else pd.Series(np.nan, index=nedlvs.index)
+    )
     return pd.DataFrame(
         {
             "RA": pd.to_numeric(nedlvs["RA"], errors="coerce"),
             "DEC": pd.to_numeric(nedlvs["DEC"], errors="coerce"),
             "SIGMA": float(position_sigma_deg),
+            "DIAM_ARCSEC": diam,
         }
     )
 

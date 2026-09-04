@@ -60,6 +60,8 @@ NEDLVS_DEFAULT_CENTROID_SIGMA_DEG: float = NEDLVS_DEFAULT_CENTROID_SIGMA_ARCSEC 
 # Typical NED catalog position uncertainty (1σ, arcsec).
 NEDLVS_CATALOG_POSITION_SIGMA_ARCSEC: float = 1.0
 NEDLVS_CATALOG_POSITION_SIGMA_DEG: float = NEDLVS_CATALOG_POSITION_SIGMA_ARCSEC / 3600.0
+# Galaxy-size match floor: ``diam_scale * Diam_arcsec`` (None disables).
+NEDLVS_DEFAULT_DIAM_SCALE: float | None = 0.5
 
 _SUBBAND_FREQ_RE = re.compile(r"^(\d+)MHz$", re.IGNORECASE)
 
