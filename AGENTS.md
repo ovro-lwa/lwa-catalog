@@ -1,12 +1,11 @@
 # Agent memory — lwa-catalog
 
 Living design notes for agents working in this repository. Distilled from the
-`.agents/` research, plan, and implement trail (2026-08 through 2026-09) and
-checked against the code as of 2026-09-07.
-
-When this file and an old `.agents/` document disagree, **trust the code**, then
+2026-08 through 2026-09 research/plan/implement trail and checked against the
+code as of 2026-09-07. Those markdown sources have been removed; **this file is
+the memory.** When this file and the code disagree, **trust the code**, then
 update this file. Do not resurrect CSV dual-write, HEALPix FITS maps, or
-compatibility shims because an older research note mentioned them.
+compatibility shims.
 
 ---
 
@@ -384,7 +383,7 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
 | `metacatalog_spectral_modeling.ipynb` | Taylor SED fits |
 | `radio_crossmatch.ipynb` | NVSS/VLASS/VLSSR match, survey attach, Visual QA |
-| `metacatalog_nedlvs_crossmatch.ipynb` | Galaxy host association (later than the `.agents` trail) |
+| `metacatalog_nedlvs_crossmatch.ipynb` | Galaxy host association (later than this distillation) |
 | `target_samples.ipynb` | Class samples for the query browser |
 
 Trace UI is **query-notebook only**. Do not put rematch cells back into
@@ -474,38 +473,7 @@ never signed off):
 - `notebooks/README.md` and root `README.md` still under-document radio/spectral
   sidecars and several notebooks.
 
-Later than the `.agents` trail (exists in code; treat the modules as authority):
+Later than this distillation (exists in code; treat the modules as authority):
 `analyze/nedlvs.py`, `nvss.py`, `vlass.py`, `bootstrap.py`,
 `crossmatch_radius.py`, expanded `SourceQualityFlag`,
 `notebooks/metacatalog_nedlvs_crossmatch.ipynb`.
-
----
-
-## Source inventory (pending deletion)
-
-These `.agents/` files were summarized here. **Do not delete until the operator
-confirms this file is sufficient.**
-
-Research: `research-catalog-io.md`,
-`research-all-sky-reprojection-source-detection.md`,
-`research-identify-sources-clustering-across-lst-single-band.md`,
-`research-fit-quality-sky-mapping.md`,
-`research-metacatalog-spectral-modeling.md`,
-`research-vlssr-crossmatch-qa.md`,
-`research-radio-crossmatch-sky-qa.md`,
-`research-three-options-clustering-outliers-metacatalog.md`.
-
-Plans: `plan-catalog-io.md`, `plan-fit-quality-metacatalog-qa.md`,
-`plan-metacatalog-source-trace.md`, `plan-metacatalog-reliability-tiers.md`,
-`plan-metacatalog-hips-overlay.md`, `plan-vlssr-crossmatch-qa.md`,
-`plan-metacatalog-spectral-modeling.md`, `plan-metacatalog-survey-attach.md`,
-`plan-radio-crossmatch-sky-qa.md`, `plan-metacatalog-mahalanobis-outliers.md`.
-
-Implements: `implement-fit-quality-metacatalog-qa.md`,
-`implement-metacatalog-source-trace.md`,
-`implement-metacatalog-reliability-tiers.md`,
-`implement-metacatalog-hips-overlay.md`, `implement-vlssr-crossmatch-qa.md`,
-`implement-metacatalog-spectral-modeling.md`,
-`implement-metacatalog-survey-attach.md`,
-`implement-radio-crossmatch-sky-qa.md`,
-`implement-metacatalog-mahalanobis-outliers.md`.
