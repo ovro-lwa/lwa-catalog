@@ -11,6 +11,7 @@
 | `metacatalog_vlssr_qa.ipynb` | VLSSR cross-match QA — Blue completeness, over-split, multiplicity diagnostics |
 | `metacatalog_spectral_modeling.ipynb` | Post-hoc Taylor spectral fits — BIC model selection, SED diagnostics |
 | `metacatalog_nedlvs_crossmatch.ipynb` | NED-LVS cross-match — galaxy host association, recovery vs distance |
+| `target_samples.ipynb` | Class samples (galaxies, clusters, AGN jets, SNRs, pulsars, X-ray binaries) for `metacatalog_query.ipynb` |
 
 ## Catalog storage
 
