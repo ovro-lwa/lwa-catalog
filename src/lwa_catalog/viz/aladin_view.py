@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
 from astropy import units as u
@@ -77,3 +77,54 @@ def aladin_view_center_fov(aladin: Aladin) -> tuple[SkyCoord, float]:
         coord = SkyCoord(ra=ra, dec=dec, frame="icrs")
     fov = float(aladin.fov.to(u.deg).value)
     return coord, fov
+
+
+def apply_aladin_view(aladin: Aladin, coord: SkyCoord, fov_deg: float) -> None:
+    """Set Aladin target and FOV (degrees)."""
+    aladin.target = coord
+    aladin.fov = float(fov_deg)
+
+
+def cancel_aladin_view_timers(timers: Iterable[threading.Timer] | None) -> None:
+    """Cancel timers previously returned by :func:`restore_aladin_view`."""
+    for timer in list(timers or []):
+        try:
+            timer.cancel()
+        except Exception:
+            pass
+
+
+def restore_aladin_view(
+    aladin: Aladin,
+    coord: SkyCoord,
+    fov_deg: float,
+    *,
+    overlay_refresh: DebouncedAladinViewRefresh | None = None,
+    settle_s: float = 0.5,
+    prior_timers: Iterable[threading.Timer] | None = None,
+) -> list[threading.Timer]:
+    """Re-apply center/FOV now and once after *settle_s* (HiPS ``hips_initial_*``).
+
+    Cancels *prior_timers* and any pending overlay refresh before applying.
+    Returns the new settle timer list (possibly empty when *settle_s* ≤ 0).
+    """
+    cancel_aladin_view_timers(prior_timers)
+    if overlay_refresh is not None:
+        overlay_refresh.cancel_pending()
+
+    fov = float(fov_deg)
+
+    def _apply() -> None:
+        try:
+            apply_aladin_view(aladin, coord, fov)
+        except Exception:
+            pass
+
+    _apply()
+    if settle_s <= 0:
+        return []
+
+    timer = threading.Timer(float(settle_s), _apply)
+    timer.daemon = True
+    timer.start()
+    return [timer]

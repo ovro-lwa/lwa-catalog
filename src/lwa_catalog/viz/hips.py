@@ -106,6 +106,52 @@ def default_hips_survey(surveys: list[str], *, default_survey: str) -> str:
     return surveys[0] if surveys else default_survey
 
 
+def preferred_hips_survey(
+    catalog_dir: Path,
+    surveys: list[str],
+    *,
+    default_survey: str,
+) -> str:
+    """Pick a default HiPS survey for *catalog_dir* from *surveys*.
+
+    Prefers an exact *default_survey* match, then name fragments derived from
+    the catalog directory (``{dir}_full``, ``{dir}_reliable``, …), then
+    :func:`default_hips_survey`.
+    """
+    if default_survey in surveys:
+        return default_survey
+    if not surveys:
+        local = discover_local_hips_surveys(catalog_dir)
+        return local[0] if local else default_survey
+    name = Path(catalog_dir).name
+    for key in (f"{name}_full", f"{name}_reliable", "_full", "_reliable"):
+        hit = next((s for s in surveys if key in s), None)
+        if hit is not None:
+            return hit
+    return default_hips_survey(surveys, default_survey=default_survey)
+
+
+def fetch_catalog_hips_surveys(
+    list_base: str,
+    catalog_dir: Path,
+    *,
+    default_survey: str,
+    timeout: float = 5.0,
+) -> list[str]:
+    """HiPS survey list for a catalog tree (remote list + local fallback)."""
+    catalog_dir = Path(catalog_dir)
+    local = discover_local_hips_surveys(catalog_dir)
+    fallback = preferred_hips_survey(
+        catalog_dir, local or [], default_survey=default_survey
+    ) or default_survey
+    return fetch_hips_surveys(
+        list_base,
+        catalog_dir=catalog_dir,
+        default_survey=fallback,
+        timeout=timeout,
+    )
+
+
 def hips_survey_url(survey: str, *, base: str) -> str:
     """Build the HiPS root URL passed to ipyaladin (trailing slash for Aladin Lite)."""
     survey = survey.strip().strip("/")

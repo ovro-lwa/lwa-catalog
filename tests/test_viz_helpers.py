@@ -71,6 +71,64 @@ def test_default_hips_survey_prefers_configured() -> None:
     ) == "metacatalog_coadd2_full.hips"
 
 
+def test_preferred_hips_survey_uses_catalog_dir_fragment(tmp_path: Path) -> None:
+    from lwa_catalog.viz.hips import preferred_hips_survey
+
+    surveys = ["other.hips", "metacatalog_demo_full.hips", "noise.hips"]
+    assert (
+        preferred_hips_survey(
+            tmp_path / "metacatalog_demo",
+            surveys,
+            default_survey="missing.hips",
+        )
+        == "metacatalog_demo_full.hips"
+    )
+
+
+def test_fetch_catalog_hips_surveys_local_fallback(tmp_path: Path) -> None:
+    from lwa_catalog.viz.hips import fetch_catalog_hips_surveys
+
+    hips = tmp_path / "local_survey"
+    hips.mkdir()
+    (hips / "properties").write_text("hips_service_url = ./\n")
+    with patch("urllib.request.urlopen", side_effect=OSError("offline")):
+        surveys = fetch_catalog_hips_surveys(
+            "http://example.invalid",
+            tmp_path,
+            default_survey="fallback.hips",
+        )
+    assert surveys == ["local_survey"]
+
+
+def test_nearest_sources_orders_by_separation() -> None:
+    from lwa_catalog.viz.coordinates import nearest_sources
+
+    df = pd.DataFrame(
+        {
+            "RA": [10.0, 10.5, 11.0],
+            "DEC": [0.0, 0.0, 0.0],
+            "meta_id": [1, 2, 3],
+        }
+    )
+    coord = SkyCoord(ra=10.01 * u.deg, dec=0.0 * u.deg, frame="icrs")
+    hits = nearest_sources(df, coord, n=2)
+    assert list(hits["meta_id"]) == [1, 2]
+    assert hits.iloc[0]["sep_arcmin"] <= hits.iloc[1]["sep_arcmin"]
+    assert "sep_deg" in hits.columns
+
+
+def test_restore_aladin_view_applies_and_schedules() -> None:
+    from lwa_catalog.viz.aladin_view import cancel_aladin_view_timers, restore_aladin_view
+
+    aladin = MagicMock()
+    coord = SkyCoord(ra=1.0 * u.deg, dec=2.0 * u.deg, frame="icrs")
+    timers = restore_aladin_view(aladin, coord, 12.5, settle_s=0.01)
+    assert aladin.target == coord
+    assert aladin.fov == 12.5
+    assert len(timers) == 1
+    cancel_aladin_view_timers(timers)
+
+
 def test_survey_hips_url_known() -> None:
     assert survey_hips_url("NVSS").startswith("https://")
     assert survey_hips_url("nvss").endswith("/")
