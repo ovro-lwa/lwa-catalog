@@ -150,6 +150,35 @@ def test_analyze_spectral_exports() -> None:
     assert hasattr(SingleSpectrumFit, "__dataclass_fields__")
 
 
+def test_analyze_forced_photometry_exports() -> None:
+    from lwa_catalog.analyze import (
+        ForcedPhotometryConfig,
+        ForcedPhotometryResult,
+        discover_and_index_fits,
+        filter_fits_by_elevation,
+        fit_gaussian2d_cutout,
+        index_discovered_fits,
+        plot_forced_cutouts,
+        resolve_forced_fits_path,
+        seed_row_from_meta,
+        select_forced_seed_row,
+        summarize_forced_photometry,
+    )
+
+    assert callable(discover_and_index_fits)
+    assert callable(filter_fits_by_elevation)
+    assert callable(fit_gaussian2d_cutout)
+    assert callable(index_discovered_fits)
+    assert callable(plot_forced_cutouts)
+    assert callable(resolve_forced_fits_path)
+    assert callable(seed_row_from_meta)
+    assert callable(select_forced_seed_row)
+    assert callable(summarize_forced_photometry)
+    assert ForcedPhotometryConfig().min_elevation_deg == 10.0
+    assert ForcedPhotometryConfig().cutout_size_pix == 64
+    assert hasattr(ForcedPhotometryResult, "__dataclass_fields__")
+
+
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
         detect_sources,
