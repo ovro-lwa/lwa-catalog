@@ -12,6 +12,18 @@ from lwa_catalog.io import (
     write_metacatalog,
     write_sources_catalog,
 )
+from lwa_catalog.catalog_index import (
+    DEFAULT_DISPLAY_COLUMNS,
+    apply_quality_mask,
+    apply_radio_qa_filter,
+    classify_catalog,
+    discover_catalog_dirs,
+    inventory_catalogs,
+    is_metacatalog_parquet,
+    load_display_column_prefs,
+    load_metacatalog_frame,
+    save_display_column_prefs,
+)
 from lwa_catalog.paths import CatalogLayout
 
 try:
@@ -21,13 +33,23 @@ except ImportError:  # pragma: no cover - editable / missing hatch-vcs build
 
 __all__ = [
     "CatalogLayout",
+    "DEFAULT_DISPLAY_COLUMNS",
     "__version__",
+    "apply_quality_mask",
+    "apply_radio_qa_filter",
+    "classify_catalog",
+    "discover_catalog_dirs",
     "empty_sources_table",
+    "inventory_catalogs",
+    "is_metacatalog_parquet",
+    "load_display_column_prefs",
+    "load_metacatalog_frame",
     "migrate_output_dir",
     "read_metacatalog",
     "read_sources_catalog",
     "resolve_metacatalog_path",
     "rewrite_output_dir_gaul_columns",
+    "save_display_column_prefs",
     "write_metacatalog",
     "write_sources_catalog",
 ]

@@ -15,6 +15,10 @@ def test_package_version_and_exports() -> None:
     assert hasattr(lwa_catalog, "read_metacatalog")
     assert hasattr(lwa_catalog, "resolve_metacatalog_path")
     assert hasattr(lwa_catalog, "write_metacatalog")
+    assert hasattr(lwa_catalog, "inventory_catalogs")
+    assert hasattr(lwa_catalog, "discover_catalog_dirs")
+    assert hasattr(lwa_catalog, "apply_radio_qa_filter")
+    assert hasattr(lwa_catalog, "is_metacatalog_parquet")
 
 
 def test_pyarrow_parquet_importable() -> None:
