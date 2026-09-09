@@ -26,6 +26,7 @@ from lwa_catalog.viz.aladin_view import (
     restore_aladin_view,
 )
 from lwa_catalog.viz.bands import band_overlay_color, resolve_band_labels
+from lwa_catalog.viz.browser import CatalogBrowser, CatalogBrowserConfig
 from lwa_catalog.viz.coordinates import format_coordinate_deg, nearest_sources, parse_coordinate
 from lwa_catalog.viz.hips import (
     SURVEY_HIPS_URLS,
@@ -40,6 +41,8 @@ from lwa_catalog.viz.hips import (
 )
 
 __all__ = [
+    "CatalogBrowser",
+    "CatalogBrowserConfig",
     "DebouncedAladinViewRefresh",
     "OverlayResult",
     "SURVEY_HIPS_URLS",
