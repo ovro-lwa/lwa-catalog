@@ -82,12 +82,13 @@ Cache is **path existence**, not content hashing.
 | Package | Owns |
 | ------- | ---- |
 | `lwa_catalog.paths.CatalogLayout` | All on-disk names |
+| `lwa_catalog.catalog_index` | Discover catalog dirs; classify / inventory Parquets; row filters; display-column prefs |
 | `lwa_catalog.schemas` | Arrow schemas per layer; extras via `include_extras=True` |
 | `lwa_catalog.io` | Parquet `read_*` / `write_*`; pandas by default, `as_table=True` for Arrow |
 | `lwa_catalog.constants` | Bands, beams, frequencies, required columns, overlay colors |
 | `lwa_catalog.create` | Discover FITS, PyBDSF detect, LST merge, band fusion |
-| `lwa_catalog.analyze` | Post-hoc science: reliability, VLSSR/NVSS/VLASS/NED-LVS, spectral, attach, rematch, Mahalanobis, HiPS maps |
-| `lwa_catalog.viz` | Aladin overlays, HiPS URLs, FOV filter, coordinates |
+| `lwa_catalog.analyze` | Post-hoc science: reliability, VLSSR/NVSS/VLASS/NED-LVS, spectral, forced photometry, attach, rematch, Mahalanobis, HiPS maps |
+| `lwa_catalog.viz` | Aladin overlays, HiPS URLs, FOV filter/restore, coordinates, `CatalogBrowser` |
 
 **Post-hoc science belongs in `analyze/` (and `viz/`), not in fusion.** Do not
 attach Fit-QA flags, `spec_*`, survey match flags, overlay state, or Mahalanobis
@@ -161,7 +162,10 @@ attach.
 The representative row is **not** a cluster aggregate. Positions, fluxes, and
 `Resid_Isl_*` come from the chosen member. Cluster summaries at merge time:
 
-- `n_lst_contributions` — detection **count** (can exceed unique hours)
+- `n_lst_contributions` — unique LST **images** in the cluster (`len` of
+  unique `lst_hour` labels). Same-hour Gaussians still cluster, but they
+  count as one contribution. After band/subband fusion this is the **sum** of
+  those per-band counts on the merged `meta_id`.
 - `lst_hours` — sorted unique hours
 - `representative_lst`
 - `Peak_flux_std` (`ddof=1`; NaN if <2 finite)
@@ -279,7 +283,9 @@ Three related but **not interchangeable** layers:
    (avoids double rematch I/O).
 3. **`quality_flag` bitmask** (`SourceQualityFlag`): 0 = check passed, 1 =
    concern. `quality_flag == 0` means every implemented check passed. Bits
-   16–31 reserved. Written to `metacatalog_quality.parquet`.
+   0–16 are defined (through `NEAR_BRIGHT_SIDELOBE`: faint source within
+   2–4 × bright-neighbor BMAJ of a ≥10× brighter neighbor). Bits 17–31
+   reserved. Written to `metacatalog_quality.parquet`.
 
 Do not conflate **percentile QA** (Fit quality, Mahalanobis) with **absolute
 library cuts** (reliability E3 / `RESID_ABS_FAIL`).
@@ -292,6 +298,8 @@ LST-merged” is stale).
 
 Multi-image (`passes_multi_image`): `n_lst_contributions ≥ 2` **or** ≥2 bands
 in `bands_present` with `n_assoc_* == 1`. Confused bands do not count.
+On a fused subband row, `n_lst_contributions` is already the sum across
+merged subbands, so a source seen once in two subbands has count 2.
 
 Unique-assoc default: **on for gold, off for cleaned**.
 
@@ -346,6 +354,8 @@ UI lives at the bottom of `metacatalog_query.ipynb` (and
 
 - Mix-and-match: **Catalog dropdown and HiPS dropdown are independent.** Do not
   sync catalog to HiPS survey.
+- Shared HiPS / view helpers live in `lwa_catalog.viz` (`preferred_hips_survey`,
+  `fetch_catalog_hips_surveys`, `restore_aladin_view`, `nearest_sources`).
 - ipyaladin 0.8: one base `survey` + one `overlay_survey`. **Cannot stack
   NVSS+VLASS rasters.** Radio QA toggles **one** of LWA / VLSSR / NVSS / VLASS.
 - Vector overlays (ellipses + markers) can be multi-catalog. LWA uses
@@ -359,9 +369,11 @@ UI lives at the bottom of `metacatalog_query.ipynb` (and
 - Browser fetches HiPS tiles (kernel does not). URLs must be reachable from
   the user’s browser (SSH tunnels). Local `/fast/claw` HiPS are LWA-only;
   VLSSR/NVSS/VLASS use public CDS/NRAO URLs (`survey_hips_url`).
-- Sky wiring stays in notebooks (`CatalogBrowser`, `RadioCrossmatchSkyQA`);
-  reusable helpers live in `lwa_catalog.viz`. Pan/zoom uses
-  `DebouncedAladinViewRefresh`. Explicit **Load sky view** / **Run**.
+- Sky wiring stays in notebooks (`CatalogBrowser` config + instantiate,
+  `RadioCrossmatchSkyQA`); the reusable `CatalogBrowser` class lives in
+  `lwa_catalog.viz.browser`. Other helpers live in `lwa_catalog.viz` (HiPS
+  preference / fetch, FOV restore, nearest-source match, overlays). Pan/zoom
+  uses `DebouncedAladinViewRefresh`. Explicit **Load sky view** / **Run**.
 
 ---
 
