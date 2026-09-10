@@ -120,8 +120,12 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
 - Prefer `RA---CAR`/`DEC--CAR` if detecting on a CAR mosaic.
   `GLON-CAR`/`GLAT-CAR` still write columns named `RA`/`DEC` but the numbers
   are Galactic.
-- lwa-healpix `min_elevation` assumes `CRVAL` is zenith — valid for native
-  hourly SIN, **wrong** on reprojected CAR/HEALPix.
+- After `prepare_hdu`, `detect_sources` blanks pixels below
+  `min_elevation_deg` (default **10°**, `None` to disable) to **NaN** via
+  `blank_below_elevation` — same CRVAL-as-zenith model as lwa-healpix coadd.
+  Do not zero-fill. Valid for native hourly SIN; **wrong** when `CRVAL` is
+  not zenith (NCP mosaic, reprojected CAR/HEALPix). Mosaic detect blanks in
+  coadd and calls `run_pybdsf_on_hdu` directly (skips this path).
 - Missing hours are skipped, not filled. Merge does not require 24 hours.
 
 `GAUL_COLUMNS` kept from PyBDSF: positions, fluxes, shapes, `Resid_Isl_rms`,
@@ -284,7 +288,7 @@ Three related but **not interchangeable** layers:
 3. **`quality_flag` bitmask** (`SourceQualityFlag`): 0 = check passed, 1 =
    concern. `quality_flag == 0` means every implemented check passed. Bits
    0–16 are defined (through `NEAR_BRIGHT_SIDELOBE`: faint source within
-   2–4 × bright-neighbor BMAJ of a ≥10× brighter neighbor). Bits 17–31
+   2–4 × bright-neighbor BMAJ of a ≥30× brighter neighbor). Bits 17–31
    reserved. Written to `metacatalog_quality.parquet`.
 
 Do not conflate **percentile QA** (Fit quality, Mahalanobis) with **absolute
@@ -391,15 +395,16 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `ovro_lwa_metacatalog_subband.ipynb` | Same on 15 MHz subbands |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd experiment vs LST-merged catalog |
 | `metacatalog_query.ipynb` | Browse, sky overlay, **source trace**, Mahalanobis |
-| `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS |
+| `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + source trace |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
 | `metacatalog_spectral_modeling.ipynb` | Taylor SED fits |
 | `radio_crossmatch.ipynb` | NVSS/VLASS/VLSSR match, survey attach, Visual QA |
 | `metacatalog_nedlvs_crossmatch.ipynb` | Galaxy host association (later than this distillation) |
 | `target_samples.ipynb` | Class samples for the query browser |
 
-Trace UI is **query-notebook only**. Do not put rematch cells back into
-`ovro_lwa_metacatalog.ipynb`.
+Trace UI lives in **`metacatalog_query.ipynb`** and the reliability HiPS viewer
+(`metacatalog_reliability.ipynb`: map click → nearest `meta_id`, then **Load
+trace**). Do not put rematch cells back into `ovro_lwa_metacatalog.ipynb`.
 
 ---
 
