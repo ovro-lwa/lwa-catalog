@@ -626,9 +626,9 @@ def test_flag_near_bright_sidelobe_annulus_and_ratio() -> None:
     flagged = flag_near_bright_sidelobe(df)
     assert flagged.tolist() == [False, False, True, False]
 
-    # Same geometry but only 5× fainter → no flag (needs ≥10×).
+    # Same geometry but only 10× fainter → no flag (needs ≥30×).
     df_close = df.copy()
-    df_close["Peak_flux"] = [100.0, 20.0, 20.0, 20.0]
+    df_close["Peak_flux"] = [100.0, 10.0, 10.0, 10.0]
     assert flag_near_bright_sidelobe(df_close).tolist() == [False, False, False, False]
 
     packed = pack_quality_flags(pd.DataFrame({"near_bright_sidelobe": [True]}))

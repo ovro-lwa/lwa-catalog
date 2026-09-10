@@ -14,8 +14,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.table import Table
+from astropy.wcs import WCS
 
 from lwa_catalog.constants import GAUL_DETECTION_COLUMNS
 from lwa_catalog.coords import normalize_ra_columns
@@ -33,6 +35,9 @@ DEFAULT_BDSF_KW: dict[str, Any] = {
     "quiet": True,
     "ncores": 1,
 }
+
+# Match lwa-healpix coadd / mosaic ``min_elevation`` (degrees). ``None`` disables.
+DEFAULT_MIN_ELEVATION_DEG: float | None = 10.0
 
 # Force a constant background so PyBDSF skips sliding-box ``bstat`` maps.
 _CONSTANT_RMS_FALLBACK_KW: dict[str, Any] = {
@@ -109,6 +114,7 @@ def _detect_and_write_sources(
     bdsf_kw: Mapping[str, Any] | None,
     gaul_columns: Sequence[str],
     upsample_factor: int,
+    min_elevation_deg: float | None,
     process_kw: Mapping[str, Any],
 ) -> tuple[str, int]:
     """Run detection and write Parquet in the worker; return path and row count."""
@@ -117,6 +123,7 @@ def _detect_and_write_sources(
         bdsf_kw=bdsf_kw,
         gaul_columns=gaul_columns,
         upsample_factor=upsample_factor,
+        min_elevation_deg=min_elevation_deg,
         **process_kw,
     )
     path = Path(catalog_path)
@@ -162,6 +169,41 @@ def prepare_hdu(path: Path) -> fits.PrimaryHDU:
         header["RESTFREQ"] = rf
         header["RESTFRQ"] = rf
     return fits.PrimaryHDU(data=data, header=header)
+
+
+def blank_below_elevation(
+    hdu: fits.PrimaryHDU,
+    min_elevation_deg: float,
+) -> fits.PrimaryHDU:
+    """Set pixels below *min_elevation_deg* to NaN (same model as lwa-healpix coadd).
+
+    Elevation is ``90° − separation(pixel, CRVAL)``, treating the image
+    reference point as local zenith. Valid for native zenith-pointed SIN
+    hourly images; **wrong** when ``CRVAL`` is not zenith (e.g. NCP mosaic,
+    reprojected CAR/HEALPix).
+
+    Mutates ``hdu.data`` in place and returns *hdu*. PyBDSF blanks NaNs;
+    do not zero-fill.
+    """
+    data = np.asarray(hdu.data, dtype=np.float32)
+    if data.ndim != 2:
+        msg = f"Expected 2D image, got shape {data.shape}"
+        raise ValueError(msg)
+    wcs_2d = WCS(hdu.header).celestial
+    ny, nx = data.shape
+    y, x = np.mgrid[:ny, :nx]
+    sky = wcs_2d.pixel_to_world(x, y)
+    center = SkyCoord(
+        wcs_2d.wcs.crval[0],
+        wcs_2d.wcs.crval[1],
+        unit="deg",
+        frame=sky.frame.name,
+    )
+    elevation = 90.0 - sky.separation(center).deg
+    data = np.array(data, dtype=np.float32, copy=True)
+    data[elevation < float(min_elevation_deg)] = np.nan
+    hdu.data = data
+    return hdu
 
 
 def upsample_hdu(hdu: fits.PrimaryHDU, *, factor: int = 2) -> fits.PrimaryHDU:
@@ -344,6 +386,7 @@ def detect_sources(
     bdsf_kw: Mapping[str, Any] | None = None,
     gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
     upsample_factor: int = 1,
+    min_elevation_deg: float | None = DEFAULT_MIN_ELEVATION_DEG,
     **process_kw: Any,
 ) -> pd.DataFrame:
     """Detect sources in one FITS image; return a catalog DataFrame.
@@ -360,6 +403,10 @@ def detect_sources(
         Integer upsampling factor applied to the image before PyBDSF (``1`` =
         native pixels). WCS ``CDELT*`` / ``CRPIX*`` are updated; ``BMAJ`` /
         ``BMIN`` / ``BPA`` are taken from the native image header.
+    min_elevation_deg
+        Blank pixels below this elevation (degrees) to NaN after
+        :func:`prepare_hdu`, matching lwa-healpix coadd. ``None`` disables.
+        Assumes ``CRVAL`` is zenith (native hourly SIN).
     **process_kw
         Extra keywords forwarded to ``bdsf.process_image``.
 
@@ -371,6 +418,8 @@ def detect_sources(
     ``{outdir}/{lst_hour}_{band}/in_memory_pybdsf/background/in_memory.pybdsf.rmsd_I.fits``.
     """
     hdu = prepare_hdu(meta.path)
+    if min_elevation_deg is not None:
+        blank_below_elevation(hdu, min_elevation_deg)
     bmaj, bmin, bpa = beam_from_header(hdu.header)
     if upsample_factor != 1:
         hdu = upsample_hdu(hdu, factor=upsample_factor)
@@ -411,6 +460,7 @@ def iter_detect_sources(
     bdsf_kw: Mapping[str, Any] | None = None,
     gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
     upsample_factor: int = 1,
+    min_elevation_deg: float | None = DEFAULT_MIN_ELEVATION_DEG,
     **process_kw: Any,
 ) -> Iterator[tuple[FitsMetadata, Path, int]]:
     """Yield ``(meta, catalog_path, n_sources)`` as each image finishes.
@@ -429,7 +479,7 @@ def iter_detect_sources(
     n_jobs
         Number of worker processes. ``None`` uses all CPUs available to this
         process. ``1`` runs serially in the current process.
-    bdsf_kw, gaul_columns, upsample_factor, **process_kw
+    bdsf_kw, gaul_columns, upsample_factor, min_elevation_deg, **process_kw
         Forwarded to :func:`detect_sources` for every image.
     """
     if not metas:
@@ -448,7 +498,15 @@ def iter_detect_sources(
     gaul_cols = tuple(gaul_columns)
     proc_kw = dict(process_kw)
     tasks = [
-        (meta, Path(path), bdsf_kw, gaul_cols, upsample_factor, proc_kw)
+        (
+            meta,
+            Path(path),
+            bdsf_kw,
+            gaul_cols,
+            upsample_factor,
+            min_elevation_deg,
+            proc_kw,
+        )
         for meta, path in zip(metas, catalog_paths, strict=True)
     ]
 
@@ -481,6 +539,7 @@ def detect_sources_many(
     bdsf_kw: Mapping[str, Any] | None = None,
     gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
     upsample_factor: int = 1,
+    min_elevation_deg: float | None = DEFAULT_MIN_ELEVATION_DEG,
     **process_kw: Any,
 ) -> list[pd.DataFrame]:
     """Detect sources in many FITS images, parallelizing across images.
@@ -499,7 +558,7 @@ def detect_sources_many(
     n_jobs
         Number of worker processes. ``None`` uses all CPUs available to this
         process. ``1`` runs serially in the current process.
-    bdsf_kw, gaul_columns, upsample_factor, **process_kw
+    bdsf_kw, gaul_columns, upsample_factor, min_elevation_deg, **process_kw
         Forwarded to :func:`detect_sources` for every image.
 
     Returns
@@ -517,6 +576,7 @@ def detect_sources_many(
         bdsf_kw=bdsf_kw,
         gaul_columns=gaul_columns,
         upsample_factor=upsample_factor,
+        min_elevation_deg=min_elevation_deg,
         **process_kw,
     ):
         df = read_table(out_path, as_pandas=True)

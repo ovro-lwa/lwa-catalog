@@ -160,7 +160,7 @@ class SourceQualityFlag(IntFlag):
     15     LARGE_SINGLE          (EXTENDED or HIGH_ELLIPTICITY) and
                                  (SINGLE_UNIQUE_BAND or SINGLE_LST)
     16     NEAR_BRIGHT_SIDELOBE  within 2–4 × bright-neighbor BMAJ of a
-                                 source ≥10× brighter (likely sidelobe)
+                                 source ≥30× brighter (likely sidelobe)
     ====== ===================== =================================================
     """
 
@@ -225,7 +225,7 @@ _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
         "(extended OR high_ellipticity) AND (single_unique_band OR single_lst)"
     ),
     SourceQualityFlag.NEAR_BRIGHT_SIDELOBE: (
-        "within 2–4 × bright-neighbor BMAJ of a source ≥10× brighter"
+        "within 2–4 × bright-neighbor BMAJ of a source ≥30× brighter"
     ),
 }
 
@@ -245,7 +245,7 @@ class ReliabilityConfig:
     extended_bmaj_ratio: float = 3.0
     sidelobe_sep_bmaj_lo: float = 2.0
     sidelobe_sep_bmaj_hi: float = 4.0
-    sidelobe_flux_ratio: float = 10.0
+    sidelobe_flux_ratio: float = 30.0
     min_lst_contributions: int = 2
     require_unique_assoc_include: bool = True
     require_unique_assoc_exclude: bool = False
@@ -559,7 +559,7 @@ def flag_near_bright_sidelobe(
     *,
     sep_bmaj_lo: float = 2.0,
     sep_bmaj_hi: float = 4.0,
-    flux_ratio: float = 10.0,
+    flux_ratio: float = 30.0,
     peak_flux: pd.Series | None = None,
     bmaj: pd.Series | np.ndarray | None = None,
 ) -> pd.Series:

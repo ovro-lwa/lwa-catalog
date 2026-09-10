@@ -185,6 +185,7 @@ def test_analyze_forced_photometry_exports() -> None:
 
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
+        blank_below_elevation,
         detect_sources,
         detect_sources_many,
         discover_fits_files,
@@ -192,6 +193,7 @@ def test_create_apis_importable() -> None:
         merge_lst_metacatalog,
     )
 
+    assert callable(blank_below_elevation)
     assert callable(detect_sources)
     assert callable(detect_sources_many)
     assert callable(iter_detect_sources)

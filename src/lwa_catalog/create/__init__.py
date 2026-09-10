@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from lwa_catalog.create.detect import (
+    blank_below_elevation,
     detect_sources,
     detect_sources_many,
     iter_detect_sources,
@@ -32,6 +33,7 @@ __all__ = [
     "add_spectral_indices",
     "associate_band_into_metacatalog",
     "associate_catalogs",
+    "blank_below_elevation",
     "build_global_metacatalog",
     "build_subband_metacatalog",
     "catalog_elevation_deg",
