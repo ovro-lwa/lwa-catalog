@@ -25,6 +25,7 @@ from lwa_catalog.analyze.reliability import (
     flag_invalid_astrometry_flux,
     flag_jitter_exceeds,
     flag_low_elevation,
+    flag_near_bright_sidelobe,
     flag_residual_absolute,
     flag_residual_percentile,
     flag_single_unique_band,
@@ -486,8 +487,8 @@ def test_assert_gold_subset_warns() -> None:
 
 def test_quality_flag_pack_and_decode() -> None:
     legend = quality_flag_legend()
-    assert len(legend) == 16
-    assert set(legend["bit"]) == set(range(16))
+    assert len(legend) == 17
+    assert set(legend["bit"]) == set(range(17))
     flags = pd.DataFrame(
         {
             "has_nan": [True, False],
@@ -506,6 +507,7 @@ def test_quality_flag_pack_and_decode() -> None:
             "high_ellipticity": [False, False],
             "extended": [False, False],
             "large_single": [False, False],
+            "near_bright_sidelobe": [False, False],
         }
     )
     packed = pack_quality_flags(flags)
@@ -608,6 +610,30 @@ def test_flag_extended() -> None:
     packed = pack_quality_flags(pd.DataFrame({"extended": [True]}))
     assert int(packed[0]) == int(SourceQualityFlag.EXTENDED)
     assert decode_quality_flag(int(packed[0])) == ["EXTENDED"]
+
+
+def test_flag_near_bright_sidelobe_annulus_and_ratio() -> None:
+    # Bright at origin; faint candidates at 1, 3, and 5 × BMAJ along RA.
+    bmaj = 1.0
+    df = pd.DataFrame(
+        {
+            "RA": [0.0, 1.0, 3.0, 5.0],
+            "DEC": [0.0, 0.0, 0.0, 0.0],
+            "Peak_flux": [100.0, 1.0, 1.0, 1.0],
+            "BMAJ_match": [bmaj, bmaj, bmaj, bmaj],
+        }
+    )
+    flagged = flag_near_bright_sidelobe(df)
+    assert flagged.tolist() == [False, False, True, False]
+
+    # Same geometry but only 5× fainter → no flag (needs ≥10×).
+    df_close = df.copy()
+    df_close["Peak_flux"] = [100.0, 20.0, 20.0, 20.0]
+    assert flag_near_bright_sidelobe(df_close).tolist() == [False, False, False, False]
+
+    packed = pack_quality_flags(pd.DataFrame({"near_bright_sidelobe": [True]}))
+    assert int(packed[0]) == int(SourceQualityFlag.NEAR_BRIGHT_SIDELOBE)
+    assert decode_quality_flag(int(packed[0])) == ["NEAR_BRIGHT_SIDELOBE"]
 
 
 def test_large_single_composite_logic() -> None:

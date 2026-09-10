@@ -148,6 +148,24 @@ def test_merge_lst_keeps_well_separated_sources_apart() -> None:
     assert (merged["n_lst_contributions"] == 1).all()
 
 
+def test_merge_lst_same_hour_detections_count_as_one_image() -> None:
+    """Two Gaussians in one LST hour still cluster, but count as one image."""
+    catalogs = [
+        pd.DataFrame(
+            [
+                _src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full"),
+                _src(ra=10.01, dec=20.0, peak=1.2, lst_hour="01h", band="Full"),
+            ]
+        ),
+        pd.DataFrame([_src(ra=10.02, dec=20.0, peak=0.9, lst_hour="02h", band="Full")]),
+    ]
+    merged = merge_lst_metacatalog(catalogs, band="Full")
+    assert len(merged) == 1
+    row = merged.iloc[0]
+    assert int(row["n_lst_contributions"]) == 2
+    assert row["lst_hours"] == "01h,02h"
+
+
 def test_build_global_picks_highest_elevation_blue_when_multiple_in_beam() -> None:
     # Source near RA=30° (LST 02h). Brighter Blue at 01h would win under median/
     # max-flux; elevation at transit prefers the fainter 02h Blue.
@@ -406,6 +424,7 @@ def test_build_global_preserves_per_band_flux_fields() -> None:
     assert float(row["E_Peak_flux_Blue"]) == 0.15
     assert float(row["E_Total_flux_Blue"]) == 1.2
     assert np.isnan(float(row["Peak_flux_std_Blue"]))
+    assert int(row["n_lst_contributions"]) == 3
 
 
 def test_build_global_metacatalog_forwards_band_freq_hz() -> None:
@@ -497,6 +516,54 @@ def test_build_subband_metacatalog_flux_only_and_highest_freq_astrometry() -> No
     assert float(row["Peak_flux_18MHz"]) == 1.0
     assert float(row["E_Peak_flux_18MHz"]) == 0.1
     assert "alpha_23_27" not in meta.columns
+    assert int(row["n_lst_contributions"]) == 3
+
+
+def test_build_subband_metacatalog_sums_n_lst_contributions() -> None:
+    """Fused subband n_lst_contributions is the sum of each merged band."""
+    bands = ("18MHz", "23MHz", "27MHz")
+    catalogs = {
+        "27MHz": pd.DataFrame(
+            [
+                {
+                    **_src(ra=10.0, dec=20.0, peak=2.0, lst_hour="01h", band="27MHz"),
+                    "n_lst_contributions": 2,
+                    "lst_hours": "01h,02h",
+                    "representative_lst": "01h",
+                }
+            ]
+        ),
+        "23MHz": pd.DataFrame(
+            [
+                {
+                    **_src(ra=10.05, dec=20.0, peak=1.5, lst_hour="01h", band="23MHz"),
+                    "n_lst_contributions": 3,
+                    "lst_hours": "01h,02h,03h",
+                    "representative_lst": "02h",
+                }
+            ]
+        ),
+        "18MHz": pd.DataFrame(
+            [
+                {
+                    **_src(ra=10.2, dec=20.1, peak=1.0, lst_hour="01h", band="18MHz"),
+                    "n_lst_contributions": 1,
+                    "lst_hours": "01h",
+                    "representative_lst": "01h",
+                }
+            ]
+        ),
+    }
+    freq = {b: float(b.removesuffix("MHz")) * 1e6 for b in bands}
+    meta = build_subband_metacatalog(
+        catalogs,
+        seed_band="27MHz",
+        assoc_bands=("23MHz", "18MHz"),
+        color_bands=bands,
+        band_freq_hz=freq,
+    )
+    assert len(meta) == 1
+    assert int(meta.iloc[0]["n_lst_contributions"]) == 6
 
 
 def test_build_subband_metacatalog_low_freq_only_row() -> None:

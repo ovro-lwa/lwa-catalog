@@ -137,7 +137,7 @@ class SourceQualityFlag(IntFlag):
 
     A bit is **0 when that check is good/reliable** and **1 when the property
     is a quality concern**. ``quality_flag == 0`` means every implemented check
-    passed. Bits 16–31 are reserved (stay 0).
+    passed. Bits 17–31 are reserved (stay 0).
 
     ====== ===================== =================================================
     Bit    Name                  Set (1) when
@@ -159,6 +159,8 @@ class SourceQualityFlag(IntFlag):
     14     EXTENDED              ``Maj > 3 × BMAJ`` (resolved match beam)
     15     LARGE_SINGLE          (EXTENDED or HIGH_ELLIPTICITY) and
                                  (SINGLE_UNIQUE_BAND or SINGLE_LST)
+    16     NEAR_BRIGHT_SIDELOBE  within 2–4 × bright-neighbor BMAJ of a
+                                 source ≥10× brighter (likely sidelobe)
     ====== ===================== =================================================
     """
 
@@ -178,6 +180,7 @@ class SourceQualityFlag(IntFlag):
     HIGH_ELLIPTICITY = 1 << 13
     EXTENDED = 1 << 14
     LARGE_SINGLE = 1 << 15
+    NEAR_BRIGHT_SIDELOBE = 1 << 16
 
 
 _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
@@ -197,6 +200,7 @@ _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
     ("high_ellipticity", SourceQualityFlag.HIGH_ELLIPTICITY),
     ("extended", SourceQualityFlag.EXTENDED),
     ("large_single", SourceQualityFlag.LARGE_SINGLE),
+    ("near_bright_sidelobe", SourceQualityFlag.NEAR_BRIGHT_SIDELOBE),
 )
 
 _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
@@ -220,6 +224,9 @@ _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
     SourceQualityFlag.LARGE_SINGLE: (
         "(extended OR high_ellipticity) AND (single_unique_band OR single_lst)"
     ),
+    SourceQualityFlag.NEAR_BRIGHT_SIDELOBE: (
+        "within 2–4 × bright-neighbor BMAJ of a source ≥10× brighter"
+    ),
 }
 
 
@@ -236,6 +243,9 @@ class ReliabilityConfig:
     min_elevation_deg: float = 10.0
     max_source_ellipticity: float = 3.0
     extended_bmaj_ratio: float = 3.0
+    sidelobe_sep_bmaj_lo: float = 2.0
+    sidelobe_sep_bmaj_hi: float = 4.0
+    sidelobe_flux_ratio: float = 10.0
     min_lst_contributions: int = 2
     require_unique_assoc_include: bool = True
     require_unique_assoc_exclude: bool = False
@@ -542,6 +552,108 @@ def flag_extended(
     ok = maj.notna() & np.isfinite(bmaj) & (bmaj > 0.0)
     extended = ok & (maj > thresh)
     return extended.fillna(False).rename(name)
+
+
+def flag_near_bright_sidelobe(
+    df: pd.DataFrame,
+    *,
+    sep_bmaj_lo: float = 2.0,
+    sep_bmaj_hi: float = 4.0,
+    flux_ratio: float = 10.0,
+    peak_flux: pd.Series | None = None,
+    bmaj: pd.Series | np.ndarray | None = None,
+) -> pd.Series:
+    """True when a source sits 2–4 beams from a neighbor ≥``flux_ratio``× brighter.
+
+    Separation is scaled by the **brighter** neighbor's BMAJ (degrees). Only the
+    fainter source is flagged. Soft semantics: missing coords / flux / BMAJ do
+    not set the bit.
+    """
+    name = "near_bright_sidelobe"
+    n = len(df)
+    if n == 0:
+        return pd.Series(dtype=bool, name=name)
+    if "RA" not in df.columns or "DEC" not in df.columns:
+        return pd.Series(False, index=df.index, dtype=bool, name=name)
+
+    lo = float(sep_bmaj_lo)
+    hi = float(sep_bmaj_hi)
+    if not (np.isfinite(lo) and np.isfinite(hi) and hi > lo >= 0.0):
+        msg = f"Need finite 0 ≤ sep_bmaj_lo < sep_bmaj_hi; got {lo!r}, {hi!r}"
+        raise ValueError(msg)
+    ratio = float(flux_ratio)
+    if not (np.isfinite(ratio) and ratio > 1.0):
+        msg = f"flux_ratio must be finite and > 1; got {ratio!r}"
+        raise ValueError(msg)
+
+    ra = pd.to_numeric(df["RA"], errors="coerce").to_numpy(dtype=float)
+    dec = pd.to_numeric(df["DEC"], errors="coerce").to_numpy(dtype=float)
+    if peak_flux is None:
+        flux = representative_peak_flux(df).to_numpy(dtype=float)
+    else:
+        flux = pd.to_numeric(peak_flux, errors="coerce").reindex(df.index).to_numpy(
+            dtype=float
+        )
+    if bmaj is None:
+        bmaj_arr = df.apply(resolve_bmaj, axis=1).to_numpy(dtype=float)
+    else:
+        bmaj_arr = np.asarray(
+            pd.to_numeric(pd.Series(bmaj, index=df.index), errors="coerce"),
+            dtype=float,
+        )
+
+    out = np.zeros(n, dtype=bool)
+    usable = (
+        np.isfinite(ra)
+        & np.isfinite(dec)
+        & np.isfinite(flux)
+        & (flux > 0.0)
+        & np.isfinite(bmaj_arr)
+        & (bmaj_arr > 0.0)
+    )
+    idx = np.flatnonzero(usable)
+    if idx.size < 2:
+        return pd.Series(out, index=df.index, dtype=bool, name=name)
+
+    sc = SkyCoord(ra=ra[idx] * u.deg, dec=dec[idx] * u.deg)
+    search_radius = float(hi * float(np.nanmax(bmaj_arr[idx]))) * u.deg
+    if not np.isfinite(search_radius.value) or search_radius.value <= 0.0:
+        return pd.Series(out, index=df.index, dtype=bool, name=name)
+
+    idx1, idx2, sep2d, _ = sc.search_around_sky(sc, search_radius)
+    if len(idx1) == 0:
+        return pd.Series(out, index=df.index, dtype=bool, name=name)
+
+    # Keep undirected pairs once (i < j) and drop self-matches.
+    keep_pair = idx1 < idx2
+    idx1 = idx1[keep_pair]
+    idx2 = idx2[keep_pair]
+    sep_deg = sep2d.to(u.deg).value[keep_pair]
+    if len(idx1) == 0:
+        return pd.Series(out, index=df.index, dtype=bool, name=name)
+
+    i_global = idx[idx1]
+    j_global = idx[idx2]
+    flux_i = flux[i_global]
+    flux_j = flux[j_global]
+    bmaj_i = bmaj_arr[i_global]
+    bmaj_j = bmaj_arr[j_global]
+
+    # Case A: j is the bright neighbor of faint i
+    bright_j = flux_j >= (ratio * flux_i)
+    scale_j = bmaj_j
+    in_annulus_j = (sep_deg >= lo * scale_j) & (sep_deg <= hi * scale_j)
+    hit_i = bright_j & in_annulus_j
+
+    # Case B: i is the bright neighbor of faint j
+    bright_i = flux_i >= (ratio * flux_j)
+    scale_i = bmaj_i
+    in_annulus_i = (sep_deg >= lo * scale_i) & (sep_deg <= hi * scale_i)
+    hit_j = bright_i & in_annulus_i
+
+    out[i_global[hit_i]] = True
+    out[j_global[hit_j]] = True
+    return pd.Series(out, index=df.index, dtype=bool, name=name)
 
 
 def flag_residual_percentile(
@@ -1422,8 +1534,9 @@ def assign_source_quality_flags(
 
     Reuses the reliability context (seed LST residuals, unphysical flux, jitter,
     confused association) and adds NaN, single-LST, single-band association,
-    residual-percentile, VLSSR, and ``S_Code`` bits. Bit 0 on each flag means
-    that check is good/reliable; ``quality_flag == 0`` means all checks passed.
+    residual-percentile, VLSSR, ``S_Code``, morphology, and near-bright-sidelobe
+    bits. Bit 0 on each flag means that check is good/reliable;
+    ``quality_flag == 0`` means all checks passed.
     """
     cfg = config or ReliabilityConfig()
     if metacatalog is None or metacatalog.empty:
@@ -1468,6 +1581,13 @@ def assign_source_quality_flags(
         (flags["extended"] | flags["high_ellipticity"])
         & (flags["single_unique_band"] | flags["single_lst"])
     ).to_numpy(dtype=bool)
+    flags["near_bright_sidelobe"] = flag_near_bright_sidelobe(
+        meta,
+        sep_bmaj_lo=cfg.sidelobe_sep_bmaj_lo,
+        sep_bmaj_hi=cfg.sidelobe_sep_bmaj_hi,
+        flux_ratio=cfg.sidelobe_flux_ratio,
+        bmaj=flags["bmaj_deg"],
+    ).to_numpy()
 
     quality = pack_quality_flags(flags)
     flags["quality_flag"] = quality

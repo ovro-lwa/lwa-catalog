@@ -334,8 +334,42 @@ def _cluster_by_sky_position(
     return clusters
 
 
+def _sorted_unique_lst_hours(members: pd.DataFrame) -> list[str]:
+    """Unique ``lst_hour`` labels in a cluster, sorted."""
+    return sorted(members["lst_hour"].astype(str).unique())
+
+
+def _n_lst_contributions_value(row: pd.Series) -> int:
+    """Finite ``n_lst_contributions`` from a band row, else 0."""
+    raw = row.get("n_lst_contributions", np.nan)
+    try:
+        if pd.isna(raw):
+            return 0
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _accumulate_n_lst_contributions(entry: dict, band_row: pd.Series) -> None:
+    """Add an associated band's LST-image count onto a metacatalog row."""
+    added = _n_lst_contributions_value(band_row)
+    if added == 0:
+        return
+    current = entry.get("n_lst_contributions", 0)
+    try:
+        current_i = 0 if pd.isna(current) else int(current)
+    except (TypeError, ValueError):
+        current_i = 0
+    entry["n_lst_contributions"] = current_i + added
+
+
 def merge_lst_metacatalog(catalogs: Iterable[pd.DataFrame], *, band: str) -> pd.DataFrame:
-    """Fuse per-LST detections within one band → one row per source."""
+    """Fuse per-LST detections within one band → one row per source.
+
+    ``n_lst_contributions`` is the number of unique LST hours (images) in which
+    the source was identified, not the raw Gaussian count. Multiple detections
+    in the same hour still cluster together; they count as one contribution.
+    """
     frames = list(catalogs)
     if not frames:
         return pd.DataFrame()
@@ -348,9 +382,10 @@ def merge_lst_metacatalog(catalogs: Iterable[pd.DataFrame], *, band: str) -> pd.
     for members in _cluster_by_sky_position(combined):
         rep = _pick_highest_elevation_row(members)
         entry = rep.to_dict()
+        lst_hours = _sorted_unique_lst_hours(members)
         entry["band"] = band
-        entry["n_lst_contributions"] = len(members)
-        entry["lst_hours"] = ",".join(sorted(members["lst_hour"].astype(str).unique()))
+        entry["n_lst_contributions"] = len(lst_hours)
+        entry["lst_hours"] = ",".join(lst_hours)
         entry["representative_lst"] = rep["lst_hour"]
         entry["Peak_flux_std"] = _flux_std(members)
         entry.update(_lst_cluster_qa_fields(members, rep))
@@ -647,6 +682,7 @@ def merge_full_and_blue(
             sub = assoc_df.iloc[assoc_hits]
             best = _pick_highest_elevation_row(sub)
             _attach_band_columns(entry, best, assoc_band, len(assoc_hits), band_fields=band_fields)
+            _accumulate_n_lst_contributions(entry, best)
             if astrometry_from_highest_frequency:
                 _maybe_update_astrometry_from_band(
                     entry, best, assoc_band, band_freq_hz=band_freq_hz
@@ -748,6 +784,7 @@ def associate_band_into_metacatalog(
             sub = band_df.iloc[band_hits]
             best = _pick_associated_row(sub, representative)
             _attach_band_columns(entry, best, band, len(band_hits), band_fields=band_fields)
+            _accumulate_n_lst_contributions(entry, best)
             if astrometry_from_highest_frequency:
                 _maybe_update_astrometry_from_band(entry, best, band, band_freq_hz=band_freq_hz)
             _update_bands_present(entry, band, color_bands=color_bands)
@@ -802,6 +839,11 @@ def build_global_metacatalog(
     astrometry_from_highest_frequency
         When true, set top-level astrometry from the highest-frequency band
         present on each row (requires *band_freq_hz*).
+
+    Notes
+    -----
+    ``n_lst_contributions`` on the fused row is the sum of each associated
+    band's LST-image count (the value produced by :func:`merge_lst_metacatalog`).
     """
     merge_kw = _merge_build_kwargs(
         assoc_bands=assoc_bands,
@@ -864,8 +906,9 @@ def build_subband_metacatalog(
 
     Top-level ``RA``/``DEC``/shape come from the highest-frequency subband
     present on each row. Flux is stored only in ``{field}_{subband}`` columns.
-    No merge-time spectral indices (``alpha_*``); use post-hoc spectral modeling
-    in ``lwa_catalog.analyze`` instead.
+    ``n_lst_contributions`` is the sum of each merged subband's LST-image
+    count. No merge-time spectral indices (``alpha_*``); use post-hoc spectral
+    modeling in ``lwa_catalog.analyze`` instead.
     """
     return build_global_metacatalog(
         lst_merged,
