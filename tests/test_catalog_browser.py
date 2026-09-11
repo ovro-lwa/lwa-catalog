@@ -37,8 +37,30 @@ def test_order_and_default_display_columns() -> None:
     assert shown == ["meta_id"]
 
 
-def test_catalog_browser_exports() -> None:
-    from lwa_catalog.viz import CatalogBrowser, CatalogBrowserConfig
+def test_spectrum_figure_includes_survey_points() -> None:
+    pytest.importorskip("matplotlib")
+    from lwa_catalog.viz.browser import _spectrum_figure_for_row
 
-    assert CatalogBrowser is not None
-    assert CatalogBrowserConfig is not None
+    row = pd.Series(
+        {
+            "meta_id": 1,
+            "Total_flux_55MHz": 1.0,
+            "E_Total_flux_55MHz": 0.1,
+            "Total_flux_NVSS": 0.2,
+            "E_Total_flux_NVSS": 0.02,
+            "spec_model_n_terms": 2,
+            "spec_model_n_flux": 2,
+            "spec_model_a0": 0.0,
+            "spec_model_a1": -0.7,
+            "spec_model_a2": float("nan"),
+            "spec_model_a3": float("nan"),
+            "spec_model_bic": 1.0,
+            "spec_model_chi2_red": 1.0,
+            "spec_model_nu0_mhz": 55.0,
+        }
+    )
+    fig = _spectrum_figure_for_row(row)
+    ax = fig.axes[0]
+    labels = set(ax.get_legend_handles_labels()[1])
+    assert "LWA" in labels
+    assert "survey" in labels

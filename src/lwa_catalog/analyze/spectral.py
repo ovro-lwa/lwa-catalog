@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Sequence
 
 import numpy as np
 import pandas as pd
@@ -13,6 +13,9 @@ from lwa_catalog.constants import (
     SUBBAND_REF_FREQ_MHZ,
     band_frequency_hz,
 )
+
+# External survey bands optionally attached before spectral modeling.
+SURVEY_SED_BANDS: tuple[str, ...] = ("VLSSR", "NVSS", "VLASS")
 
 FluxKind = Literal["total", "peak"]
 _MIN_TAYLOR_TERMS = 2
@@ -57,6 +60,30 @@ def _flux_column_names(flux_kind: FluxKind) -> tuple[str, str]:
     if flux_kind == "peak":
         return "Peak_flux", "E_Peak_flux"
     return "Total_flux", "E_Total_flux"
+
+
+def resolve_sed_bands(
+    columns: pd.Series | pd.Index | Sequence[str],
+    *,
+    lwa_bands: Sequence[str] = SUBBAND_BANDS_MHZ,
+    survey_bands: Sequence[str] = SURVEY_SED_BANDS,
+    flux_kind: FluxKind = "total",
+) -> tuple[str, ...]:
+    """Return LWA + survey bands that have a ``{flux}_{band}`` column present.
+
+    Used by SED plots so VLSSR/NVSS/VLASS points appear when those columns exist
+    on a radio-enriched ``metacatalog_spectral.parquet`` row.
+    """
+    flux_prefix, _ = _flux_column_names(flux_kind)
+    if isinstance(columns, pd.Series):
+        names = {str(name) for name in columns.index}
+    else:
+        names = {str(name) for name in columns}
+    out: list[str] = []
+    for band in (*lwa_bands, *survey_bands):
+        if f"{flux_prefix}_{band}" in names and band not in out:
+            out.append(str(band))
+    return tuple(out)
 
 
 def gather_band_flux_measurements(

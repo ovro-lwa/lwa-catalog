@@ -16,7 +16,11 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 
 from lwa_catalog.analyze import gather_band_flux_measurements, rematch_meta_source
-from lwa_catalog.analyze.spectral import SingleSpectrumFit, evaluate_taylor_spectrum
+from lwa_catalog.analyze.spectral import (
+    SingleSpectrumFit,
+    evaluate_taylor_spectrum,
+    resolve_sed_bands,
+)
 from lwa_catalog.catalog_index import (
     DEFAULT_DISPLAY_COLUMN_PREFS_PATH,
     DEFAULT_DISPLAY_COLUMNS,
@@ -370,12 +374,16 @@ def _row_to_spectrum_fit(row: pd.Series, *, prefix: str = "spec_") -> SingleSpec
 def _spectrum_figure_for_row(
     row: pd.Series,
     *,
-    bands: tuple[str, ...] = SUBBAND_BANDS_MHZ,
+    bands: tuple[str, ...] | None = None,
     prefix: str = "spec_",
     ref_freq_mhz: float = SUBBAND_REF_FREQ_MHZ,
     fig=None,
 ):
-    """Plot per-band flux measurements and optional Taylor model for one catalog row."""
+    """Plot per-band flux measurements and optional Taylor model for one catalog row.
+
+    When *bands* is omitted, uses :func:`resolve_sed_bands` so LWA subbands and
+    any attached survey channels (VLSSR/NVSS/VLASS) are included.
+    """
     _mpl_configure()
 
     if fig is None:
@@ -387,9 +395,10 @@ def _spectrum_figure_for_row(
     meta_id = row.get("meta_id")
     label = f"meta_id={int(meta_id)}" if pd.notna(meta_id) else "selected source"
 
+    sed_bands = bands if bands is not None else resolve_sed_bands(row)
     nu_hz, flux_jy, err_jy = gather_band_flux_measurements(
         row,
-        bands=bands,
+        bands=sed_bands,
         flux_kind="total",
     )
     if nu_hz.size == 0:
@@ -406,7 +415,34 @@ def _spectrum_figure_for_row(
         return fig
 
     nu_mhz = nu_hz / 1e6
-    ax.errorbar(nu_mhz, flux_jy, yerr=err_jy, fmt="o", capsize=2, label="data")
+    lwa_set = set(SUBBAND_BANDS_MHZ)
+    point_bands: list[str] = []
+    for band in sed_bands:
+        col = f"Total_flux_{band}"
+        if col not in row.index:
+            continue
+        val = pd.to_numeric(row[col], errors="coerce")
+        if np.isfinite(val) and float(val) > 0.0:
+            point_bands.append(band)
+    is_lwa = np.array([b in lwa_set for b in point_bands], dtype=bool)
+    if is_lwa.any():
+        ax.errorbar(
+            nu_mhz[is_lwa],
+            flux_jy[is_lwa],
+            yerr=err_jy[is_lwa],
+            fmt="o",
+            capsize=2,
+            label="LWA",
+        )
+    if (~is_lwa).any():
+        ax.errorbar(
+            nu_mhz[~is_lwa],
+            flux_jy[~is_lwa],
+            yerr=err_jy[~is_lwa],
+            fmt="s",
+            capsize=2,
+            label="survey",
+        )
 
     fit = _row_to_spectrum_fit(row, prefix=prefix)
     if fit is not None:
@@ -767,12 +803,13 @@ class CatalogBrowser(pn.viewable.Viewer):
                 self._hips_status,
                 self._hips_view,
                 pn.pane.Markdown(
-                    "### Spectral flux (subband SED)\n"
+                    "### Spectral flux (SED)\n"
                     "Select a browse-table row (the same source as **Load sky view**), "
                     "then click **Plot spectrum**. Per-band `Total_flux_{band}` "
-                    "measurements are shown with the stored Taylor model when "
-                    "`spec_model_*` columns are present "
-                    "(e.g. `metacatalog_spectral.parquet`).",
+                    "measurements are shown (LWA circles; VLSSR/NVSS/VLASS squares when "
+                    "present) with the stored Taylor model when `spec_model_*` columns "
+                    "exist (e.g. `metacatalog_spectral.parquet`). Survey points sit far "
+                    "to the right on the log-frequency axis (74 MHz / 1.4 GHz / ~3 GHz).",
                     disable_anchors=True,
                 ),
                 pn.Row(self._spectrum_btn),
@@ -1407,9 +1444,10 @@ class CatalogBrowser(pn.viewable.Viewer):
             self._spectrum_status.object = "_Select a table row, then click **Plot spectrum**._"
             return
 
+        sed_bands = resolve_sed_bands(row)
         nu_hz, _, _ = gather_band_flux_measurements(
             row,
-            bands=SUBBAND_BANDS_MHZ,
+            bands=sed_bands,
             flux_kind="total",
         )
         if nu_hz.size == 0:
@@ -1425,6 +1463,7 @@ class CatalogBrowser(pn.viewable.Viewer):
 
         fig = _spectrum_figure_for_row(
             row,
+            bands=sed_bands,
             fig=self._spectrum_plot.object,
             prefix=self._cfg.spec_column_prefix,
             ref_freq_mhz=self._cfg.spec_ref_freq_mhz,
@@ -1437,8 +1476,10 @@ class CatalogBrowser(pn.viewable.Viewer):
         model_note = ""
         if _row_to_spectrum_fit(row, prefix=self._cfg.spec_column_prefix) is None:
             model_note = " (flux only; no `spec_model_*` fit on this row)"
+        n_survey = sum(1 for b in sed_bands if b not in SUBBAND_BANDS_MHZ)
+        survey_note = f", including {n_survey} survey band(s)" if n_survey else ""
         self._spectrum_status.object = (
-            f"**{label}** — plotted {nu_hz.size} flux channel(s){model_note}."
+            f"**{label}** — plotted {nu_hz.size} flux channel(s){survey_note}{model_note}."
         )
 
     def _overlay_selection_idx(self) -> int | None:

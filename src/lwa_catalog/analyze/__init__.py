@@ -114,6 +114,7 @@ from lwa_catalog.analyze.spectral import (
     fit_metacatalog_spectra,
     fit_single_spectrum,
     gather_band_flux_measurements,
+    resolve_sed_bands,
     summarize_spectral_fit,
 )
 from lwa_catalog.analyze.summary import bands_present_counts, summarize_metacatalog
@@ -268,5 +269,6 @@ __all__ = [
     "fit_single_spectrum",
     "gather_band_flux_measurements",
     "predict_flux_at_frequency_hz",
+    "resolve_sed_bands",
     "summarize_spectral_fit",
 ]

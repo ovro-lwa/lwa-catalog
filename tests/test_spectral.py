@@ -95,6 +95,23 @@ def test_fit_curvature_selects_three_terms() -> None:
     assert fit.coeffs[2] == pytest.approx(a2, abs=1e-6)
 
 
+def test_resolve_sed_bands_includes_survey_columns() -> None:
+    from lwa_catalog.analyze.spectral import resolve_sed_bands
+
+    row = pd.Series(
+        {
+            "Total_flux_55MHz": 1.0,
+            "Total_flux_NVSS": 0.2,
+            "Peak_flux_NVSS": 0.2,
+            "n_assoc_NVSS": 1,
+        }
+    )
+    bands = resolve_sed_bands(row)
+    assert "55MHz" in bands
+    assert "NVSS" in bands
+    assert "VLSSR" not in bands  # column absent
+
+
 def test_gather_band_flux_origin_fallback() -> None:
     row = pd.Series(
         {
