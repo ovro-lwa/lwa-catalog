@@ -50,10 +50,9 @@ Under `CatalogLayout(root)` / `OUTPUT_DIR` / `CATALOG_DIR`:
 | ----- | ---- | ---- |
 | Per-image sources | `sources_{lst}_{band}.parquet` | One PyBDSF `gaul` catalog per FITS |
 | LST-merged band | `metacatalog_lst_{band}.parquet` | Same-source identity within one band |
-| Global fusion | `metacatalog.parquet` | One row per unique sky source |
-| Quality sidecar | `metacatalog_quality.parquet` | Fusion + `quality_flag` (never overwrite fusion) |
-| Spectral sidecar | `metacatalog_spectral.parquet` | Fusion + `spec_model_*` |
-| Radio sidecar | `metacatalog_radio.parquet` | Fusion + VLSSR/NVSS/VLASS photometry |
+| Global fusion | `metacatalog.parquet` | One row per unique sky source (+ `quality_flag` after reliability) |
+| Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows + `spec_*`; radio attach overwrites same file |
+| Quality bit table | `metacatalog_quality_flags.parquet` | Per-bit boolean diagnostics (optional) |
 | Reliability HiPS | `hips_*_nside64/` | Peak-flux-weighted maps, not FITS |
 | Sky PNGs | `sky_screenshots/` | `ipyaladin.save_view_as_image` |
 
@@ -62,12 +61,12 @@ directories via `lwa-healpix`. Legacy CSV/FITS trees convert once with
 `migrate_output_dir(layout)` (keeps legacy files by default). Do not dual-write
 CSV/FITS catalogs or HEALPix FITS maps.
 
-`read_metacatalog(layout)` prefers `metacatalog_quality.parquet` when present
-(`prefer_quality=True`) and keeps rows with
-`(quality_flag & DEFAULT_QUALITY_FLAG_MASK) == 0`.
-`DEFAULT_QUALITY_FLAG_MASK = 247` (bits HAS_NAN through RESID_PCTL_MEAN).
-Set `quality_mask=None` to skip filtering; `prefer_quality=False` to read
-fusion `metacatalog.parquet` (required when *building* quality flags).
+`read_metacatalog(layout)` reads `metacatalog.parquet` (or
+`metacatalog_spectral.parquet` when `prefer_spectral=True`). Default
+`quality_mask` keeps rows with `(quality_flag & DEFAULT_QUALITY_FLAG_MASK) == 0`
+(`DEFAULT_QUALITY_FLAG_MASK = 247`). Set `quality_mask=None` to skip filtering.
+The spectral notebook applies a stricter mask (33267) when building the analysis
+subset; radio crossmatch then updates that subset file in place.
 
 RGB color bands: `COLOR_BANDS = ("Full", "Blue", "Green", "Red")`.
 Association order: Full+Blue seed, then Green, then Red (`ASSOC_BANDS`).
@@ -92,8 +91,9 @@ Cache is **path existence**, not content hashing.
 
 **Post-hoc science belongs in `analyze/` (and `viz/`), not in fusion.** Do not
 attach Fit-QA flags, `spec_*`, survey match flags, overlay state, or Mahalanobis
-scores onto `metacatalog_schema()`. Sidecars and subset Parquets are the product
-pattern. Preserve `meta_id`.
+scores onto `metacatalog_schema()` at fusion time. `quality_flag` is written
+back onto `metacatalog.parquet` by the reliability notebook after fusion.
+Spectral / radio products remain sidecars. Preserve `meta_id`.
 
 Analyze API pattern (repeat this): frozen `*Config`, `*Result` with `summary` /
 tables / `warnings`, a batch function, `summarize_*` text, re-export from
@@ -266,8 +266,8 @@ Match-direction diagnostics (VLSSR QA, reusable):
 - `associate_catalogs(vlssr, meta)` — many meta per VLSSR (**over-split**).
 
 QA is report-only: do not write-side filter the parent catalog from VLSSR /
-Mahalanobis / Fit-quality notebooks. Reliability tiers and `quality_flag`
-sidecars are the first-class subset products, still leaving fusion intact.
+Mahalanobis / Fit-quality notebooks. Reliability ``quality_flag`` on
+``metacatalog.parquet`` (plus optional subset Parquets) is the first-class product.
 
 ---
 
@@ -289,7 +289,8 @@ Three related but **not interchangeable** layers:
    concern. `quality_flag == 0` means every implemented check passed. Bits
    0–16 are defined (through `NEAR_BRIGHT_SIDELOBE`: faint source within
    2–4 × bright-neighbor BMAJ of a ≥30× brighter neighbor). Bits 17–31
-   reserved. Written to `metacatalog_quality.parquet`.
+   reserved. Written onto `metacatalog.parquet` (optional
+   `metacatalog_quality_flags.parquet` keeps per-bit booleans).
 
 Do not conflate **percentile QA** (Fit quality, Mahalanobis) with **absolute
 library cuts** (reliability E3 / `RESID_ABS_FAIL`).
@@ -326,7 +327,8 @@ single-pixel deposits. **Map sum is not Σ Peak_flux.** Then
 - Columns: `spec_model_n_terms`, `spec_model_bic`, `spec_model_chi2_red`,
   `spec_model_n_flux`, `spec_model_nu0_mhz`, `spec_model_a0`…`a3`.
 - 0 valid fluxes → all NaN, `n_flux=0`; 1 valid → 1-term, `a0 = ln(S)`.
-- v1 is a Python row loop. Optional sidecar via notebook `WRITE_OUTPUT`.
+- v1 is a Python row loop. Writes `metacatalog_spectral.parquet` by default
+  (`WRITE_OUTPUT=True`); radio crossmatch then attaches surveys onto that file.
 - Do not put VLASS/NVSS/VLSSR into default `bands`.
 
 ---
@@ -397,8 +399,8 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `metacatalog_query.ipynb` | Browse, sky overlay, **source trace**, Mahalanobis |
 | `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + source trace |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
-| `metacatalog_spectral_modeling.ipynb` | Taylor SED fits |
-| `radio_crossmatch.ipynb` | NVSS/VLASS/VLSSR match, survey attach, Visual QA |
+| `metacatalog_spectral_modeling.ipynb` | Quality filter → Taylor SED → `metacatalog_spectral.parquet` |
+| `radio_crossmatch.ipynb` | Read spectral product, attach VLSSR/NVSS/VLASS, overwrite same file |
 | `metacatalog_nedlvs_crossmatch.ipynb` | Galaxy host association (later than this distillation) |
 | `target_samples.ipynb` | Class samples for the query browser |
 
