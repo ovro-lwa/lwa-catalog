@@ -51,7 +51,7 @@ Under `CatalogLayout(root)` / `OUTPUT_DIR` / `CATALOG_DIR`:
 | Per-image sources | `sources_{lst}_{band}.parquet` | One PyBDSF `gaul` catalog per FITS |
 | LST-merged band | `metacatalog_lst_{band}.parquet` | Same-source identity within one band |
 | Global fusion | `metacatalog.parquet` | One row per unique sky source (+ `quality_flag` after reliability) |
-| Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows + `spec_*`; radio attach overwrites same file |
+| Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows; optional survey attach then `spec_*` fits |
 | Quality bit table | `metacatalog_quality_flags.parquet` | Per-bit boolean diagnostics (optional) |
 | Reliability HiPS | `hips_*_nside64/` | Peak-flux-weighted maps, not FITS |
 | Sky PNGs | `sky_screenshots/` | `ipyaladin.save_view_as_image` |
@@ -65,8 +65,9 @@ CSV/FITS catalogs or HEALPix FITS maps.
 `metacatalog_spectral.parquet` when `prefer_spectral=True`). Default
 `quality_mask` keeps rows with `(quality_flag & DEFAULT_QUALITY_FLAG_MASK) == 0`
 (`DEFAULT_QUALITY_FLAG_MASK = 247`). Set `quality_mask=None` to skip filtering.
-The spectral notebook applies a stricter mask (33267) when building the analysis
-subset; radio crossmatch then updates that subset file in place.
+Optional `radio_crossmatch.ipynb` quality-filters fusion and writes
+`metacatalog_spectral.parquet` with survey columns; spectral modeling then
+reads that file (or creates it from fusion) and adds `spec_*`.
 
 RGB color bands: `COLOR_BANDS = ("Full", "Blue", "Green", "Red")`.
 Association order: Full+Blue seed, then Green, then Red (`ASSOC_BANDS`).
@@ -327,9 +328,11 @@ single-pixel deposits. **Map sum is not Σ Peak_flux.** Then
 - Columns: `spec_model_n_terms`, `spec_model_bic`, `spec_model_chi2_red`,
   `spec_model_n_flux`, `spec_model_nu0_mhz`, `spec_model_a0`…`a3`.
 - 0 valid fluxes → all NaN, `n_flux=0`; 1 valid → 1-term, `a0 = ln(S)`.
-- v1 is a Python row loop. Writes `metacatalog_spectral.parquet` by default
-  (`WRITE_OUTPUT=True`); radio crossmatch then attaches surveys onto that file.
-- Do not put VLASS/NVSS/VLSSR into default `bands`.
+- v1 is a Python row loop. Prefers existing `metacatalog_spectral.parquet` from
+  optional radio crossmatch (fits LWA + survey fluxes when present); otherwise
+  quality-filters fusion and creates the file. Writes by default
+  (`WRITE_OUTPUT=True`).
+- Do not put VLASS/NVSS/VLSSR into default `bands` unless those columns exist.
 
 ---
 
@@ -399,8 +402,8 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `metacatalog_query.ipynb` | Browse, sky overlay, **source trace**, Mahalanobis |
 | `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + source trace |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
-| `metacatalog_spectral_modeling.ipynb` | Quality filter → Taylor SED → `metacatalog_spectral.parquet` |
-| `radio_crossmatch.ipynb` | Read spectral product, attach VLSSR/NVSS/VLASS, overwrite same file |
+| `metacatalog_spectral_modeling.ipynb` | Prefer radio spectral product or create it; Taylor SED (LWA ± surveys) |
+| `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS → `metacatalog_spectral.parquet` |
 | `metacatalog_nedlvs_crossmatch.ipynb` | Galaxy host association (later than this distillation) |
 | `target_samples.ipynb` | Class samples for the query browser |
 
