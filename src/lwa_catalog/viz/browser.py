@@ -561,11 +561,18 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._sky_loaded = False
         self._sky_center_note = ""
         self._overlay_note = ""
+        self._selected_meta_id: int | None = None
         self._layout = CatalogLayout(Path(self.catalog_dir))
         self._status = pn.pane.Markdown("", sizing_mode="stretch_width")
         self._nearest_status = pn.pane.Markdown("", sizing_mode="stretch_width")
         self._trace_status = pn.pane.Markdown(
             "_Select a table row, then click **Load trace**._",
+            sizing_mode="stretch_width",
+        )
+        self._selection_status = pn.pane.Markdown(
+            "_After **Load sky view**, click the map to pick the nearest source. "
+            "The pick shows a **gold** cross (+ thick ellipse when shape columns exist) "
+            "and updates `meta_id` below._",
             sizing_mode="stretch_width",
         )
 
@@ -740,7 +747,8 @@ class CatalogBrowser(pn.viewable.Viewer):
             )
             self._hips_status = pn.pane.Markdown(
                 "_Sky overlay loads for the first table row; "
-                "**Load sky view** recenters on the selection._",
+                "**Load sky view** recenters on the selection. "
+                "Map clicks pick the nearest source (gold marker)._",
                 sizing_mode="stretch_width",
             )
             self._save_sky_btn = pn.widgets.Button(
@@ -801,6 +809,7 @@ class CatalogBrowser(pn.viewable.Viewer):
                 pn.Row(self._hips_survey_w, self._sky_btn, align="end"),
                 pn.Row(self._overlay_w, self._save_sky_btn, align="center"),
                 self._hips_status,
+                self._selection_status,
                 self._hips_view,
                 pn.pane.Markdown(
                     "### Spectral flux (SED)\n"
@@ -1289,6 +1298,11 @@ class CatalogBrowser(pn.viewable.Viewer):
                 row = df.iloc[0]
             if "meta_id" in row.index and pd.notna(row.get("meta_id")):
                 self.meta_id = int(row["meta_id"])
+                self._selected_meta_id = int(row["meta_id"])
+                self._highlight_meta_id_widget(active=True)
+                self._set_selection_status(
+                    f"**Selected meta_id={int(row['meta_id'])}** (initial catalog row)."
+                )
             self._sky_loaded = True
             self._apply_row_coordinate(row)
         if self._is_metacatalog():
@@ -1364,6 +1378,7 @@ class CatalogBrowser(pn.viewable.Viewer):
 
     def _reset_sky_context(self) -> None:
         self._sky_loaded = False
+        self._selected_meta_id = None
         if self._overlay_refresh is not None:
             self._overlay_refresh.cancel_pending()
         cancel_aladin_view_timers(getattr(self, "_hips_view_timers", None))
@@ -1377,8 +1392,15 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._overlay_note = ""
         self._hips_status.object = (
             "_Sky overlay loads for the first table row; "
-            "**Load sky view** recenters on the selection._"
+            "**Load sky view** recenters on the selection. "
+            "Map clicks pick the nearest source (gold marker)._"
         )
+        self._set_selection_status(
+            "_After **Load sky view**, click the map to pick the nearest source. "
+            "The pick shows a **gold** cross (+ thick ellipse when shape columns exist) "
+            "and updates `meta_id` below._"
+        )
+        self._highlight_meta_id_widget(active=False)
         self._reset_spectrum_context()
 
     def _reset_spectrum_context(self) -> None:
@@ -1483,19 +1505,51 @@ class CatalogBrowser(pn.viewable.Viewer):
         )
 
     def _overlay_selection_idx(self) -> int | None:
+        """``.iloc`` into ``self._df`` for the gold selection overlay.
+
+        Prefer the explicit sky/table pick (``_selected_meta_id``) over the
+        Tabulator selection so map clicks still highlight when the row is
+        hidden by header filters or pagination.
+        """
+        if self._df is None or self._df.empty:
+            return None
+        if self._selected_meta_id is not None and "meta_id" in self._df.columns:
+            match = self._df.index[self._df["meta_id"] == self._selected_meta_id]
+            if len(match):
+                loc = self._df.index.get_loc(match[0])
+                return int(loc) if isinstance(loc, (int, np.integer)) else int(loc[0])
         row = self._selected_table_row()
-        if row is None or self._df is None:
+        if row is None:
             return None
         has_meta = "meta_id" in row.index and "meta_id" in self._df.columns
         if has_meta and pd.notna(row.get("meta_id")):
             match = self._df.index[self._df["meta_id"] == row["meta_id"]]
             if len(match):
                 loc = self._df.index.get_loc(match[0])
-                return int(loc) if isinstance(loc, int) else int(loc[0])
-        idx = int(self._table.selection[0])
-        if 0 <= idx < len(self._df):
-            return idx
+                return int(loc) if isinstance(loc, (int, np.integer)) else int(loc[0])
+        if self._table.selection:
+            idx = int(self._table.selection[0])
+            if 0 <= idx < len(self._df):
+                return idx
         return None
+
+    def _set_selection_status(self, text: str) -> None:
+        self._selection_status.object = text
+
+    def _highlight_meta_id_widget(self, *, active: bool) -> None:
+        """Gold border on the ``meta_id`` IntInput while a pick is active."""
+        try:
+            self._meta_id_w.styles = (
+                {
+                    "border": "2px solid #FFD700",
+                    "background": "#FFF8DC",
+                    "border-radius": "4px",
+                }
+                if active
+                else {}
+            )
+        except Exception:
+            pass
 
     def _render_sky_status(self) -> None:
         parts = [p for p in (self._sky_center_note, self._overlay_note) if p]
@@ -1659,11 +1713,24 @@ class CatalogBrowser(pn.viewable.Viewer):
             pass
 
     def _table_selection_index_for_meta_id(self, meta_id: int) -> int | None:
-        view = self._table.value
-        if view is None or view.empty or "meta_id" not in view.columns:
+        """Return Tabulator selection index for *meta_id*, or None if filtered out.
+
+        Prefer ``_processed`` (header-filtered / sorted view) so selection indices
+        match what Tabulator expects.
+        """
+        table = self._table
+        processed = getattr(table, "_processed", None)
+        frame = (
+            processed
+            if isinstance(processed, pd.DataFrame)
+            and not processed.empty
+            and "meta_id" in processed.columns
+            else table.value
+        )
+        if frame is None or frame.empty or "meta_id" not in frame.columns:
             return None
-        hits = view.index[view["meta_id"] == meta_id].tolist()
-        if not hits:
+        hits = np.flatnonzero(frame["meta_id"].to_numpy() == meta_id)
+        if hits.size == 0:
             return None
         return int(hits[0])
 
@@ -1672,16 +1739,23 @@ class CatalogBrowser(pn.viewable.Viewer):
         meta_id: int,
         *,
         sep_arcmin: float | None = None,
+        source: str = "sky",
     ) -> None:
         if self._df is None or self._df.empty or "meta_id" not in self._df.columns:
+            self._set_selection_status("**Cannot select:** catalog has no `meta_id` column.")
             return
         matches = self._df.loc[self._df["meta_id"] == meta_id]
         if matches.empty:
+            self._set_selection_status(f"**meta_id={meta_id}** not found in the loaded catalog.")
             return
 
         self.meta_id = int(meta_id)
+        self._selected_meta_id = int(meta_id)
+        self._highlight_meta_id_widget(active=True)
+
         row_idx = self._table_selection_index_for_meta_id(meta_id)
-        if row_idx is not None:
+        in_table = row_idx is not None
+        if in_table:
             self._reveal_table_row(row_idx)
 
         row = matches.iloc[0]
@@ -1692,33 +1766,54 @@ class CatalogBrowser(pn.viewable.Viewer):
         if self._sky_loaded:
             try:
                 self._refresh_overlay()
-            except Exception:
-                pass
+            except Exception as exc:
+                self._set_overlay_note(f"**Overlay refresh failed:** `{exc}`")
 
-        label = f"**meta_id={meta_id}**"
+        label = f"**Selected meta_id={meta_id}**"
         if sep_arcmin is not None:
             label += f" — nearest at **{sep_arcmin:.3f} arcmin** from click"
-        self._set_sky_center_note(f"{label} (browse table row selected).")
+        if source == "table":
+            label += " (browse table)"
+        elif source == "sky":
+            label += " (sky click)"
+        if not in_table:
+            label += " — _not visible in the browse table (clear header filters to select the row)._"
+        elif in_table:
+            label += " — browse table row selected; gold marker on sky."
+        self._set_selection_status(label)
+        self._set_sky_center_note(
+            f"**meta_id={meta_id}**"
+            + (
+                f" — nearest at **{sep_arcmin:.3f} arcmin** from click"
+                if sep_arcmin is not None
+                else ""
+            )
+            + "."
+        )
 
     def _handle_sky_click(self, content: dict) -> None:
         """Select the nearest in-FOV meta_id (always on once the sky view is loaded)."""
         if not getattr(self, "_ready", False):
             return
         if not self._sky_loaded:
-            self._hips_status.object = (
+            self._set_selection_status(
                 "_Click **Load sky view** first, then click the map to pick the nearest source._"
             )
             return
         if self._df is None or self._df.empty:
-            self._hips_status.object = "**Load a catalog first.**"
+            self._set_selection_status("**Load a catalog first.**")
             return
         if "meta_id" not in self._df.columns:
-            self._hips_status.object = "**Sky pick needs a catalog with a `meta_id` column.**"
+            self._set_selection_status("**Sky pick needs a catalog with a `meta_id` column.**")
             return
         try:
             ra = float(content["ra"])
             dec = float(content["dec"])
         except (KeyError, TypeError, ValueError):
+            self._set_selection_status(
+                "**Sky click ignored** — click payload had no usable RA/Dec "
+                "(try clicking again on the map, not an overlay control)."
+            )
             return
 
         coord = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
@@ -1729,14 +1824,22 @@ class CatalogBrowser(pn.viewable.Viewer):
                 in_fov = self._df
             hits = nearest_sources(in_fov, coord, n=1)
         except Exception as exc:
-            self._hips_status.object = f"**Sky pick failed:** `{exc}`"
+            self._set_selection_status(f"**Sky pick failed:** `{exc}`")
+            return
+
+        if hits is None or hits.empty:
+            self._set_selection_status("**No catalog sources near that click.**")
             return
 
         nearest = hits.iloc[0]
         if "meta_id" not in nearest.index or pd.isna(nearest.get("meta_id")):
-            self._hips_status.object = "**Nearest source has no meta_id.**"
+            self._set_selection_status("**Nearest source has no meta_id.**")
             return
-        self._select_meta_id(int(nearest["meta_id"]), sep_arcmin=float(nearest["sep_arcmin"]))
+        self._select_meta_id(
+            int(nearest["meta_id"]),
+            sep_arcmin=float(nearest["sep_arcmin"]),
+            source="sky",
+        )
 
     def _on_sky_click(self, content: dict) -> None:
         def _handle() -> None:
@@ -1754,7 +1857,21 @@ class CatalogBrowser(pn.viewable.Viewer):
         if row is None:
             return
         if "meta_id" in row.index and pd.notna(row.get("meta_id")):
-            self.meta_id = int(row["meta_id"])
+            meta_id = int(row["meta_id"])
+            # Avoid re-entrant refresh when sky click already set this pick.
+            if self._selected_meta_id == meta_id and self.meta_id == meta_id:
+                return
+            self.meta_id = meta_id
+            self._selected_meta_id = meta_id
+            self._highlight_meta_id_widget(active=True)
+            self._set_selection_status(
+                f"**Selected meta_id={meta_id}** (browse table) — gold marker on sky."
+            )
+            if self._sky_loaded and self.show_overlay:
+                try:
+                    self._refresh_overlay()
+                except Exception as exc:
+                    self._set_overlay_note(f"**Overlay refresh failed:** `{exc}`")
 
     def _on_load_sky(self, _event=None) -> None:
         row = self._require_selected_row(status=self._hips_status, label="Load sky view")

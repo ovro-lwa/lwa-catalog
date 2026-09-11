@@ -21,7 +21,8 @@ from lwa_catalog.constants import (
 )
 from lwa_catalog.viz.bands import band_overlay_color, resolve_band_labels
 
-# Circular restoring beams for external-survey marker overlays (degrees).
+# Distinct from LWA band palette so the selected source is obvious on the sky.
+SELECTION_OVERLAY_COLOR: str = "#FFD700"
 _SURVEY_BEAM_DEG: dict[str, float] = {
     "VLSSR": VLSSR_BMAJ_DEG,
     "NVSS": NVSS_BMAJ_DEG,
@@ -165,7 +166,7 @@ def _cap_rows_by_center(
 
 
 def _overlay_names(name_prefix: str) -> list[str]:
-    names = [f"{name_prefix}_selection"]
+    names = [f"{name_prefix}_selection", f"{name_prefix}_selection_mark"]
     for band in (*COLOR_BANDS, "unknown"):
         names.append(f"{name_prefix}_{band}")
         names.append(f"{name_prefix}_{band}_cross")
@@ -428,16 +429,25 @@ def overlay_catalog_by_band(
 
     if selection_idx is not None and 0 <= selection_idx < len(df):
         row = df.iloc[selection_idx : selection_idx + 1]
-        row_labels = resolve_band_labels(row, catalog_name)
-        sel_color = color or band_overlay_color(str(row_labels.iloc[0]))
+        # Gold ellipse/cross — never reuse band colors (those blend into the overlay).
         _add_band_overlay(
             aladin,
             row,
             overlay_name=f"{name_prefix}_selection",
-            color=sel_color,
+            color=SELECTION_OVERLAY_COLOR,
             source_size=selection_source_size,
             line_width=3,
             cross_suffix=False,
+        )
+        # Always place a gold cross so the pick is visible even when the ellipse
+        # matches a crowded beam or the shape columns are incomplete.
+        _add_cross_table_overlay(
+            aladin,
+            row,
+            overlay_name=f"{name_prefix}_selection_mark",
+            color=SELECTION_OVERLAY_COLOR,
+            source_size=max(int(selection_source_size), 18),
+            line_width=2,
         )
 
     return OverlayResult(

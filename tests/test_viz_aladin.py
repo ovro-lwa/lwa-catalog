@@ -12,6 +12,7 @@ from astropy.coordinates import SkyCoord
 
 from lwa_catalog.constants import BAND_OVERLAY_COLORS
 from lwa_catalog.viz.aladin import (
+    SELECTION_OVERLAY_COLOR,
     _catalog_pa_to_regions_angle,
     _dataframe_to_ellipse_regions,
     catalog_to_astropy_table,
@@ -231,7 +232,8 @@ def test_overlay_catalog_by_band_mock_aladin() -> None:
 
     table_names = [call.kwargs.get("name") for call in aladin.add_table.call_args_list]
     assert "catalog_Blue_cross" in table_names
-    assert "catalog_selection" in table_names
+    assert "catalog_selection" in table_names or "catalog_selection_mark" in table_names
+    assert "catalog_selection_mark" in table_names
 
     shapes = {call.kwargs.get("shape") for call in aladin.add_table.call_args_list}
     assert shapes == {"cross"}
@@ -243,6 +245,7 @@ def test_overlay_catalog_by_band_mock_aladin() -> None:
     colors |= {call.kwargs.get("color") for call in aladin.add_table.call_args_list}
     assert BAND_OVERLAY_COLORS["Red"] in colors
     assert BAND_OVERLAY_COLORS["Blue"] in colors
+    assert SELECTION_OVERLAY_COLOR in colors
 
 
 def test_clear_catalog_overlays_removes_suffixed_layers() -> None:
