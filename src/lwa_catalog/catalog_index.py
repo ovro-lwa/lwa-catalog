@@ -172,14 +172,12 @@ def load_metacatalog_frame(
     layout: CatalogLayout,
     *,
     prefer_spectral: bool = True,
-    prefer_quality: bool = True,
     quality_mask: int | None = None,
 ) -> pd.DataFrame:
     """Read the preferred metacatalog Parquet, optionally filtering by *quality_mask*."""
     return read_metacatalog(
         layout,
         prefer_spectral=prefer_spectral,
-        prefer_quality=prefer_quality,
         quality_mask=quality_mask,
     )
 

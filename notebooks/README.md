@@ -21,13 +21,13 @@ Catalogs are written and read as **Apache Parquet** through `lwa_catalog`:
 | -------- | ----------------------- |
 | Per-image sources | `sources_{lst}_{band}.parquet` |
 | LST-merged band | `metacatalog_lst_{band}.parquet` |
-| Global metacatalog (fusion) | `metacatalog.parquet` |
-| QA metacatalog (+ `quality_flag`) | `metacatalog_quality.parquet` |
+| Global metacatalog (fusion + optional `quality_flag`) | `metacatalog.parquet` |
+| Quality bit diagnostics | `metacatalog_quality_flags.parquet` |
 
-Analysis notebooks load **`metacatalog_quality.parquet` by default** (when present) via
-`read_metacatalog(layout)` and keep rows with `(quality_flag & 33267) == 0`. Set
-`quality_mask=None` to skip filtering, or `prefer_quality=False` to read fusion
-`metacatalog.parquet` (required when building quality flags).
+Analysis notebooks load **`metacatalog.parquet`** via `read_metacatalog(layout)`
+and keep rows with `(quality_flag & 247) == 0` when the column is present. Set
+`quality_mask=None` to skip filtering. Re-run `metacatalog_reliability.ipynb`
+after fusion to (re)write `quality_flag` onto the main catalog.
 
 Image products remain FITS. Detection and merge live in `lwa_catalog.create`;
 notebooks keep configuration constants and call library APIs for I/O.

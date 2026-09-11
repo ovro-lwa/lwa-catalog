@@ -43,6 +43,8 @@ def test_metacatalog_schema_has_required_and_assoc_fields() -> None:
     assert "Peak_flux_std" in names
     assert "S_Code" in names
     assert metacatalog_schema().field("S_Code").type == pa.string()
+    assert "quality_flag" in names
+    assert metacatalog_schema().field("quality_flag").type == pa.uint32()
 
 
 def test_table_from_dataframe_fills_missing_and_keeps_extras() -> None:

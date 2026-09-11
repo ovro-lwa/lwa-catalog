@@ -26,7 +26,6 @@ from lwa_catalog.constants import (
     VLSSR_POSITION_ERROR_ARCSEC,
     band_frequency_hz,
 )
-from lwa_catalog.io import read_table
 from lwa_catalog.paths import CatalogLayout
 
 NedlvsTarget = Literal["metacatalog", "metacatalog_blue", "lst_merged_blue"]
@@ -97,22 +96,11 @@ def select_metacatalog(
     elif selection == "blue":
         out = select_blue_associated_rows(metacatalog)
     elif selection == "quality_all_clear":
-        if layout is None:
-            msg = "layout is required for selection='quality_all_clear'"
+        if "quality_flag" not in metacatalog.columns:
+            msg = "metacatalog missing quality_flag for selection='quality_all_clear'"
             raise ValueError(msg)
-        quality_path = layout.metacatalog_quality()
-        if not quality_path.is_file():
-            msg = f"quality catalog not found: {quality_path}"
-            raise FileNotFoundError(msg)
-        quality = read_table(quality_path)
-        if "quality_flag" not in quality.columns:
-            msg = f"{quality_path} missing quality_flag column"
-            raise ValueError(msg)
-        clear_ids = quality.loc[quality["quality_flag"] == 0, "meta_id"]
-        if "meta_id" not in metacatalog.columns:
-            msg = "metacatalog missing meta_id column for quality join"
-            raise ValueError(msg)
-        out = metacatalog.loc[metacatalog["meta_id"].isin(clear_ids)]
+        clear = metacatalog["quality_flag"].to_numpy(dtype=np.uint32) == 0
+        out = metacatalog.loc[clear]
     elif selection == "query":
         if not query:
             msg = "query is required for selection='query'"

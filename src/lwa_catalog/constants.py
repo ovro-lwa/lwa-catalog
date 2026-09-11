@@ -91,8 +91,8 @@ SUBBAND_BANDS_MHZ: tuple[str, ...] = (
 # Taylor expansion reference frequency for post-hoc spectral modeling (MHz).
 SUBBAND_REF_FREQ_MHZ: float = 55.0
 
-# QA overlay written by ``metacatalog_reliability.ipynb`` (never overwrites fusion metacatalog).
-METACATALOG_QUALITY_FILENAME: str = "metacatalog_quality.parquet"
+# Boolean per-bit QA table written by ``metacatalog_reliability.ipynb`` (optional diagnostic).
+METACATALOG_QUALITY_FLAGS_FILENAME: str = "metacatalog_quality_flags.parquet"
 
 # Post-hoc Taylor spectral fits written by ``metacatalog_spectral_modeling.ipynb``.
 METACATALOG_SPECTRAL_FILENAME: str = "metacatalog_spectral.parquet"

@@ -75,7 +75,6 @@ class CatalogBrowserConfig:
     spec_ref_freq_mhz: float = SUBBAND_REF_FREQ_MHZ
     initial_coordinate: str = "83.633 -5.391"
     prefer_spectral: bool = True
-    prefer_quality: bool = True
 
 
 def order_columns(
@@ -945,7 +944,6 @@ class CatalogBrowser(pn.viewable.Viewer):
         if reset_if_missing and self.catalog_file not in files:
             preferred = [
                 "metacatalog_spectral.parquet",
-                "metacatalog_quality.parquet",
                 "metacatalog.parquet",
             ]
             preferred += [f for f in files if f.endswith("_Full.parquet")]
@@ -1749,7 +1747,6 @@ class CatalogBrowser(pn.viewable.Viewer):
         return load_metacatalog_frame(
             self._layout,
             prefer_spectral=self._cfg.prefer_spectral,
-            prefer_quality=self._cfg.prefer_quality,
             quality_mask=self._cfg.quality_flag_mask,
         )
 

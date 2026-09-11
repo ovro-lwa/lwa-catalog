@@ -324,24 +324,19 @@ def write_metacatalog(
 def resolve_metacatalog_path(
     layout: CatalogLayout,
     *,
-    prefer_quality: bool = True,
     prefer_spectral: bool = False,
 ) -> Path:
     """Return the metacatalog Parquet path selected for reading.
 
     When *prefer_spectral* is true and ``metacatalog_spectral.parquet`` exists
-    under ``layout.root``, that file is returned. Otherwise, when
-    *prefer_quality* is true and ``metacatalog_quality.parquet`` exists, that
-    file is returned; else :meth:`~lwa_catalog.paths.CatalogLayout.metacatalog`.
+    under ``layout.root``, that file is returned; else
+    :meth:`~lwa_catalog.paths.CatalogLayout.metacatalog`.
+    ``quality_flag`` lives on the main metacatalog when reliability has been run.
     """
     if prefer_spectral:
         spectral = layout.metacatalog_spectral()
         if spectral.is_file():
             return spectral
-    if prefer_quality:
-        quality = layout.metacatalog_quality()
-        if quality.is_file():
-            return quality
     return layout.metacatalog()
 
 
@@ -351,7 +346,6 @@ def read_metacatalog(
     as_pandas: bool = True,
     validate: bool = True,
     required: set[str] | frozenset[str] | None = None,
-    prefer_quality: bool = True,
     prefer_spectral: bool = False,
     quality_mask: int | None = DEFAULT_QUALITY_FLAG_MASK,
 ) -> pd.DataFrame | pa.Table:
@@ -359,11 +353,10 @@ def read_metacatalog(
 
     For a :class:`~lwa_catalog.paths.CatalogLayout`, prefers
     ``metacatalog_spectral.parquet`` when *prefer_spectral* is true and the
-    file exists, else ``metacatalog_quality.parquet`` when *prefer_quality* is
-    true (see :func:`resolve_metacatalog_path`). After loading, when *as_pandas* is true
-    and *quality_mask* is not ``None``, rows are filtered to those with
-    ``(quality_flag & quality_mask) == 0`` (no-op when ``quality_flag`` is
-    absent).
+    file exists (see :func:`resolve_metacatalog_path`). After loading, when
+    *as_pandas* is true and *quality_mask* is not ``None``, rows are filtered to
+    those with ``(quality_flag & quality_mask) == 0`` (no-op when
+    ``quality_flag`` is absent).
 
     When *validate* is true and *required* is omitted, RGB catalogs (with
     top-level ``Peak_flux``) use :data:`METACATALOG_REQUIRED_COLUMNS`; MHz
@@ -372,7 +365,6 @@ def read_metacatalog(
     if isinstance(layout_or_path, CatalogLayout):
         path = resolve_metacatalog_path(
             layout_or_path,
-            prefer_quality=prefer_quality,
             prefer_spectral=prefer_spectral,
         )
     else:

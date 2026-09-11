@@ -83,6 +83,7 @@ def metacatalog_schema() -> pa.Schema:
         pa.field("E_Peak_flux", pa.float64(), nullable=True),
         pa.field("E_Total_flux", pa.float64(), nullable=True),
         pa.field("source_file_Full", pa.string(), nullable=True),
+        pa.field("quality_flag", pa.uint32(), nullable=True),
     ]
     for band in ASSOC_BANDS:
         fields.append(pa.field(f"n_assoc_{band}", pa.int64(), nullable=True))

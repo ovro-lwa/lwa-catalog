@@ -24,9 +24,9 @@ from lwa_catalog.analyze.reliability import SourceQualityFlag
 
 def test_is_metacatalog_parquet() -> None:
     assert is_metacatalog_parquet("metacatalog.parquet")
-    assert is_metacatalog_parquet("metacatalog_quality.parquet")
     assert is_metacatalog_parquet("metacatalog_spectral.parquet")
     assert is_metacatalog_parquet("metacatalog_radio.parquet")
+    assert is_metacatalog_parquet("metacatalog_quality_flags.parquet")
     assert not is_metacatalog_parquet("metacatalog_lst_Blue.parquet")
     assert not is_metacatalog_parquet("sources_01h_Blue.parquet")
 

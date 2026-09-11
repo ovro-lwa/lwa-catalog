@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lwa_catalog.constants import (
-    METACATALOG_QUALITY_FILENAME,
+    METACATALOG_QUALITY_FLAGS_FILENAME,
     METACATALOG_RADIO_FILENAME,
     METACATALOG_SPECTRAL_FILENAME,
 )
@@ -50,9 +50,9 @@ class CatalogLayout:
         """Alias for :meth:`metacatalog`."""
         return self.metacatalog()
 
-    def metacatalog_quality(self) -> Path:
-        """QA metacatalog with ``quality_flag``: ``{root}/metacatalog_quality.parquet``."""
-        return self.root / METACATALOG_QUALITY_FILENAME
+    def metacatalog_quality_flags(self) -> Path:
+        """Per-bit quality boolean table: ``{root}/metacatalog_quality_flags.parquet``."""
+        return self.root / METACATALOG_QUALITY_FLAGS_FILENAME
 
     def metacatalog_spectral(self) -> Path:
         """Metacatalog with post-hoc ``spec_model_*`` columns."""
