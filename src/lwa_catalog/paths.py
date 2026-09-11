@@ -55,7 +55,7 @@ class CatalogLayout:
         return self.root / METACATALOG_QUALITY_FLAGS_FILENAME
 
     def metacatalog_spectral(self) -> Path:
-        """Quality-filtered analysis subset (+ ``spec_*``, optional survey cols)."""
+        """Analysis subset: optional survey cols + optional ``spec_*`` fits."""
         return self.root / METACATALOG_SPECTRAL_FILENAME
 
     def metacatalog_radio(self) -> Path:

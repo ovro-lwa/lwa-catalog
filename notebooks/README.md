@@ -22,13 +22,13 @@ Catalogs are written and read as **Apache Parquet** through `lwa_catalog`:
 | Per-image sources | `sources_{lst}_{band}.parquet` |
 | LST-merged band | `metacatalog_lst_{band}.parquet` |
 | Global metacatalog (fusion + optional `quality_flag`) | `metacatalog.parquet` |
-| Analysis subset (`spec_*`, then survey attach) | `metacatalog_spectral.parquet` |
+| Analysis subset (`spec_*`, optional survey attach) | `metacatalog_spectral.parquet` |
 | Quality bit diagnostics | `metacatalog_quality_flags.parquet` |
 
-Pipeline: reliability stamps `quality_flag` on `metacatalog.parquet` →
-`metacatalog_spectral_modeling.ipynb` quality-filters and writes
-`metacatalog_spectral.parquet` → `radio_crossmatch.ipynb` attaches surveys and
-overwrites that same file. Analysis notebooks load the fusion catalog via
+Pipeline: reliability stamps `quality_flag` on `metacatalog.parquet` → optional
+`radio_crossmatch.ipynb` quality-filters and writes `metacatalog_spectral.parquet`
+with survey columns → `metacatalog_spectral_modeling.ipynb` reads that file (or
+creates it from fusion) and adds `spec_*`. Analysis notebooks load fusion via
 `read_metacatalog(layout)` (or `prefer_spectral=True` for the subset product).
 Set `quality_mask=None` to skip the default fusion mask.
 
