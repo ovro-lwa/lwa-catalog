@@ -22,12 +22,15 @@ Catalogs are written and read as **Apache Parquet** through `lwa_catalog`:
 | Per-image sources | `sources_{lst}_{band}.parquet` |
 | LST-merged band | `metacatalog_lst_{band}.parquet` |
 | Global metacatalog (fusion + optional `quality_flag`) | `metacatalog.parquet` |
+| Analysis subset (`spec_*`, then survey attach) | `metacatalog_spectral.parquet` |
 | Quality bit diagnostics | `metacatalog_quality_flags.parquet` |
 
-Analysis notebooks load **`metacatalog.parquet`** via `read_metacatalog(layout)`
-and keep rows with `(quality_flag & 247) == 0` when the column is present. Set
-`quality_mask=None` to skip filtering. Re-run `metacatalog_reliability.ipynb`
-after fusion to (re)write `quality_flag` onto the main catalog.
+Pipeline: reliability stamps `quality_flag` on `metacatalog.parquet` →
+`metacatalog_spectral_modeling.ipynb` quality-filters and writes
+`metacatalog_spectral.parquet` → `radio_crossmatch.ipynb` attaches surveys and
+overwrites that same file. Analysis notebooks load the fusion catalog via
+`read_metacatalog(layout)` (or `prefer_spectral=True` for the subset product).
+Set `quality_mask=None` to skip the default fusion mask.
 
 Image products remain FITS. Detection and merge live in `lwa_catalog.create`;
 notebooks keep configuration constants and call library APIs for I/O.

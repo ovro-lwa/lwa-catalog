@@ -94,9 +94,11 @@ SUBBAND_REF_FREQ_MHZ: float = 55.0
 # Boolean per-bit QA table written by ``metacatalog_reliability.ipynb`` (optional diagnostic).
 METACATALOG_QUALITY_FLAGS_FILENAME: str = "metacatalog_quality_flags.parquet"
 
-# Post-hoc Taylor spectral fits written by ``metacatalog_spectral_modeling.ipynb``.
+# Post-hoc analysis subset: quality-filtered rows + Taylor ``spec_*``
+# (``metacatalog_spectral_modeling.ipynb``), then survey attach in-place
+# (``radio_crossmatch.ipynb``).
 METACATALOG_SPECTRAL_FILENAME: str = "metacatalog_spectral.parquet"
-# Metacatalog with attached radio-survey photometry (VLSSR / NVSS / VLASS).
+# Legacy name kept for path helpers / old trees; new writes use the spectral file.
 METACATALOG_RADIO_FILENAME: str = "metacatalog_radio.parquet"
 
 # Default analysis mask for ``(quality_flag & mask) == 0`` row selection.

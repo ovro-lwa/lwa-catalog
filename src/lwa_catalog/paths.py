@@ -55,11 +55,11 @@ class CatalogLayout:
         return self.root / METACATALOG_QUALITY_FLAGS_FILENAME
 
     def metacatalog_spectral(self) -> Path:
-        """Metacatalog with post-hoc ``spec_model_*`` columns."""
+        """Quality-filtered analysis subset (+ ``spec_*``, optional survey cols)."""
         return self.root / METACATALOG_SPECTRAL_FILENAME
 
     def metacatalog_radio(self) -> Path:
-        """Radio-survey-attached metacatalog: ``{root}/metacatalog_radio.parquet``."""
+        """Legacy radio-sidecar path; prefer :meth:`metacatalog_spectral`."""
         return self.root / METACATALOG_RADIO_FILENAME
 
     def with_metacatalog(self, metacatalog_file: str | Path) -> CatalogLayout:
