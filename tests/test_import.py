@@ -185,17 +185,25 @@ def test_analyze_forced_photometry_exports() -> None:
 
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
+        attach_beam_and_freq,
         blank_below_elevation,
         detect_sources,
         detect_sources_many,
+        detect_sources_on_healpix_tiles,
         discover_fits_files,
         iter_detect_sources,
+        median_beam_from_paths,
         merge_lst_metacatalog,
+        restfreq_hz_from_header,
     )
 
     assert callable(blank_below_elevation)
     assert callable(detect_sources)
     assert callable(detect_sources_many)
+    assert callable(detect_sources_on_healpix_tiles)
+    assert callable(attach_beam_and_freq)
+    assert callable(median_beam_from_paths)
+    assert callable(restfreq_hz_from_header)
     assert callable(iter_detect_sources)
     assert callable(discover_fits_files)
     assert merge_lst_metacatalog([], band="Full").empty
