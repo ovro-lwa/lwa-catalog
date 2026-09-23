@@ -30,6 +30,7 @@ from lwa_catalog.create.merge import (
     build_subband_metacatalog,
     catalog_elevation_deg,
     merge_lst_metacatalog,
+    merge_tile_metacatalog,
     pick_highest_elevation_row,
     source_elevation_deg,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "lst_hours_from_discovery",
     "median_beam_from_paths",
     "merge_lst_metacatalog",
+    "merge_tile_metacatalog",
     "parse_fits_metadata",
     "pick_highest_elevation_row",
     "resolve_fits_slot",

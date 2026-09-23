@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from lwa_catalog.constants import BAND_FREQ_HZ
 from lwa_catalog.create.merge import (
@@ -12,6 +13,7 @@ from lwa_catalog.create.merge import (
     build_global_metacatalog,
     build_subband_metacatalog,
     merge_lst_metacatalog,
+    merge_tile_metacatalog,
 )
 
 
@@ -73,6 +75,42 @@ def test_build_global_metacatalog_propagates_cluster_jitter() -> None:
     full_row = meta.loc[meta["origin_band"] == "Full"].iloc[0]
     assert np.isfinite(float(full_row["cluster_jitter_rms_deg"]))
     assert full_row["S_Code"] == "C"
+
+
+def test_merge_tile_metacatalog_collapses_overlap_and_lst_schema() -> None:
+    """Tile detections cluster like LST merge; schema matches build_global input."""
+    tiles = pd.DataFrame(
+        [
+            _src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")
+            | {"tile_ipix": 0, "Total_flux": 1.0},
+            _src(ra=10.01, dec=20.0, peak=1.5, lst_hour="01h", band="Full")
+            | {"tile_ipix": 1, "Total_flux": 1.5},
+            _src(ra=50.0, dec=0.0, peak=0.4, lst_hour="01h", band="Full")
+            | {"tile_ipix": 2, "Total_flux": 0.4},
+        ]
+    )
+    # Drop lst_hour — tile catalogs do not carry it.
+    tiles = tiles.drop(columns=["lst_hour"])
+    merged = merge_tile_metacatalog(tiles, band="Full")
+    assert len(merged) == 2
+    bright = merged.loc[merged["RA"].between(9, 11)].iloc[0]
+    assert float(bright["Peak_flux"]) == pytest.approx(1.5)
+    assert int(bright["n_lst_contributions"]) == 1
+    assert bright["lst_hours"] == ""
+    assert bright["representative_lst"] == "healpix"
+    assert np.isfinite(float(bright["Peak_flux_std"]))
+    assert "cluster_jitter_rms_deg" in merged.columns
+
+    meta = build_global_metacatalog(
+        {
+            "Full": merged,
+            "Blue": pd.DataFrame(),
+            "Green": pd.DataFrame(),
+            "Red": pd.DataFrame(),
+        }
+    )
+    assert len(meta) == 2
+    assert set(meta["origin_band"]) == {"Full"}
 
 
 def test_merge_lst_clusters_nearby_detections() -> None:

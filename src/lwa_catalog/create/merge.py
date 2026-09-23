@@ -395,6 +395,39 @@ def merge_lst_metacatalog(catalogs: Iterable[pd.DataFrame], *, band: str) -> pd.
     return meta.sort_values("Peak_flux", ascending=False, na_position="last").reset_index(drop=True)
 
 
+def merge_tile_metacatalog(catalog: pd.DataFrame, *, band: str) -> pd.DataFrame:
+    """Collapse overlapping-tile detections into an LST-merged-shaped catalog.
+
+    HEALPix-tile (or mosaic) PyBDSF rows have no LST hours. Beam-sized
+    clustering matches :func:`merge_lst_metacatalog`, but the representative is
+    the brightest ``Peak_flux`` / ``Total_flux`` member (elevation is undefined).
+
+    Output columns match the LST-merged schema so
+    :func:`build_global_metacatalog` can consume the result. A single coadd
+    counts as one image: ``n_lst_contributions=1``, empty ``lst_hours``, and
+    ``representative_lst=\"healpix\"``. ``Peak_flux_std`` / jitter still
+    reflect multi-tile cluster scatter when overlap duplicates exist.
+    """
+    if catalog is None or catalog.empty:
+        return pd.DataFrame()
+    combined = normalize_ra_columns(catalog.copy())
+
+    rows: list[dict] = []
+    for members in _cluster_by_sky_position(combined):
+        rep = _pick_peak_flux_row(members)
+        entry = rep.to_dict()
+        entry["band"] = band
+        entry["n_lst_contributions"] = 1
+        entry["lst_hours"] = ""
+        entry["representative_lst"] = "healpix"
+        entry["Peak_flux_std"] = _flux_std(members)
+        entry.update(_lst_cluster_qa_fields(members, rep))
+        rows.append(entry)
+
+    meta = pd.DataFrame(rows)
+    return meta.sort_values("Peak_flux", ascending=False, na_position="last").reset_index(drop=True)
+
+
 def _empty_band_cols(
     *,
     assoc_bands: Sequence[str] = ASSOC_BANDS,

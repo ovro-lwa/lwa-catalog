@@ -100,7 +100,7 @@ def detect_sources_on_healpix_tiles(
     nside_map: int,
     nside_tile: int = 4,
     overlap: float = 0.2,
-    coord_frame: str = "equatorial",
+    coord_frame: str = "icrs",
     nested: bool = True,
     bmaj: float,
     bmin: float,
@@ -122,7 +122,9 @@ def detect_sources_on_healpix_tiles(
     nside_map, nside_tile
         Map and tiling NSIDE (defaults match the Option 2 plan: 2048 / 4).
     overlap, ctype, coord_frame, nested
-        Forwarded to ``lwa_healpix.iter_nested_tile_headers`` / ``healpix_to_hdu``.
+        Forwarded to ``lwa_healpix.iter_nested_tile_headers`` /
+        ``healpix_to_hdu``. Use reproject healpix frame names (``\"icrs\"``,
+        ``\"galactic\"``, ``\"c\"``, ``\"g\"``).
     bmaj, bmin, bpa, restfreq_hz, bunit
         Attached to each tile HDU before PyBDSF (not stored in lwa-healpix).
     band
