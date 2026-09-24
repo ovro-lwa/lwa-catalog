@@ -37,6 +37,15 @@ def _lst_hour_to_deg(lst_hour: str | float | int) -> float:
     return hour * 15.0
 
 
+def _is_lst_hour_label(lst_hour: object) -> bool:
+    """True when *lst_hour* can be parsed as an LST hour (``NNh`` / numeric)."""
+    try:
+        _lst_hour_to_deg(lst_hour)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def _elevation_deg(
     ra_deg: float,
     dec_deg: float,
@@ -74,14 +83,21 @@ def _pick_highest_elevation_row(
     ``representative_lst``) assuming a zenith-centered pointing (zenith at
     RA = LST, Dec = *latitude_deg*). Cluster median RA/DEC are used so
     position jitter does not flip the pick.
+
+    When LST labels are missing or not parseable as hours (e.g. tile-merged
+    ``representative_lst=\"healpix\"``), falls back to
+    :func:`_pick_peak_flux_row` — elevation ranking is undefined without LST.
     """
     if len(df) == 1:
         return df.iloc[0]
+    lst_col = _lst_label_column(df)
+    labels = df[lst_col].to_numpy()
+    if not all(_is_lst_hour_label(x) for x in labels):
+        return _pick_peak_flux_row(df)
     ra = float(np.nanmedian(df["RA"].to_numpy(dtype=float)))
     dec = float(np.nanmedian(df["DEC"].to_numpy(dtype=float)))
-    lst_col = _lst_label_column(df)
     elev = np.asarray(
-        [_elevation_deg(ra, dec, lst, latitude_deg=latitude_deg) for lst in df[lst_col].to_numpy()],
+        [_elevation_deg(ra, dec, lst, latitude_deg=latitude_deg) for lst in labels],
         dtype=float,
     )
     return df.iloc[int(np.nanargmax(elev))]

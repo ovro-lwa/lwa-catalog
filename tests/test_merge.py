@@ -114,6 +114,44 @@ def test_merge_tile_metacatalog_collapses_overlap_and_lst_schema() -> None:
     assert set(meta["origin_band"]) == {"Full"}
 
 
+def test_build_global_metacatalog_tile_assoc_without_lst_hour() -> None:
+    """Band fusion with tile-merged rows (representative_lst=healpix) must not crash."""
+    full = merge_tile_metacatalog(
+        pd.DataFrame(
+            [
+                _src(ra=10.0, dec=20.0, peak=2.0, lst_hour="01h", band="Full", bmaj=0.5)
+                | {"Total_flux": 2.0}
+            ]
+        ).drop(columns=["lst_hour"]),
+        band="Full",
+    )
+    # Two Blue neighbors of Full that do not cluster with each other (sep > BMAJ).
+    blue = merge_tile_metacatalog(
+        pd.DataFrame(
+            [
+                _src(ra=10.4, dec=20.0, peak=0.5, lst_hour="01h", band="Blue", bmaj=0.5)
+                | {"Total_flux": 0.5},
+                _src(ra=9.6, dec=20.0, peak=0.8, lst_hour="01h", band="Blue", bmaj=0.5)
+                | {"Total_flux": 0.8},
+            ]
+        ).drop(columns=["lst_hour"]),
+        band="Blue",
+    )
+    assert len(blue) == 2
+    meta = build_global_metacatalog(
+        {
+            "Full": full,
+            "Blue": blue,
+            "Green": pd.DataFrame(),
+            "Red": pd.DataFrame(),
+        }
+    )
+    assert len(meta) >= 1
+    row = meta.loc[meta["origin_band"] == "Full"].iloc[0]
+    assert int(row["n_assoc_Blue"]) == 2
+    assert float(row["Peak_flux_Blue"]) == pytest.approx(0.8)
+
+
 def test_merge_lst_clusters_nearby_detections() -> None:
     catalogs = [
         pd.DataFrame([_src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")]),
