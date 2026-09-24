@@ -339,6 +339,34 @@ def _sorted_unique_lst_hours(members: pd.DataFrame) -> list[str]:
     return sorted(members["lst_hour"].astype(str).unique())
 
 
+def _circular_hour_separation(lst_hours: np.ndarray, transit_hours: np.ndarray) -> np.ndarray:
+    """Shortest separation in hours on a 24 h circle."""
+    return np.abs((lst_hours - transit_hours + 12.0) % 24.0 - 12.0)
+
+
+def filter_detections_near_transit(df: pd.DataFrame, window_hr: float) -> pd.DataFrame:
+    """Keep detections whose image LST is within *window_hr* of transit.
+
+    Transit LST is the source right ascension expressed in hours (``RA / 15``).
+    A row is kept when the circular hour separation between ``lst_hour`` and
+    that transit time is ``<= window_hr``. Rows with non-finite RA are dropped.
+    """
+    if window_hr < 0:
+        msg = f"transit window must be >= 0 hours, got {window_hr}"
+        raise ValueError(msg)
+    if df.empty:
+        return df.copy()
+    if "lst_hour" not in df.columns:
+        msg = "DataFrame needs lst_hour to filter on transit"
+        raise KeyError(msg)
+    ra = pd.to_numeric(df["RA"], errors="coerce").to_numpy(dtype=float)
+    lst_hours = np.asarray([_lst_hour_to_deg(hour) / 15.0 for hour in df["lst_hour"]], dtype=float)
+    transit_hours = ra / 15.0
+    sep = _circular_hour_separation(lst_hours, transit_hours)
+    keep = np.isfinite(sep) & (sep <= float(window_hr))
+    return df.loc[keep].reset_index(drop=True)
+
+
 def _n_lst_contributions_value(row: pd.Series) -> int:
     """Finite ``n_lst_contributions`` from a band row, else 0."""
     raw = row.get("n_lst_contributions", np.nan)
@@ -363,12 +391,21 @@ def _accumulate_n_lst_contributions(entry: dict, band_row: pd.Series) -> None:
     entry["n_lst_contributions"] = current_i + added
 
 
-def merge_lst_metacatalog(catalogs: Iterable[pd.DataFrame], *, band: str) -> pd.DataFrame:
+def merge_lst_metacatalog(
+    catalogs: Iterable[pd.DataFrame],
+    *,
+    band: str,
+    transit_window_hr: float | None = None,
+) -> pd.DataFrame:
     """Fuse per-LST detections within one band → one row per source.
 
     ``n_lst_contributions`` is the number of unique LST hours (images) in which
     the source was identified, not the raw Gaussian count. Multiple detections
     in the same hour still cluster together; they count as one contribution.
+
+    When *transit_window_hr* is set, detections are dropped before clustering
+    unless their ``lst_hour`` lies within that many hours of transit
+    (RA expressed as LST). ``None`` keeps every detection.
     """
     frames = list(catalogs)
     if not frames:
@@ -377,6 +414,10 @@ def merge_lst_metacatalog(catalogs: Iterable[pd.DataFrame], *, band: str) -> pd.
     if combined.empty:
         return pd.DataFrame()
     combined = normalize_ra_columns(combined)
+    if transit_window_hr is not None:
+        combined = filter_detections_near_transit(combined, transit_window_hr)
+        if combined.empty:
+            return pd.DataFrame()
 
     rows: list[dict] = []
     for members in _cluster_by_sky_position(combined):

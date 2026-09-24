@@ -193,6 +193,7 @@ def test_create_apis_importable() -> None:
         discover_fits_files,
         iter_detect_sources,
         median_beam_from_paths,
+        filter_detections_near_transit,
         merge_lst_metacatalog,
         restfreq_hz_from_header,
     )
@@ -206,4 +207,5 @@ def test_create_apis_importable() -> None:
     assert callable(restfreq_hz_from_header)
     assert callable(iter_detect_sources)
     assert callable(discover_fits_files)
+    assert callable(filter_detections_near_transit)
     assert merge_lst_metacatalog([], band="Full").empty

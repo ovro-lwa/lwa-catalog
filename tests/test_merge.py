@@ -12,6 +12,7 @@ from lwa_catalog.create.merge import (
     associate_band_into_metacatalog,
     build_global_metacatalog,
     build_subband_metacatalog,
+    filter_detections_near_transit,
     merge_lst_metacatalog,
     merge_tile_metacatalog,
 )
@@ -184,6 +185,64 @@ def test_merge_lst_keeps_well_separated_sources_apart() -> None:
     merged = merge_lst_metacatalog(catalogs, band="Full")
     assert len(merged) == 2
     assert (merged["n_lst_contributions"] == 1).all()
+
+
+def test_merge_lst_transit_window_keeps_near_transit_only() -> None:
+    """Drop detections whose image LST is outside the transit window.
+
+    RA 15h (225°) seen at 14h is 1 h from transit and stays. RA 11h (165°)
+    seen at 13h and 14h is 2–3 h from transit and is removed before clustering.
+    """
+    near = pd.DataFrame(
+        [_src(ra=225.0, dec=37.0, peak=1.0, lst_hour="14h", band="82MHz")]
+    )
+    far = pd.DataFrame(
+        [
+            _src(ra=165.0, dec=37.0, peak=2.0, lst_hour="13h", band="82MHz"),
+            _src(ra=165.0, dec=37.1, peak=2.1, lst_hour="14h", band="82MHz"),
+        ]
+    )
+    merged = merge_lst_metacatalog([near, far], band="82MHz", transit_window_hr=1.0)
+    assert len(merged) == 1
+    row = merged.iloc[0]
+    assert row["lst_hours"] == "14h"
+    assert float(row["RA"]) == pytest.approx(225.0)
+
+    unfiltered = merge_lst_metacatalog([near, far], band="82MHz")
+    assert len(unfiltered) == 2
+
+
+def test_merge_lst_transit_window_drops_off_transit_hour_of_same_source() -> None:
+    """A source seen both near and far from transit keeps only the near hour."""
+    catalogs = [
+        pd.DataFrame([_src(ra=225.0, dec=37.0, peak=1.0, lst_hour="14h", band="Full")]),
+        pd.DataFrame([_src(ra=225.0, dec=37.0, peak=3.0, lst_hour="12h", band="Full")]),
+    ]
+    merged = merge_lst_metacatalog(catalogs, band="Full", transit_window_hr=1.0)
+    assert len(merged) == 1
+    assert merged.iloc[0]["lst_hours"] == "14h"
+    assert int(merged.iloc[0]["n_lst_contributions"]) == 1
+
+
+def test_merge_lst_transit_window_wraps_at_midnight() -> None:
+    """Hour separation is circular: 00h is 0.5 h from RA 0.5h; 23h is 1.5 h."""
+    catalogs = [
+        pd.DataFrame([_src(ra=7.5, dec=0.0, peak=1.0, lst_hour="23h", band="Full")]),
+        pd.DataFrame([_src(ra=7.5, dec=0.0, peak=1.2, lst_hour="00h", band="Full")]),
+    ]
+    merged = merge_lst_metacatalog(catalogs, band="Full", transit_window_hr=1.0)
+    assert len(merged) == 1
+    assert merged.iloc[0]["lst_hours"] == "00h"
+
+
+def test_merge_lst_transit_window_rejects_negative() -> None:
+    catalogs = [pd.DataFrame([_src(ra=225.0, dec=37.0, peak=1.0, lst_hour="14h", band="Full")])]
+    with pytest.raises(ValueError, match="transit window"):
+        merge_lst_metacatalog(catalogs, band="Full", transit_window_hr=-1.0)
+
+
+def test_filter_detections_near_transit_empty() -> None:
+    assert filter_detections_near_transit(pd.DataFrame(), 1.0).empty
 
 
 def test_merge_lst_same_hour_detections_count_as_one_image() -> None:
