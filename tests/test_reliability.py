@@ -700,6 +700,18 @@ def test_flag_low_elevation_and_high_ellipticity() -> None:
     assert bool(flag_high_ellipticity(high_row, max_ratio=3.0).iloc[0]) is True
     assert bool(flag_high_ellipticity(low_row, max_ratio=3.0).iloc[0]) is False
 
+    healpix_row = pd.DataFrame(
+        {
+            "RA": [180.0],
+            "DEC": [-50.0],
+            "representative_lst": ["healpix"],
+            "Maj": [0.5],
+            "Min": [0.5],
+        }
+    )
+    # Elevation undefined without LST → do not raise; do not set LOW_ELEVATION.
+    assert bool(flag_low_elevation(healpix_row, min_deg=10.0).iloc[0]) is False
+
     packed = pack_quality_flags(
         pd.DataFrame(
             {

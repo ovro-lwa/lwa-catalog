@@ -176,6 +176,17 @@ def test_catalog_elevation_deg_at_transit() -> None:
     assert abs(source_elevation_deg(ra, OVRO_LATITUDE_DEG, lst) - 90.0) < 1e-6
 
 
+def test_catalog_elevation_deg_healpix_label_is_nan() -> None:
+    """Tile-merged representative_lst is not an LST hour → NaN elevation."""
+    from lwa_catalog.create.merge import catalog_elevation_deg
+
+    df = pd.DataFrame(
+        {"RA": [10.0], "DEC": [20.0], "representative_lst": ["healpix"]}
+    )
+    elev = catalog_elevation_deg(df)
+    assert np.isnan(elev[0])
+
+
 def test_merge_lst_picks_highest_elevation_and_flux_std() -> None:
     # Source near RA=30° (LST 02h). Peak flux is higher at 01h so the old
     # median-flux rule would prefer 01h; elevation at transit prefers 02h.

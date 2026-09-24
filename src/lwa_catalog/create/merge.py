@@ -146,16 +146,24 @@ def catalog_elevation_deg(
     *,
     latitude_deg: float = OVRO_LATITUDE_DEG,
 ) -> np.ndarray:
-    """Return source elevation (degrees) for each row in a per-LST catalog."""
+    """Return source elevation (degrees) for each row in a per-LST catalog.
+
+    Rows whose ``lst_hour`` / ``representative_lst`` is not a parseable LST
+    hour label (e.g. tile-merged ``\"healpix\"``) yield ``NaN`` — elevation is
+    undefined without an LST zenith.
+    """
     lst_col = _lst_label_column(catalog)
     ra = catalog["RA"].to_numpy(dtype=float)
     dec = catalog["DEC"].to_numpy(dtype=float)
     lst = catalog[lst_col].to_numpy()
-    zenith_ra = np.array([_lst_hour_to_deg(lh) for lh in lst]) * u.deg
-    zenith_dec = np.full(len(catalog), latitude_deg) * u.deg
-    sources = SkyCoord(ra=ra * u.deg, dec=dec * u.deg)
-    zenith = SkyCoord(ra=zenith_ra, dec=zenith_dec)
-    return 90.0 - zenith.separation(sources).deg
+    elev = np.full(len(catalog), np.nan, dtype=float)
+    for i, lh in enumerate(lst):
+        if not _is_lst_hour_label(lh):
+            continue
+        if not (np.isfinite(ra[i]) and np.isfinite(dec[i])):
+            continue
+        elev[i] = _elevation_deg(ra[i], dec[i], lh, latitude_deg=latitude_deg)
+    return elev
 
 
 def pick_highest_elevation_row(
