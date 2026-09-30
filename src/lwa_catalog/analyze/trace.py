@@ -305,11 +305,8 @@ def rematch_meta_source(
             source_frames.append(hit)
 
     if bands_missing_hours:
-        if _is_healpix_catalog():
-            warnings.append(
-                "HEALPix / coadd catalog: no per-hour rematch "
-                f"({len(bands_missing_hours)} band match(es))"
-            )
+        if _is_healpix_catalog() or len(bands_missing_hours) == len(lst_matches):
+            warnings.append("HEALPix-based catalog")
         else:
             for band in bands_missing_hours:
                 warnings.append(f"No lst_hours for LST match in band {band}")

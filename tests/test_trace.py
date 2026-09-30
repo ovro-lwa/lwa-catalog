@@ -366,9 +366,10 @@ def test_rematch_healpix_catalog_single_no_hour_warning(tmp_path: Path) -> None:
     trace = rematch_meta_source(meta, layout, meta_id=mid, lst_merged=lst_merged)
     assert not trace.lst_matches.empty
     assert trace.source_matches.empty
-    healpix_warns = [w for w in trace.warnings if "HEALPix" in w]
+    healpix_warns = [w for w in trace.warnings if "HEALPix-based catalog" in w]
     assert len(healpix_warns) == 1
-    assert not any("No lst_hours for LST match in band" in w for w in trace.warnings)
+    assert not any("No lst_hours" in w for w in trace.warnings)
+    assert not any("per-hour rematch" in w for w in trace.warnings)
 
 
 def test_band_merge_offsets_and_plots() -> None:

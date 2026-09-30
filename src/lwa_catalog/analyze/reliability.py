@@ -1046,7 +1046,13 @@ def expand_seed_source_matches(
     if not hours:
         hours = _parse_lst_hours(meta_row.get("lst_hours", ""))
     if not hours:
-        warn.append(f"No lst_hours for seed band {band}")
+        rep = str(
+            seed_lst_row.get("representative_lst", "")
+            or meta_row.get("representative_lst", "")
+            or ""
+        ).strip().lower()
+        if rep != "healpix":
+            warn.append(f"No lst_hours for seed band {band}")
         return pd.DataFrame(), warn
 
     base_bmaj = float(seed_lst_row["BMAJ"]) if "BMAJ" in seed_lst_row.index and np.isfinite(
@@ -1144,7 +1150,13 @@ def _build_context(
 
     n = len(meta)
     use_merge_jitter = CLUSTER_JITTER_RMS_COL in meta.columns
-    if use_merge_jitter:
+    healpix_catalog = False
+    if "representative_lst" in meta.columns:
+        reps = meta["representative_lst"].astype(str).str.strip().str.lower()
+        healpix_catalog = bool((reps == "healpix").any())
+    if healpix_catalog:
+        warn.append("HEALPix-based catalog")
+    elif use_merge_jitter:
         warn.append("using merge-time cluster jitter (skipping per-hour rematch)")
 
     seed_matched = np.zeros(n, dtype=bool)

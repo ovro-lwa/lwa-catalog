@@ -223,58 +223,6 @@ def _draw_ellipse_on_ax(
     )
 
 
-def _draw_center_ticks(
-    ax,
-    x: float,
-    y: float,
-    *,
-    gap: float = 2.5,
-    length: float = 4.0,
-    color: str = "cyan",
-    lw: float = 1.2,
-    zorder: float = 5,
-) -> None:
-    """Draw axis ticks beside ``(x, y)`` without covering the pixel itself."""
-    if not (np.isfinite(x) and np.isfinite(y)):
-        return
-    g = float(gap)
-    tick_len = float(length)
-    # left / right horizontal ticks
-    ax.plot(
-        [x - g - tick_len, x - g],
-        [y, y],
-        color=color,
-        lw=lw,
-        solid_capstyle="butt",
-        zorder=zorder,
-    )
-    ax.plot(
-        [x + g, x + g + tick_len],
-        [y, y],
-        color=color,
-        lw=lw,
-        solid_capstyle="butt",
-        zorder=zorder,
-    )
-    # bottom / top vertical ticks
-    ax.plot(
-        [x, x],
-        [y - g - tick_len, y - g],
-        color=color,
-        lw=lw,
-        solid_capstyle="butt",
-        zorder=zorder,
-    )
-    ax.plot(
-        [x, x],
-        [y + g, y + g + tick_len],
-        color=color,
-        lw=lw,
-        solid_capstyle="butt",
-        zorder=zorder,
-    )
-
-
 def plot_band_cutouts(
     lst_matches: pd.DataFrame,
     meta_row: pd.Series,
@@ -379,7 +327,6 @@ def plot_band_cutouts(
             )
             wcs = WCS(hdu.header)
             band_row = match_by_band.get(band)
-            bra = bdec = float("nan")
             if band_row is not None:
                 try:
                     bra = float(band_row["RA"])
@@ -402,18 +349,13 @@ def plot_band_cutouts(
                     pa_deg=pa,
                     color=color,
                 )
-            # Ticks beside the fit center (band match, else fused) — gap clears the peak.
-            tick_ra = bra if np.isfinite(bra) else ref_ra
-            tick_dec = bdec if np.isfinite(bdec) else ref_dec
-            tx, ty = wcs.world_to_pixel_values(tick_ra, tick_dec)
-            _draw_center_ticks(ax, float(tx), float(ty), color=color)
             ax.set_title(band, fontsize=8, color=color, pad=2)
         except FileNotFoundError:
-            ax.set_title(f"{band} (missing)", fontsize=7, color=color, pad=2)
+            ax.set_title(band, fontsize=8, color=color, pad=2)
             ax.text(
                 0.5,
                 0.5,
-                map_cache.path_for(band).name,
+                f"missing\n{map_cache.path_for(band).name}",
                 ha="center",
                 va="center",
                 transform=ax.transAxes,
@@ -421,11 +363,11 @@ def plot_band_cutouts(
                 wrap=True,
             )
         except Exception as exc:  # noqa: BLE001 — show failure in panel
-            ax.set_title(f"{band} (error)", fontsize=7, color=color, pad=2)
+            ax.set_title(band, fontsize=8, color=color, pad=2)
             ax.text(
                 0.5,
                 0.5,
-                str(exc),
+                f"error\n{exc}",
                 ha="center",
                 va="center",
                 transform=ax.transAxes,
