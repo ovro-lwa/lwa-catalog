@@ -22,6 +22,8 @@ def test_catalog_browser_config_defaults() -> None:
     assert cfg.sky_fov_deg == 10.0
     assert cfg.max_table_columns == 40
     assert cfg.prefer_spectral is True
+    assert cfg.healpix_cutout_nside == 2048
+    assert cfg.healpix_cutout_beam_factor == 6.0
     assert "meta_id" in cfg.preferred_columns
 
 

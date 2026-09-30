@@ -15,7 +15,11 @@ import param
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
-from lwa_catalog.analyze import gather_band_flux_measurements, rematch_meta_source
+from lwa_catalog.analyze import (
+    HealpixMapCache,
+    gather_band_flux_measurements,
+    rematch_meta_source,
+)
 from lwa_catalog.analyze.spectral import (
     SingleSpectrumFit,
     evaluate_taylor_spectrum,
@@ -79,6 +83,8 @@ class CatalogBrowserConfig:
     spec_ref_freq_mhz: float = SUBBAND_REF_FREQ_MHZ
     initial_coordinate: str = "83.633 -5.391"
     prefer_spectral: bool = True
+    healpix_cutout_nside: int = 2048
+    healpix_cutout_beam_factor: float = 6.0
 
 
 def order_columns(
@@ -309,18 +315,21 @@ def _mpl_placeholder(pane, title: str) -> None:
 
 
 def _mpl_trace_figures(
-    source_matches: pd.DataFrame,
+    lst_matches: pd.DataFrame,
+    meta_row: pd.Series,
+    *,
     figures: tuple | None = None,
+    map_cache=None,
+    beam_factor: float = 6.0,
 ):
-    """Build consistency figures (flux, RA/Dec, Maj/Min) for Panel."""
+    """Band-merge QA figures from LST matches (+ optional HEALPix cutouts)."""
     _mpl_configure()
     import matplotlib.pyplot as plt
 
     from lwa_catalog.analyze import (
-        plot_maj_min_scatter,
-        plot_member_property_scatter,
-        plot_peak_flux_vs_lst,
-        plot_ra_dec_scatter,
+        plot_band_cutouts,
+        plot_band_flux_vs_frequency,
+        plot_band_position_offsets,
     )
 
     def _axis(i: int, figsize: tuple[float, float]):
@@ -331,21 +340,33 @@ def _mpl_trace_figures(
         return plt.subplots(figsize=figsize)
 
     fig1, ax1 = _axis(0, (6.5, 3.4))
-    plot_peak_flux_vs_lst(source_matches, ax=ax1)
+    plot_band_position_offsets(lst_matches, meta_row, ax=ax1)
     fig1.tight_layout()
 
     fig2, ax2 = _axis(1, (6.5, 3.4))
-    plot_member_property_scatter(source_matches, ax=ax2)
+    plot_band_flux_vs_frequency(lst_matches, ax=ax2)
     fig2.tight_layout()
 
-    fig3, ax3 = _axis(2, (6.5, 3.4))
-    plot_ra_dec_scatter(source_matches, ax=ax3)
-    fig3.tight_layout()
-
-    fig4, ax4 = _axis(3, (6.5, 3.4))
-    plot_maj_min_scatter(source_matches, ax=ax4)
-    fig4.tight_layout()
-    return fig1, fig2, fig3, fig4
+    if figures is not None and len(figures) > 2 and figures[2] is not None:
+        fig3 = figures[2]
+        fig3.clf()
+    else:
+        n_bands = max(len(lst_matches) if lst_matches is not None else 1, 1)
+        fig3 = plt.figure(figsize=(min(3.2 * n_bands, 16), 3.4))
+    if map_cache is not None:
+        plot_band_cutouts(
+            lst_matches,
+            meta_row,
+            map_cache,
+            beam_factor=beam_factor,
+            fig=fig3,
+        )
+    else:
+        ax3 = fig3.add_subplot(111)
+        ax3.set_title("HEALPix cutouts (no map cache)")
+        ax3.axis("off")
+        fig3.tight_layout()
+    return fig1, fig2, fig3
 
 
 def _row_to_spectrum_fit(row: pd.Series, *, prefix: str = "spec_") -> SingleSpectrumFit | None:
@@ -563,6 +584,10 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._overlay_note = ""
         self._selected_meta_id: int | None = None
         self._layout = CatalogLayout(Path(self.catalog_dir))
+        self._healpix_cache = HealpixMapCache(
+            self._layout.root,
+            nside=int(config.healpix_cutout_nside),
+        )
         self._status = pn.pane.Markdown("", sizing_mode="stretch_width")
         self._nearest_status = pn.pane.Markdown("", sizing_mode="stretch_width")
         self._trace_status = pn.pane.Markdown(
@@ -779,14 +804,14 @@ class CatalogBrowser(pn.viewable.Viewer):
             self._hips_survey_w.param.watch(self._on_hips_survey_change, "value")
             self._overlay_w.param.watch(self._on_overlay_change, "value")
 
-            empty1 = _mpl_empty_figure("Peak_flux vs LST (select a metacatalog row)")
-            empty2 = _mpl_empty_figure("Peak vs Total (select a metacatalog row)")
-            empty3 = _mpl_empty_figure("RA vs Dec (select a metacatalog row)")
-            empty4 = _mpl_empty_figure("Maj vs Min (select a metacatalog row)")
-            self._flux_plot = pn.pane.Matplotlib(empty1, tight=True, height=320)
-            self._scatter_plot = pn.pane.Matplotlib(empty2, tight=True, height=320)
-            self._radec_plot = pn.pane.Matplotlib(empty3, tight=True, height=320)
-            self._majmin_plot = pn.pane.Matplotlib(empty4, tight=True, height=320)
+            empty1 = _mpl_empty_figure("Band position offsets (select a metacatalog row)")
+            empty2 = _mpl_empty_figure("Flux vs frequency (select a metacatalog row)")
+            empty3 = _mpl_empty_figure("HEALPix cutouts (select a metacatalog row)")
+            self._offset_plot = pn.pane.Matplotlib(empty1, tight=True, height=320)
+            self._flux_freq_plot = pn.pane.Matplotlib(empty2, tight=True, height=320)
+            self._cutout_plot = pn.pane.Matplotlib(
+                empty3, tight=True, height=340, sizing_mode="stretch_width"
+            )
             self._spectrum_status = pn.pane.Markdown(
                 "_Select a table row, then click **Plot spectrum**._",
                 sizing_mode="stretch_width",
@@ -825,21 +850,26 @@ class CatalogBrowser(pn.viewable.Viewer):
                 self._spectrum_status,
                 self._spectrum_plot,
                 pn.pane.Markdown(
-                    "### Source trace (rematch)\n"
-                    "Select a table row, then click **Load trace**. Rematch uses beam "
-                    "association and keeps the highest-elevation seed; durable key "
-                    "`(band, lst_hour, Source_id)`. Updates the tables and plots below; "
-                    "does not change the sky overlay.",
+                    "### Source trace (band-merge rematch)\n"
+                    "Select a table row, then click **Load trace**. Rematch recovers "
+                    "per-band LST-merged rows. Plots use those matches: position "
+                    "offsets vs fused RA/DEC, flux vs frequency, and HEALPix coadd "
+                    "cutouts (`healpix_{band}_nside*.fits`). Per-hour tables stay for "
+                    "hourly pipelines (often empty for HEALPix tile detect). Does not "
+                    "change the sky overlay.",
                     disable_anchors=True,
                 ),
                 pn.Row(self._meta_id_w, self._trace_btn),
                 self._trace_status,
-                pn.pane.Markdown("#### LST-merged matches", disable_anchors=True),
+                pn.pane.Markdown("#### Per-band LST-merged matches", disable_anchors=True),
                 self._lst_trace_table,
-                pn.pane.Markdown("#### Per-hour source matches", disable_anchors=True),
+                pn.pane.Markdown(
+                    "#### Per-hour source matches (hourly detect only)",
+                    disable_anchors=True,
+                ),
                 self._src_trace_table,
-                pn.Row(self._flux_plot, self._scatter_plot),
-                pn.Row(self._radec_plot, self._majmin_plot),
+                pn.Row(self._offset_plot, self._flux_freq_plot),
+                self._cutout_plot,
                 pn.pane.Markdown("### Nearest-source query", disable_anchors=True),
                 pn.Row(self._coord_w, self._n_w, self._find_btn),
                 self._nearest_status,
@@ -884,6 +914,10 @@ class CatalogBrowser(pn.viewable.Viewer):
             return
         catalog_dir = Path(self.catalog_dir)
         self._layout = CatalogLayout(catalog_dir)
+        self._healpix_cache = HealpixMapCache(
+            self._layout.root,
+            nside=int(self._cfg.healpix_cutout_nside),
+        )
         self._index = inventory_catalogs(catalog_dir)
         if self._inventory_table is not None:
             self._inventory_table.value = self._index.drop(columns=["path"])
@@ -1089,10 +1123,9 @@ class CatalogBrowser(pn.viewable.Viewer):
     def close_mpl_figures(self) -> None:
         """Close trace Matplotlib figures (call before discarding this browser)."""
         for pane in (
-            self._flux_plot,
-            self._scatter_plot,
-            self._radec_plot,
-            self._majmin_plot,
+            self._offset_plot,
+            self._flux_freq_plot,
+            self._cutout_plot,
             self._spectrum_plot,
         ):
             _close_mpl_figure(pane.object)
@@ -1105,10 +1138,9 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._set_table_value(self._lst_trace_table, pd.DataFrame())
         self._set_table_value(self._src_trace_table, pd.DataFrame())
         for pane, title in (
-            (self._flux_plot, "Peak_flux vs LST (select a metacatalog row)"),
-            (self._scatter_plot, "Peak vs Total (select a metacatalog row)"),
-            (self._radec_plot, "RA vs Dec (select a metacatalog row)"),
-            (self._majmin_plot, "Maj vs Min (select a metacatalog row)"),
+            (self._offset_plot, "Band position offsets (select a metacatalog row)"),
+            (self._flux_freq_plot, "Flux vs frequency (select a metacatalog row)"),
+            (self._cutout_plot, "HEALPix cutouts (select a metacatalog row)"),
         ):
             _mpl_placeholder(pane, title)
 
@@ -1909,7 +1941,7 @@ class CatalogBrowser(pn.viewable.Viewer):
         )
 
     def _run_trace(self, meta_id: int) -> None:
-        from lwa_catalog.analyze import preferred_trace_columns
+        from lwa_catalog.analyze import band_merge_offsets, preferred_trace_columns
 
         try:
             meta_df = self._metacatalog_frame()
@@ -1941,18 +1973,26 @@ class CatalogBrowser(pn.viewable.Viewer):
             self._src_trace_table,
             trace.source_matches.loc[:, src_cols] if src_cols else trace.source_matches,
         )
+        offs = band_merge_offsets(trace.lst_matches, trace.meta_row)
+        if not offs.empty and "sep_arcsec" in offs.columns:
+            worst = float(np.nanmax(offs["sep_arcsec"].to_numpy(dtype=float)))
+            self._trace_status.object += f"  \n- worst band offset: **{worst:.1f} arcsec**"
         figs = (
-            self._flux_plot.object,
-            self._scatter_plot.object,
-            self._radec_plot.object,
-            self._majmin_plot.object,
+            self._offset_plot.object,
+            self._flux_freq_plot.object,
+            self._cutout_plot.object,
         )
-        fig1, fig2, fig3, fig4 = _mpl_trace_figures(trace.source_matches, figures=figs)
+        fig1, fig2, fig3 = _mpl_trace_figures(
+            trace.lst_matches,
+            trace.meta_row,
+            figures=figs,
+            map_cache=self._healpix_cache,
+            beam_factor=float(self._cfg.healpix_cutout_beam_factor),
+        )
         for pane, fig in (
-            (self._flux_plot, fig1),
-            (self._scatter_plot, fig2),
-            (self._radec_plot, fig3),
-            (self._majmin_plot, fig4),
+            (self._offset_plot, fig1),
+            (self._flux_freq_plot, fig2),
+            (self._cutout_plot, fig3),
         ):
             _set_mpl_pane(pane, fig)
 
