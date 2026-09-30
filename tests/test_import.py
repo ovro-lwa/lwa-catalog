@@ -183,6 +183,28 @@ def test_analyze_forced_photometry_exports() -> None:
     assert hasattr(ForcedPhotometryResult, "__dataclass_fields__")
 
 
+def test_analyze_band_merge_trace_exports() -> None:
+    from lwa_catalog.analyze import (
+        HealpixMapCache,
+        band_merge_offsets,
+        healpix_coadd_path,
+        healpix_cutout,
+        plot_band_cutouts,
+        plot_band_flux_vs_frequency,
+        plot_band_position_offsets,
+        tan_cutout_header,
+    )
+
+    assert callable(band_merge_offsets)
+    assert callable(plot_band_flux_vs_frequency)
+    assert callable(plot_band_position_offsets)
+    assert callable(healpix_coadd_path)
+    assert callable(healpix_cutout)
+    assert callable(plot_band_cutouts)
+    assert callable(tan_cutout_header)
+    assert HealpixMapCache is not None
+
+
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
         attach_beam_and_freq,

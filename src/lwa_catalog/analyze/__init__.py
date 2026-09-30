@@ -52,6 +52,13 @@ from lwa_catalog.analyze.forced_photometry import (
     select_forced_seed_row,
     summarize_forced_photometry,
 )
+from lwa_catalog.analyze.healpix_cutout import (
+    HealpixMapCache,
+    healpix_coadd_path,
+    healpix_cutout,
+    plot_band_cutouts,
+    tan_cutout_header,
+)
 from lwa_catalog.analyze.healpix_map import (
     metacatalog_to_healpix,
     metacatalog_to_hips,
@@ -127,6 +134,9 @@ from lwa_catalog.analyze.survey_attach import (
 )
 from lwa_catalog.analyze.trace import (
     SourceTrace,
+    band_merge_offsets,
+    plot_band_flux_vs_frequency,
+    plot_band_position_offsets,
     plot_maj_min_scatter,
     plot_member_property_scatter,
     plot_peak_flux_vs_lst,
@@ -202,8 +212,10 @@ __all__ = [
     "ReliabilityResult",
     "SourceQualityFlag",
     "SourceTrace",
+    "HealpixMapCache",
     "assign_source_quality_flags",
     "assert_gold_subset_of_cleaned",
+    "band_merge_offsets",
     "bands_present_counts",
     "decode_quality_flag",
     "filter_by_quality_flags",
@@ -212,8 +224,13 @@ __all__ = [
     "filter_metacatalog_include",
     "filter_metacatalog_reliability",
     "filter_or_hesl",
+    "healpix_coadd_path",
+    "healpix_cutout",
     "metacatalog_to_healpix",
     "metacatalog_to_hips",
+    "plot_band_cutouts",
+    "plot_band_flux_vs_frequency",
+    "plot_band_position_offsets",
     "plot_maj_min_scatter",
     "plot_member_property_scatter",
     "plot_peak_flux_vs_lst",
@@ -231,6 +248,7 @@ __all__ = [
     "summarize_nvss_match",
     "summarize_vlass_match",
     "summarize_vlssr_match",
+    "tan_cutout_header",
     "write_healpix_hips",
     "VlssrMatchConfig",
     "VlssrMatchResult",

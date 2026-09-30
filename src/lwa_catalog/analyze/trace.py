@@ -8,7 +8,11 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from lwa_catalog.constants import BAND_OVERLAY_COLORS, subband_frequency_color
+from lwa_catalog.constants import (
+    BAND_OVERLAY_COLORS,
+    band_frequency_hz,
+    subband_frequency_color,
+)
 from lwa_catalog.create.merge import associate_catalogs
 from lwa_catalog.io import read_lst_merged, read_sources_catalog
 from lwa_catalog.paths import CatalogLayout
@@ -567,7 +571,238 @@ def preferred_trace_columns(df: pd.DataFrame) -> list[str]:
         "n_lst_contributions",
         "representative_lst",
         "BMAJ",
+        "tile_ipix",
+        "nside_tile",
     ]
     front = [c for c in preferred if c in df.columns]
     rest = [c for c in df.columns if c not in front]
     return front + rest
+
+
+def _ref_radec(meta_row: pd.Series) -> tuple[float, float]:
+    """Fused metacatalog RA/DEC used as the band-merge reference."""
+    ra = float(meta_row["RA"])
+    dec = float(meta_row["DEC"])
+    if not (np.isfinite(ra) and np.isfinite(dec)):
+        msg = "meta_row needs finite RA and DEC for band-merge offsets"
+        raise ValueError(msg)
+    return ra, dec
+
+
+def band_merge_offsets(
+    lst_matches: pd.DataFrame,
+    meta_row: pd.Series,
+) -> pd.DataFrame:
+    """Per-band sky offsets from the fused metacatalog position.
+
+    Returns a copy of *lst_matches* with ``freq_mhz``, ``dRA_cosdec_arcsec``,
+    ``dDec_arcsec``, and ``sep_arcsec`` relative to ``meta_row`` ``RA``/``DEC``.
+    """
+    if lst_matches is None or lst_matches.empty:
+        return pd.DataFrame(
+            columns=[
+                "band",
+                "freq_mhz",
+                "dRA_cosdec_arcsec",
+                "dDec_arcsec",
+                "sep_arcsec",
+            ]
+        )
+    if "RA" not in lst_matches.columns or "DEC" not in lst_matches.columns:
+        msg = "lst_matches needs RA and DEC columns"
+        raise ValueError(msg)
+
+    ref_ra, ref_dec = _ref_radec(meta_row)
+    work = lst_matches.copy()
+    ra = work["RA"].to_numpy(dtype=float)
+    dec = work["DEC"].to_numpy(dtype=float)
+    cos_dec = np.cos(np.deg2rad(ref_dec))
+    dra = (ra - ref_ra) * cos_dec * 3600.0
+    ddec = (dec - ref_dec) * 3600.0
+    work["dRA_cosdec_arcsec"] = dra
+    work["dDec_arcsec"] = ddec
+    work["sep_arcsec"] = np.hypot(dra, ddec)
+    if "band" in work.columns:
+        freqs = np.asarray(
+            [band_frequency_hz(str(b)) / 1e6 for b in work["band"].astype(str)],
+            dtype=float,
+        )
+    else:
+        freqs = np.full(len(work), np.nan, dtype=float)
+    work["freq_mhz"] = freqs
+    return work
+
+
+def plot_band_position_offsets(
+    lst_matches: pd.DataFrame,
+    meta_row: pd.Series,
+    *,
+    ax=None,
+    show_bmaj: bool = True,
+):
+    """Scatter ΔRA cos(Dec) vs ΔDec (arcsec) of LST/band matches vs fused position.
+
+    Draws an optional circle at each band's ``BMAJ`` (converted to arcsec) so
+    confused associations outside the beam are obvious. Designed for HEALPix
+    tile / coadd band-merge QA where per-hour ``source_matches`` are empty.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Circle
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    if lst_matches is None or lst_matches.empty:
+        ax.set_title("Band position offsets (no LST matches)")
+        ax.set_xlabel(r"$\Delta$RA cos(Dec) [arcsec]")
+        ax.set_ylabel(r"$\Delta$Dec [arcsec]")
+        return ax
+
+    work = band_merge_offsets(lst_matches, meta_row)
+    if work.empty:
+        ax.set_title("Band position offsets (no LST matches)")
+        return ax
+
+    x = work["dRA_cosdec_arcsec"].to_numpy(dtype=float)
+    y = work["dDec_arcsec"].to_numpy(dtype=float)
+    bands = (
+        work["band"].astype(str).to_numpy()
+        if "band" in work.columns
+        else np.array(["?"] * len(work))
+    )
+    unique_bands = list(dict.fromkeys(bands.tolist()))
+    palette = _band_palette(unique_bands)
+
+    ax.axhline(0.0, color="#bbbbbb", lw=0.8, zorder=0)
+    ax.axvline(0.0, color="#bbbbbb", lw=0.8, zorder=0)
+    ax.plot(0.0, 0.0, marker="+", color="k", markersize=10, mew=1.5, zorder=3)
+
+    for band in unique_bands:
+        mask = bands == band
+        color = palette.get(band, "#7f7f7f")
+        ax.scatter(
+            x[mask],
+            y[mask],
+            s=40,
+            color=color,
+            edgecolors="k",
+            linewidths=0.4,
+            zorder=2,
+            label=band,
+        )
+        if show_bmaj and "BMAJ" in work.columns:
+            bmaj = work.loc[mask, "BMAJ"].to_numpy(dtype=float)
+            for xi, yi, bm in zip(x[mask], y[mask], bmaj, strict=False):
+                if not (np.isfinite(bm) and bm > 0 and np.isfinite(xi) and np.isfinite(yi)):
+                    continue
+                ax.add_patch(
+                    Circle(
+                        (float(xi), float(yi)),
+                        radius=float(bm) * 3600.0,
+                        fill=False,
+                        edgecolor=color,
+                        linewidth=0.9,
+                        linestyle="--",
+                        alpha=0.7,
+                        zorder=1,
+                    )
+                )
+
+    ax.set_aspect("equal", adjustable="datalim")
+    ax.set_xlabel(r"$\Delta$RA cos(Dec) [arcsec]")
+    ax.set_ylabel(r"$\Delta$Dec [arcsec]")
+    ax.set_title("Band position offsets vs fused RA/DEC")
+    if len(unique_bands) > 1:
+        ax.legend(title="band", fontsize=8)
+    return ax
+
+
+def plot_band_flux_vs_frequency(
+    lst_matches: pd.DataFrame,
+    *,
+    ax=None,
+    show_total: bool = True,
+):
+    """Scatter Peak (and optional Total) flux vs frequency for LST/band matches.
+
+    Frequency comes from :func:`~lwa_catalog.constants.band_frequency_hz`.
+    Error bars use ``E_Peak_flux`` / ``E_Total_flux`` when present.
+    """
+    import matplotlib.pyplot as plt
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    if lst_matches is None or lst_matches.empty or "Peak_flux" not in lst_matches.columns:
+        ax.set_title("Flux vs frequency (no LST matches)")
+        ax.set_xlabel("Frequency [MHz]")
+        ax.set_ylabel("Flux [Jy]")
+        return ax
+
+    work = lst_matches.copy()
+    if "band" not in work.columns:
+        ax.set_title("Flux vs frequency (missing band)")
+        return ax
+
+    freqs = np.asarray(
+        [band_frequency_hz(str(b)) / 1e6 for b in work["band"].astype(str)],
+        dtype=float,
+    )
+    work = work.assign(freq_mhz=freqs)
+    work = work.loc[np.isfinite(work["freq_mhz"].to_numpy(dtype=float))].copy()
+    if work.empty:
+        ax.set_title("Flux vs frequency (no finite frequencies)")
+        return ax
+    work = work.sort_values("freq_mhz", kind="mergesort")
+
+    bands = work["band"].astype(str).to_numpy()
+    unique_bands = list(dict.fromkeys(bands.tolist()))
+    palette = _band_palette(unique_bands)
+    x = work["freq_mhz"].to_numpy(dtype=float)
+    y_peak = work["Peak_flux"].to_numpy(dtype=float)
+    yerr_peak = _err_array(work, "E_Peak_flux", len(work))
+
+    for band in unique_bands:
+        mask = bands == band
+        color = palette.get(band, "#7f7f7f")
+        ye = None if yerr_peak is None else yerr_peak[mask]
+        ax.errorbar(
+            x[mask],
+            y_peak[mask],
+            yerr=ye,
+            fmt="o",
+            color=color,
+            ecolor=color,
+            elinewidth=1.0,
+            capsize=2,
+            markersize=6,
+            alpha=0.9,
+            label=f"{band} Peak",
+        )
+
+    if show_total and "Total_flux" in work.columns:
+        y_tot = work["Total_flux"].to_numpy(dtype=float)
+        yerr_tot = _err_array(work, "E_Total_flux", len(work))
+        for band in unique_bands:
+            mask = bands == band
+            color = palette.get(band, "#7f7f7f")
+            ye = None if yerr_tot is None else yerr_tot[mask]
+            ax.errorbar(
+                x[mask],
+                y_tot[mask],
+                yerr=ye,
+                fmt="s",
+                color=color,
+                ecolor=color,
+                elinewidth=1.0,
+                capsize=2,
+                markersize=5,
+                alpha=0.55,
+                label=f"{band} Total",
+            )
+
+    ax.set_xlabel("Frequency [MHz]")
+    ax.set_ylabel("Flux [Jy]")
+    ax.set_title("Flux vs frequency (LST / band matches)")
+    ax.legend(fontsize=7, ncols=2)
+    return ax

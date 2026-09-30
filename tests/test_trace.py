@@ -300,6 +300,59 @@ def test_plot_helpers_return_axes() -> None:
     assert isinstance(ax6, Axes)
 
 
+def test_band_merge_offsets_and_plots() -> None:
+    pytest.importorskip("matplotlib")
+    import matplotlib
+
+    matplotlib.use("Agg")
+    from matplotlib.axes import Axes
+
+    from lwa_catalog.analyze.trace import (
+        band_merge_offsets,
+        plot_band_flux_vs_frequency,
+        plot_band_position_offsets,
+    )
+
+    meta = pd.Series({"RA": 30.0, "DEC": 37.0, "bands_present": "82MHz,55MHz"})
+    lst = pd.DataFrame(
+        {
+            "band": ["82MHz", "55MHz"],
+            "RA": [30.01, 29.99],
+            "DEC": [37.005, 36.995],
+            "Peak_flux": [2.0, 1.5],
+            "E_Peak_flux": [0.1, 0.1],
+            "Total_flux": [2.2, 1.7],
+            "E_Total_flux": [0.15, 0.12],
+            "BMAJ": [0.4, 0.5],
+            "Maj": [0.2, 0.25],
+            "Min": [0.15, 0.18],
+            "PA": [10.0, 20.0],
+        }
+    )
+    off = band_merge_offsets(lst, meta)
+    assert "dRA_cosdec_arcsec" in off.columns
+    assert "freq_mhz" in off.columns
+    assert float(off.loc[off["band"] == "82MHz", "freq_mhz"].iloc[0]) == pytest.approx(82.0)
+    # ΔRA cos(Dec) ≈ 0.01° * cos(37°) * 3600
+    expected_dra = 0.01 * np.cos(np.deg2rad(37.0)) * 3600.0
+    assert float(off.loc[off["band"] == "82MHz", "dRA_cosdec_arcsec"].iloc[0]) == pytest.approx(
+        expected_dra, rel=1e-5
+    )
+
+    ax1 = plot_band_position_offsets(lst, meta)
+    ax2 = plot_band_flux_vs_frequency(lst)
+    assert isinstance(ax1, Axes)
+    assert isinstance(ax2, Axes)
+    assert isinstance(plot_band_position_offsets(pd.DataFrame(), meta), Axes)
+    assert isinstance(plot_band_flux_vs_frequency(pd.DataFrame()), Axes)
+
+
+def test_subband_palette_uses_frequency_ramp() -> None:
+    palette = _band_palette(["82MHz", "18MHz"])
+    assert palette["82MHz"] == BAND_OVERLAY_COLORS["Blue"]
+    assert palette["18MHz"] == BAND_OVERLAY_COLORS["Red"]
+
+
 def test_band_palette_subband_red_to_blue() -> None:
     palette = _band_palette(["18MHz", "55MHz", "82MHz"])
     assert palette["18MHz"] == BAND_OVERLAY_COLORS["Red"]
