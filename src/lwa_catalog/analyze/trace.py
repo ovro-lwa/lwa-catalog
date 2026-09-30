@@ -255,14 +255,25 @@ def rematch_meta_source(
 
     lst_matches = pd.DataFrame(lst_rows) if lst_rows else pd.DataFrame()
 
+    def _is_healpix_catalog() -> bool:
+        rep = str(row.get("representative_lst", "") or "").strip().lower()
+        if rep == "healpix":
+            return True
+        if not lst_matches.empty and "representative_lst" in lst_matches.columns:
+            reps = lst_matches["representative_lst"].astype(str).str.strip().str.lower()
+            if bool((reps == "healpix").any()):
+                return True
+        return False
+
     source_frames: list[pd.DataFrame] = []
+    bands_missing_hours: list[str] = []
     for _, lst_row in lst_matches.iterrows():
         band = str(lst_row["band"])
         hours = _parse_lst_hours(lst_row.get("lst_hours", ""))
         if not hours:
             hours = _parse_lst_hours(row.get("lst_hours", ""))
         if not hours:
-            warnings.append(f"No lst_hours for LST match in band {band}")
+            bands_missing_hours.append(band)
             continue
 
         lst_bmaj = float(lst_row["BMAJ"]) if np.isfinite(float(lst_row.get("BMAJ", np.nan))) else base_bmaj
@@ -292,6 +303,16 @@ def rematch_meta_source(
             if "lst_hour" not in hit.columns:
                 hit["lst_hour"] = hour
             source_frames.append(hit)
+
+    if bands_missing_hours:
+        if _is_healpix_catalog():
+            warnings.append(
+                "HEALPix / coadd catalog: no per-hour rematch "
+                f"({len(bands_missing_hours)} band match(es))"
+            )
+        else:
+            for band in bands_missing_hours:
+                warnings.append(f"No lst_hours for LST match in band {band}")
 
     if source_frames:
         source_matches = pd.concat(source_frames, ignore_index=True)
@@ -642,9 +663,10 @@ def plot_band_position_offsets(
 ):
     """Scatter ΔRA cos(Dec) vs ΔDec (arcsec) of LST/band matches vs fused position.
 
-    Draws an optional circle at each band's ``BMAJ`` (converted to arcsec) so
-    confused associations outside the beam are obvious. Designed for HEALPix
-    tile / coadd band-merge QA where per-hour ``source_matches`` are empty.
+    Optional dashed circles show each band's beam ``BMAJ`` as a **FWHM diameter**
+    (radius = ``BMAJ/2`` in arcsec). Association still uses ``sep ≤ BMAJ``.
+    Designed for HEALPix tile / coadd band-merge QA where per-hour
+    ``source_matches`` are empty.
     """
     import matplotlib.pyplot as plt
     from matplotlib.patches import Circle
@@ -695,10 +717,11 @@ def plot_band_position_offsets(
             for xi, yi, bm in zip(x[mask], y[mask], bmaj, strict=False):
                 if not (np.isfinite(bm) and bm > 0 and np.isfinite(xi) and np.isfinite(yi)):
                     continue
+                # BMAJ is FWHM (full width); draw diameter = FWHM ⇒ radius = BMAJ/2.
                 ax.add_patch(
                     Circle(
                         (float(xi), float(yi)),
-                        radius=float(bm) * 3600.0,
+                        radius=0.5 * float(bm) * 3600.0,
                         fill=False,
                         edgecolor=color,
                         linewidth=0.9,

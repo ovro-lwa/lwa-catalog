@@ -223,6 +223,58 @@ def _draw_ellipse_on_ax(
     )
 
 
+def _draw_center_ticks(
+    ax,
+    x: float,
+    y: float,
+    *,
+    gap: float = 2.5,
+    length: float = 4.0,
+    color: str = "cyan",
+    lw: float = 1.2,
+    zorder: float = 5,
+) -> None:
+    """Draw axis ticks beside ``(x, y)`` without covering the pixel itself."""
+    if not (np.isfinite(x) and np.isfinite(y)):
+        return
+    g = float(gap)
+    tick_len = float(length)
+    # left / right horizontal ticks
+    ax.plot(
+        [x - g - tick_len, x - g],
+        [y, y],
+        color=color,
+        lw=lw,
+        solid_capstyle="butt",
+        zorder=zorder,
+    )
+    ax.plot(
+        [x + g, x + g + tick_len],
+        [y, y],
+        color=color,
+        lw=lw,
+        solid_capstyle="butt",
+        zorder=zorder,
+    )
+    # bottom / top vertical ticks
+    ax.plot(
+        [x, x],
+        [y - g - tick_len, y - g],
+        color=color,
+        lw=lw,
+        solid_capstyle="butt",
+        zorder=zorder,
+    )
+    ax.plot(
+        [x, x],
+        [y + g, y + g + tick_len],
+        color=color,
+        lw=lw,
+        solid_capstyle="butt",
+        zorder=zorder,
+    )
+
+
 def plot_band_cutouts(
     lst_matches: pd.DataFrame,
     meta_row: pd.Series,
@@ -326,18 +378,14 @@ def plot_band_cutouts(
                 interpolation="nearest",
             )
             wcs = WCS(hdu.header)
-            x0, y0 = wcs.world_to_pixel_values(ref_ra, ref_dec)
-            ax.plot(x0, y0, marker="+", color="cyan", markersize=10, mew=1.4)
             band_row = match_by_band.get(band)
+            bra = bdec = float("nan")
             if band_row is not None:
                 try:
                     bra = float(band_row["RA"])
                     bdec = float(band_row["DEC"])
                 except (TypeError, ValueError, KeyError):
                     bra, bdec = float("nan"), float("nan")
-                if np.isfinite(bra) and np.isfinite(bdec):
-                    bx, by = wcs.world_to_pixel_values(bra, bdec)
-                    ax.plot(bx, by, marker="x", color=color, markersize=7, mew=1.2)
                 try:
                     maj = float(band_row.get("Maj", np.nan))
                     minor = float(band_row.get("Min", np.nan))
@@ -354,9 +402,14 @@ def plot_band_cutouts(
                     pa_deg=pa,
                     color=color,
                 )
-            ax.set_title(band, fontsize=10, color=color)
+            # Ticks beside the fit center (band match, else fused) — gap clears the peak.
+            tick_ra = bra if np.isfinite(bra) else ref_ra
+            tick_dec = bdec if np.isfinite(bdec) else ref_dec
+            tx, ty = wcs.world_to_pixel_values(tick_ra, tick_dec)
+            _draw_center_ticks(ax, float(tx), float(ty), color=color)
+            ax.set_title(band, fontsize=8, color=color, pad=2)
         except FileNotFoundError:
-            ax.set_title(f"{band}\n(missing coadd)", fontsize=9)
+            ax.set_title(f"{band} (missing)", fontsize=7, color=color, pad=2)
             ax.text(
                 0.5,
                 0.5,
@@ -364,11 +417,11 @@ def plot_band_cutouts(
                 ha="center",
                 va="center",
                 transform=ax.transAxes,
-                fontsize=7,
+                fontsize=6,
                 wrap=True,
             )
         except Exception as exc:  # noqa: BLE001 — show failure in panel
-            ax.set_title(f"{band}\n(error)", fontsize=9)
+            ax.set_title(f"{band} (error)", fontsize=7, color=color, pad=2)
             ax.text(
                 0.5,
                 0.5,
@@ -376,7 +429,7 @@ def plot_band_cutouts(
                 ha="center",
                 va="center",
                 transform=ax.transAxes,
-                fontsize=7,
+                fontsize=6,
                 wrap=True,
             )
         ax.set_xticks([])
@@ -385,7 +438,7 @@ def plot_band_cutouts(
     fig.suptitle(
         f"HEALPix cutouts @ RA={ref_ra:.4f}, Dec={ref_dec:.4f} "
         f"(FOV≈{size_deg:.2f}°)",
-        fontsize=11,
+        fontsize=9,
     )
     fig.tight_layout()
     return fig

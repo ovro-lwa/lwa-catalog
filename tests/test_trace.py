@@ -300,6 +300,77 @@ def test_plot_helpers_return_axes() -> None:
     assert isinstance(ax6, Axes)
 
 
+def test_rematch_healpix_catalog_single_no_hour_warning(tmp_path: Path) -> None:
+    """Tile-merged catalogs have empty lst_hours; warn once, not per band."""
+    from lwa_catalog.create.merge import merge_tile_metacatalog
+    from lwa_catalog.io import write_lst_merged, write_metacatalog
+
+    layout = CatalogLayout(tmp_path)
+    tile_full = pd.DataFrame(
+        [
+            {
+                "RA": 30.0,
+                "DEC": 37.0,
+                "Peak_flux": 2.0,
+                "Total_flux": 2.0,
+                "E_Total_flux": 0.1,
+                "Maj": 0.1,
+                "Min": 0.05,
+                "PA": 0.0,
+                "DC_Maj": 0.1,
+                "DC_Min": 0.05,
+                "DC_PA": 0.0,
+                "BMAJ": 0.5,
+                "band": "Full",
+                "tile_ipix": 0,
+                "nside_tile": 4,
+            }
+        ]
+    )
+    tile_blue = pd.DataFrame(
+        [
+            {
+                "RA": 30.02,
+                "DEC": 37.0,
+                "Peak_flux": 3.0,
+                "Total_flux": 3.0,
+                "E_Total_flux": 0.1,
+                "Maj": 0.1,
+                "Min": 0.05,
+                "PA": 0.0,
+                "DC_Maj": 0.1,
+                "DC_Min": 0.05,
+                "DC_PA": 0.0,
+                "BMAJ": 0.5,
+                "band": "Blue",
+                "tile_ipix": 0,
+                "nside_tile": 4,
+            }
+        ]
+    )
+    lst_full = merge_tile_metacatalog(tile_full, band="Full")
+    lst_blue = merge_tile_metacatalog(tile_blue, band="Blue")
+    write_lst_merged(lst_full, layout, "Full")
+    write_lst_merged(lst_blue, layout, "Blue")
+    write_lst_merged(pd.DataFrame(), layout, "Green")
+    write_lst_merged(pd.DataFrame(), layout, "Red")
+    lst_merged = {
+        "Full": lst_full,
+        "Blue": lst_blue,
+        "Green": pd.DataFrame(),
+        "Red": pd.DataFrame(),
+    }
+    meta = build_global_metacatalog(lst_merged)
+    write_metacatalog(meta, layout)
+    mid = int(meta.iloc[0]["meta_id"])
+    trace = rematch_meta_source(meta, layout, meta_id=mid, lst_merged=lst_merged)
+    assert not trace.lst_matches.empty
+    assert trace.source_matches.empty
+    healpix_warns = [w for w in trace.warnings if "HEALPix" in w]
+    assert len(healpix_warns) == 1
+    assert not any("No lst_hours for LST match in band" in w for w in trace.warnings)
+
+
 def test_band_merge_offsets_and_plots() -> None:
     pytest.importorskip("matplotlib")
     import matplotlib
