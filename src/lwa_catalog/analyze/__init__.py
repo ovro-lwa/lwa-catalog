@@ -93,6 +93,8 @@ from lwa_catalog.analyze.nvss import (
     summarize_nvss_match,
 )
 from lwa_catalog.analyze.reliability import (
+    CORE_CLEAN_EXCLUDE_FLAGS,
+    CORE_CLEAN_EXCLUDE_MASK,
     OR_HESL_EXCLUDE_FLAGS,
     OR_HESL_EXCLUDE_MASK,
     QualityFlagResult,
@@ -207,6 +209,8 @@ __all__ = [
     "attach_radio_surveys_to_metacatalog",
     "attach_survey_to_metacatalog",
     "normalize_survey_band_catalog",
+    "CORE_CLEAN_EXCLUDE_FLAGS",
+    "CORE_CLEAN_EXCLUDE_MASK",
     "OR_HESL_EXCLUDE_FLAGS",
     "OR_HESL_EXCLUDE_MASK",
     "QualityFlagResult",

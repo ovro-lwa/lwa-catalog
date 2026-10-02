@@ -930,6 +930,27 @@ def test_flag_low_elevation_and_high_ellipticity() -> None:
     assert int(packed[0]) == int(SourceQualityFlag.LOW_ELEVATION | SourceQualityFlag.HIGH_ELLIPTICITY)
 
 
+def test_core_clean_exclude_mask() -> None:
+    from lwa_catalog.analyze.reliability import (
+        CORE_CLEAN_EXCLUDE_FLAGS,
+        CORE_CLEAN_EXCLUDE_MASK,
+        quality_flag_mask_from_names,
+    )
+
+    assert CORE_CLEAN_EXCLUDE_FLAGS == (
+        "HAS_NAN",
+        "INVALID_ASTROMETRY",
+        "UNPHYSICAL_FLUX",
+        "RESID_ABS_FAIL",
+        "LARGE_SINGLE",
+        "NEAR_BRIGHT_SIDELOBE",
+    )
+    assert CORE_CLEAN_EXCLUDE_MASK == quality_flag_mask_from_names(
+        CORE_CLEAN_EXCLUDE_FLAGS
+    )
+    assert CORE_CLEAN_EXCLUDE_MASK == 98355
+
+
 def test_filter_or_hesl_or_and_combo() -> None:
     from lwa_catalog.analyze.reliability import OR_HESL_EXCLUDE_MASK, filter_or_hesl
 
