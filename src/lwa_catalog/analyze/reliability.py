@@ -163,7 +163,7 @@ class SourceQualityFlag(IntFlag):
     16     NEAR_BRIGHT_SIDELOBE  within 2–4 × bright-neighbor BMAJ of a
                                  source ≥30× brighter (likely sidelobe)
     17     BAND_POSITION_INCONSISTENT
-                                 max pairwise band–band sep ``> 0.3 × BMAJ``
+                                 max pairwise band–band sep ``> 1 × BMAJ``
     ====== ===================== =================================================
     """
 
@@ -248,7 +248,7 @@ class ReliabilityConfig:
     resid_percentile_hi: float = 99.0
     flux_unphysical_nsigma: float = 3.0
     jitter_bmaj_frac: float = 0.3
-    band_offset_bmaj_frac: float = 0.3
+    band_offset_bmaj_frac: float = 1.0
     min_elevation_deg: float = 10.0
     max_source_ellipticity: float = 3.0
     extended_bmaj_ratio: float = 3.0
@@ -993,12 +993,13 @@ def band_pairwise_max_sep_deg(row: pd.Series | Mapping) -> float:
 def flag_band_position_inconsistent(
     df: pd.DataFrame,
     *,
-    frac: float = 0.3,
+    frac: float = 1.0,
 ) -> pd.Series:
     """True when max pairwise band–band sep exceeds ``frac × BMAJ_match``.
 
     Soft semantics: fewer than two finite band positions, or non-finite /
-    non-positive BMAJ, leave the bit clear.
+    non-positive BMAJ, leave the bit clear. Default *frac* is ``1.0``
+    (``max_sep / BMAJ > 1``).
     """
     name = "band_position_inconsistent"
     if df is None or df.empty:

@@ -690,22 +690,8 @@ def test_flag_near_bright_sidelobe_annulus_and_ratio() -> None:
 
 def test_band_pairwise_max_sep_and_flag() -> None:
     bmaj = 1.0
-    # Two bands within 0.3 × BMAJ → clear
+    # Two bands within 1 × BMAJ → clear
     close = pd.DataFrame(
-        {
-            "bands_present": ["Blue,Green"],
-            "RA_Blue": [10.0],
-            "DEC_Blue": [0.0],
-            "RA_Green": [10.2],
-            "DEC_Green": [0.0],
-            "BMAJ_match": [bmaj],
-        }
-    )
-    assert band_pairwise_max_sep_deg(close.iloc[0]) == pytest.approx(0.2, abs=1e-6)
-    assert bool(flag_band_position_inconsistent(close, frac=0.3).iloc[0]) is False
-
-    # Two bands beyond 0.3 × BMAJ → set
-    far = pd.DataFrame(
         {
             "bands_present": ["Blue,Green"],
             "RA_Blue": [10.0],
@@ -715,8 +701,22 @@ def test_band_pairwise_max_sep_and_flag() -> None:
             "BMAJ_match": [bmaj],
         }
     )
-    assert band_pairwise_max_sep_deg(far.iloc[0]) == pytest.approx(0.5, abs=1e-6)
-    assert bool(flag_band_position_inconsistent(far, frac=0.3).iloc[0]) is True
+    assert band_pairwise_max_sep_deg(close.iloc[0]) == pytest.approx(0.5, abs=1e-6)
+    assert bool(flag_band_position_inconsistent(close).iloc[0]) is False
+
+    # Two bands beyond 1 × BMAJ → set
+    far = pd.DataFrame(
+        {
+            "bands_present": ["Blue,Green"],
+            "RA_Blue": [10.0],
+            "DEC_Blue": [0.0],
+            "RA_Green": [11.2],
+            "DEC_Green": [0.0],
+            "BMAJ_match": [bmaj],
+        }
+    )
+    assert band_pairwise_max_sep_deg(far.iloc[0]) == pytest.approx(1.2, abs=1e-6)
+    assert bool(flag_band_position_inconsistent(far).iloc[0]) is True
 
     # Single band / missing second position → soft clear
     single = pd.DataFrame(
@@ -728,7 +728,7 @@ def test_band_pairwise_max_sep_and_flag() -> None:
         }
     )
     assert np.isnan(band_pairwise_max_sep_deg(single.iloc[0]))
-    assert bool(flag_band_position_inconsistent(single, frac=0.3).iloc[0]) is False
+    assert bool(flag_band_position_inconsistent(single).iloc[0]) is False
 
     missing = pd.DataFrame(
         {
@@ -741,9 +741,9 @@ def test_band_pairwise_max_sep_and_flag() -> None:
         }
     )
     assert np.isnan(band_pairwise_max_sep_deg(missing.iloc[0]))
-    assert bool(flag_band_position_inconsistent(missing, frac=0.3).iloc[0]) is False
+    assert bool(flag_band_position_inconsistent(missing).iloc[0]) is False
 
-    # Three bands: max pair (Blue–Red = 0.5) drives the fail; Blue–Green alone would pass
+    # Three bands: max pair (Blue–Red = 1.2) drives the fail; Blue–Green alone would pass
     triple = pd.DataFrame(
         {
             "bands_present": ["Blue,Green,Red"],
@@ -751,13 +751,13 @@ def test_band_pairwise_max_sep_and_flag() -> None:
             "DEC_Blue": [0.0],
             "RA_Green": [10.1],
             "DEC_Green": [0.0],
-            "RA_Red": [10.5],
+            "RA_Red": [11.2],
             "DEC_Red": [0.0],
             "BMAJ_match": [bmaj],
         }
     )
-    assert band_pairwise_max_sep_deg(triple.iloc[0]) == pytest.approx(0.5, abs=1e-6)
-    assert bool(flag_band_position_inconsistent(triple, frac=0.3).iloc[0]) is True
+    assert band_pairwise_max_sep_deg(triple.iloc[0]) == pytest.approx(1.2, abs=1e-6)
+    assert bool(flag_band_position_inconsistent(triple).iloc[0]) is True
 
     packed = pack_quality_flags(pd.DataFrame({"band_position_inconsistent": [True]}))
     assert int(packed[0]) == int(SourceQualityFlag.BAND_POSITION_INCONSISTENT)
