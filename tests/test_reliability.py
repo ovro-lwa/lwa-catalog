@@ -14,11 +14,14 @@ from lwa_catalog.analyze.reliability import (
     SourceQualityFlag,
     assert_gold_subset_of_cleaned,
     assign_source_quality_flags,
+    band_pairwise_max_sep_deg,
     cluster_radec_jitter_rms,
     decode_quality_flag,
     filter_by_quality_flags,
     filter_by_quality_mask,
     filter_metacatalog_reliability,
+    flag_band_position_inconsistent,
+    flag_confused_assoc,
     flag_has_nan,
     flag_extended,
     flag_high_ellipticity,
@@ -466,6 +469,54 @@ def test_confused_band_does_not_buy_multi_image(tmp_path: Path) -> None:
     assert len(gold.catalog) == 0
 
 
+def test_flag_confused_assoc_uses_n_confused() -> None:
+    ok = pd.DataFrame(
+        [
+            {
+                "bands_present": "Full,Blue",
+                "n_assoc_Blue": 2,
+                "n_confused_Blue": 1,
+            }
+        ]
+    )
+    bad = pd.DataFrame(
+        [
+            {
+                "bands_present": "Full,Blue",
+                "n_assoc_Blue": 1,
+                "n_confused_Blue": 3,
+            }
+        ]
+    )
+    assert bool(flag_confused_assoc(ok).iloc[0]) is False
+    assert bool(flag_confused_assoc(bad).iloc[0]) is True
+    packed = pack_quality_flags(
+        pd.DataFrame(
+            {
+                "has_nan": [False],
+                "invalid": [False],
+                "single_lst": [False],
+                "single_unique_band": [False],
+                "unphysical_soft": [False],
+                "resid_fail_soft": [False],
+                "resid_pctl_rms": [False],
+                "resid_pctl_mean": [False],
+                "jitter_fail_soft": [False],
+                "confused_assoc": flag_confused_assoc(bad).to_numpy(),
+                "no_vlssr": [False],
+                "scode_complex": [False],
+                "low_elevation": [False],
+                "high_ellipticity": [False],
+                "extended": [False],
+                "large_single": [False],
+                "near_bright_sidelobe": [False],
+                "band_position_inconsistent": [False],
+            }
+        )
+    )
+    assert packed[0] == np.uint32(SourceQualityFlag.CONFUSED_ASSOC)
+
+
 def test_assert_gold_subset_warns() -> None:
     cleaned = ReliabilityResult(
         catalog=pd.DataFrame({"meta_id": [1]}),
@@ -487,8 +538,8 @@ def test_assert_gold_subset_warns() -> None:
 
 def test_quality_flag_pack_and_decode() -> None:
     legend = quality_flag_legend()
-    assert len(legend) == 17
-    assert set(legend["bit"]) == set(range(17))
+    assert len(legend) == 18
+    assert set(legend["bit"]) == set(range(18))
     flags = pd.DataFrame(
         {
             "has_nan": [True, False],
@@ -508,6 +559,7 @@ def test_quality_flag_pack_and_decode() -> None:
             "extended": [False, False],
             "large_single": [False, False],
             "near_bright_sidelobe": [False, False],
+            "band_position_inconsistent": [False, False],
         }
     )
     packed = pack_quality_flags(flags)
@@ -634,6 +686,82 @@ def test_flag_near_bright_sidelobe_annulus_and_ratio() -> None:
     packed = pack_quality_flags(pd.DataFrame({"near_bright_sidelobe": [True]}))
     assert int(packed[0]) == int(SourceQualityFlag.NEAR_BRIGHT_SIDELOBE)
     assert decode_quality_flag(int(packed[0])) == ["NEAR_BRIGHT_SIDELOBE"]
+
+
+def test_band_pairwise_max_sep_and_flag() -> None:
+    bmaj = 1.0
+    # Two bands within 0.3 × BMAJ → clear
+    close = pd.DataFrame(
+        {
+            "bands_present": ["Blue,Green"],
+            "RA_Blue": [10.0],
+            "DEC_Blue": [0.0],
+            "RA_Green": [10.2],
+            "DEC_Green": [0.0],
+            "BMAJ_match": [bmaj],
+        }
+    )
+    assert band_pairwise_max_sep_deg(close.iloc[0]) == pytest.approx(0.2, abs=1e-6)
+    assert bool(flag_band_position_inconsistent(close, frac=0.3).iloc[0]) is False
+
+    # Two bands beyond 0.3 × BMAJ → set
+    far = pd.DataFrame(
+        {
+            "bands_present": ["Blue,Green"],
+            "RA_Blue": [10.0],
+            "DEC_Blue": [0.0],
+            "RA_Green": [10.5],
+            "DEC_Green": [0.0],
+            "BMAJ_match": [bmaj],
+        }
+    )
+    assert band_pairwise_max_sep_deg(far.iloc[0]) == pytest.approx(0.5, abs=1e-6)
+    assert bool(flag_band_position_inconsistent(far, frac=0.3).iloc[0]) is True
+
+    # Single band / missing second position → soft clear
+    single = pd.DataFrame(
+        {
+            "bands_present": ["Blue"],
+            "RA_Blue": [10.0],
+            "DEC_Blue": [0.0],
+            "BMAJ_match": [bmaj],
+        }
+    )
+    assert np.isnan(band_pairwise_max_sep_deg(single.iloc[0]))
+    assert bool(flag_band_position_inconsistent(single, frac=0.3).iloc[0]) is False
+
+    missing = pd.DataFrame(
+        {
+            "bands_present": ["Blue,Green"],
+            "RA_Blue": [10.0],
+            "DEC_Blue": [0.0],
+            "RA_Green": [np.nan],
+            "DEC_Green": [np.nan],
+            "BMAJ_match": [bmaj],
+        }
+    )
+    assert np.isnan(band_pairwise_max_sep_deg(missing.iloc[0]))
+    assert bool(flag_band_position_inconsistent(missing, frac=0.3).iloc[0]) is False
+
+    # Three bands: max pair (Blue–Red = 0.5) drives the fail; Blue–Green alone would pass
+    triple = pd.DataFrame(
+        {
+            "bands_present": ["Blue,Green,Red"],
+            "RA_Blue": [10.0],
+            "DEC_Blue": [0.0],
+            "RA_Green": [10.1],
+            "DEC_Green": [0.0],
+            "RA_Red": [10.5],
+            "DEC_Red": [0.0],
+            "BMAJ_match": [bmaj],
+        }
+    )
+    assert band_pairwise_max_sep_deg(triple.iloc[0]) == pytest.approx(0.5, abs=1e-6)
+    assert bool(flag_band_position_inconsistent(triple, frac=0.3).iloc[0]) is True
+
+    packed = pack_quality_flags(pd.DataFrame({"band_position_inconsistent": [True]}))
+    assert int(packed[0]) == int(SourceQualityFlag.BAND_POSITION_INCONSISTENT)
+    assert decode_quality_flag(int(packed[0])) == ["BAND_POSITION_INCONSISTENT"]
 
 
 def test_large_single_composite_logic() -> None:

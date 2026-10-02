@@ -607,6 +607,36 @@ def _ref_radec(meta_row: pd.Series) -> tuple[float, float]:
     return ra, dec
 
 
+def confused_bands(meta_row: pd.Series | Mapping | None) -> frozenset[str]:
+    """Band labels with ``n_confused_{band} > 1`` on the fused metacatalog row.
+
+    Empty when *meta_row* is missing or has no finite confused counts above 1.
+    """
+    if meta_row is None:
+        return frozenset()
+    if isinstance(meta_row, pd.Series):
+        index = meta_row.index
+        get = meta_row.get
+    else:
+        index = getattr(meta_row, "keys", lambda: ())()
+        get = meta_row.get  # type: ignore[union-attr]
+    out: set[str] = set()
+    for key in index:
+        name = str(key)
+        if not name.startswith("n_confused_"):
+            continue
+        band = name[len("n_confused_") :]
+        if not band:
+            continue
+        try:
+            val = float(get(key))  # type: ignore[misc]
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(val) and val > 1:
+            out.add(band)
+    return frozenset(out)
+
+
 def band_merge_offsets(
     lst_matches: pd.DataFrame,
     meta_row: pd.Series,
@@ -662,6 +692,7 @@ def plot_band_position_offsets(
 
     Optional dashed circles show each band's beam ``BMAJ`` as a **FWHM diameter**
     (radius = ``BMAJ/2`` in arcsec). Association still uses ``sep ≤ BMAJ``.
+    Bands with ``n_confused_{band} > 1`` on *meta_row* use an ``x`` marker.
     Designed for HEALPix tile / coadd band-merge QA where per-hour
     ``source_matches`` are empty.
     """
@@ -691,6 +722,7 @@ def plot_band_position_offsets(
     )
     unique_bands = list(dict.fromkeys(bands.tolist()))
     palette = _band_palette(unique_bands)
+    confused = confused_bands(meta_row)
 
     ax.axhline(0.0, color="#bbbbbb", lw=0.8, zorder=0)
     ax.axvline(0.0, color="#bbbbbb", lw=0.8, zorder=0)
@@ -699,16 +731,30 @@ def plot_band_position_offsets(
     for band in unique_bands:
         mask = bands == band
         color = palette.get(band, "#7f7f7f")
-        ax.scatter(
-            x[mask],
-            y[mask],
-            s=40,
-            color=color,
-            edgecolors="k",
-            linewidths=0.4,
-            zorder=2,
-            label=band,
-        )
+        is_confused = band in confused
+        label = f"{band} (confused)" if is_confused else band
+        if is_confused:
+            ax.scatter(
+                x[mask],
+                y[mask],
+                s=64,
+                marker="x",
+                color=color,
+                linewidths=1.6,
+                zorder=2,
+                label=label,
+            )
+        else:
+            ax.scatter(
+                x[mask],
+                y[mask],
+                s=40,
+                color=color,
+                edgecolors="k",
+                linewidths=0.4,
+                zorder=2,
+                label=label,
+            )
         if show_bmaj and "BMAJ" in work.columns:
             bmaj = work.loc[mask, "BMAJ"].to_numpy(dtype=float)
             for xi, yi, bm in zip(x[mask], y[mask], bmaj, strict=False):
@@ -739,6 +785,7 @@ def plot_band_position_offsets(
 
 def plot_band_flux_vs_frequency(
     lst_matches: pd.DataFrame,
+    meta_row: pd.Series | Mapping | None = None,
     *,
     ax=None,
     show_total: bool = True,
@@ -747,6 +794,7 @@ def plot_band_flux_vs_frequency(
 
     Frequency comes from :func:`~lwa_catalog.constants.band_frequency_hz`.
     Error bars use ``E_Peak_flux`` / ``E_Total_flux`` when present.
+    Bands with ``n_confused_{band} > 1`` on *meta_row* use an ``x`` marker.
     """
     import matplotlib.pyplot as plt
 
@@ -778,6 +826,7 @@ def plot_band_flux_vs_frequency(
     bands = work["band"].astype(str).to_numpy()
     unique_bands = list(dict.fromkeys(bands.tolist()))
     palette = _band_palette(unique_bands)
+    confused = confused_bands(meta_row)
     x = work["freq_mhz"].to_numpy(dtype=float)
     y_peak = work["Peak_flux"].to_numpy(dtype=float)
     yerr_peak = _err_array(work, "E_Peak_flux", len(work))
@@ -786,18 +835,22 @@ def plot_band_flux_vs_frequency(
         mask = bands == band
         color = palette.get(band, "#7f7f7f")
         ye = None if yerr_peak is None else yerr_peak[mask]
+        is_confused = band in confused
+        peak_fmt = "x" if is_confused else "o"
+        peak_label = f"{band} Peak (confused)" if is_confused else f"{band} Peak"
         ax.errorbar(
             x[mask],
             y_peak[mask],
             yerr=ye,
-            fmt="o",
+            fmt=peak_fmt,
             color=color,
             ecolor=color,
             elinewidth=1.0,
             capsize=2,
-            markersize=6,
+            markersize=7 if is_confused else 6,
+            markeredgewidth=1.6 if is_confused else 1.0,
             alpha=0.9,
-            label=f"{band} Peak",
+            label=peak_label,
         )
 
     if show_total and "Total_flux" in work.columns:
@@ -807,18 +860,22 @@ def plot_band_flux_vs_frequency(
             mask = bands == band
             color = palette.get(band, "#7f7f7f")
             ye = None if yerr_tot is None else yerr_tot[mask]
+            is_confused = band in confused
+            tot_fmt = "x" if is_confused else "s"
+            tot_label = f"{band} Total (confused)" if is_confused else f"{band} Total"
             ax.errorbar(
                 x[mask],
                 y_tot[mask],
                 yerr=ye,
-                fmt="s",
+                fmt=tot_fmt,
                 color=color,
                 ecolor=color,
                 elinewidth=1.0,
                 capsize=2,
-                markersize=5,
+                markersize=6 if is_confused else 5,
+                markeredgewidth=1.6 if is_confused else 1.0,
                 alpha=0.55,
-                label=f"{band} Total",
+                label=tot_label,
             )
 
     ax.set_xlabel("Frequency [MHz]")

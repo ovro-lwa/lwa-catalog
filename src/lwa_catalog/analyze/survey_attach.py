@@ -6,7 +6,8 @@ match position and 1σ radius (survey coords after bijective VLSSR→NVSS→VLAS
 when enabled; otherwise native LWA). Top-level LWA astrometry and
 ``BMAJ_match`` are left unchanged. Stored survey flux is the brightest
 associated hit (preferring ``Total_flux`` when available, else peak);
-``n_assoc_{band}`` counts every hit inside the match radius.
+``n_assoc_{band}`` counts every hit inside the match radius; ``n_confused_{band}``
+counts how many metacatalog rows claim the stored survey source.
 """
 
 from __future__ import annotations

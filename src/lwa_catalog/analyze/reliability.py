@@ -137,7 +137,7 @@ class SourceQualityFlag(IntFlag):
 
     A bit is **0 when that check is good/reliable** and **1 when the property
     is a quality concern**. ``quality_flag == 0`` means every implemented check
-    passed. Bits 17–31 are reserved (stay 0).
+    passed. Bits 18–31 are reserved (stay 0).
 
     ====== ===================== =================================================
     Bit    Name                  Set (1) when
@@ -151,7 +151,8 @@ class SourceQualityFlag(IntFlag):
     6      RESID_PCTL_RMS        ``Resid_Isl_rms`` outside the catalog 1–99%
     7      RESID_PCTL_MEAN       ``Resid_Isl_mean`` outside the catalog 1–99%
     8      JITTER_FAIL           cluster RMS ``> 0.3 × BMAJ`` (was E4)
-    9      CONFUSED_ASSOC        any ``n_assoc_* > 1`` (was E5)
+    9      CONFUSED_ASSOC        any ``n_confused_* > 1`` (was E5; reverse
+                                 multi-seed claim on an attached band source)
     10     NO_VLSSR              no positional match to the VLSSR catalog
     11     SCODE_COMPLEX         PyBDSF ``S_Code`` is ``C`` or ``M``
     12     LOW_ELEVATION         elevation at ``representative_lst`` < 10°
@@ -161,6 +162,8 @@ class SourceQualityFlag(IntFlag):
                                  (SINGLE_UNIQUE_BAND or SINGLE_LST)
     16     NEAR_BRIGHT_SIDELOBE  within 2–4 × bright-neighbor BMAJ of a
                                  source ≥30× brighter (likely sidelobe)
+    17     BAND_POSITION_INCONSISTENT
+                                 max pairwise band–band sep ``> 0.3 × BMAJ``
     ====== ===================== =================================================
     """
 
@@ -181,6 +184,7 @@ class SourceQualityFlag(IntFlag):
     EXTENDED = 1 << 14
     LARGE_SINGLE = 1 << 15
     NEAR_BRIGHT_SIDELOBE = 1 << 16
+    BAND_POSITION_INCONSISTENT = 1 << 17
 
 
 _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
@@ -201,6 +205,7 @@ _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
     ("extended", SourceQualityFlag.EXTENDED),
     ("large_single", SourceQualityFlag.LARGE_SINGLE),
     ("near_bright_sidelobe", SourceQualityFlag.NEAR_BRIGHT_SIDELOBE),
+    ("band_position_inconsistent", SourceQualityFlag.BAND_POSITION_INCONSISTENT),
 )
 
 _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
@@ -215,7 +220,7 @@ _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
     SourceQualityFlag.RESID_PCTL_RMS: "Resid_Isl_rms outside catalog 1–99 percentile",
     SourceQualityFlag.RESID_PCTL_MEAN: "Resid_Isl_mean outside catalog 1–99 percentile",
     SourceQualityFlag.JITTER_FAIL: "cluster RA/Dec RMS > 0.3 × BMAJ",
-    SourceQualityFlag.CONFUSED_ASSOC: "any n_assoc_* > 1",
+    SourceQualityFlag.CONFUSED_ASSOC: "any n_confused_* > 1",
     SourceQualityFlag.NO_VLSSR: "not associated with the VLSSR catalog",
     SourceQualityFlag.SCODE_COMPLEX: "S_Code is C or M",
     SourceQualityFlag.LOW_ELEVATION: "elevation at representative_lst below min_elevation_deg",
@@ -226,6 +231,9 @@ _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
     ),
     SourceQualityFlag.NEAR_BRIGHT_SIDELOBE: (
         "within 2–4 × bright-neighbor BMAJ of a source ≥30× brighter"
+    ),
+    SourceQualityFlag.BAND_POSITION_INCONSISTENT: (
+        "max pairwise band–band position sep > band_offset_bmaj_frac × BMAJ"
     ),
 }
 
@@ -240,6 +248,7 @@ class ReliabilityConfig:
     resid_percentile_hi: float = 99.0
     flux_unphysical_nsigma: float = 3.0
     jitter_bmaj_frac: float = 0.3
+    band_offset_bmaj_frac: float = 0.3
     min_elevation_deg: float = 10.0
     max_source_ellipticity: float = 3.0
     extended_bmaj_ratio: float = 3.0
@@ -423,14 +432,19 @@ def flag_invalid_astrometry_flux(df: pd.DataFrame) -> pd.Series:
 
 
 def flag_confused_assoc(df: pd.DataFrame) -> pd.Series:
-    """True when any band in ``bands_present`` has ``n_assoc_* > 1``."""
+    """True when any band in ``bands_present`` has ``n_confused_* > 1``.
+
+    ``n_confused_{band}`` is the reverse multiplicity of the stored band
+    detection (how many metacatalog rows claim that same attached source).
+    Forward fan-in remains in ``n_assoc_{band}`` and does not set this flag.
+    """
     flags = []
     for _idx, row in df.iterrows():
         confused = False
         for band in parse_bands_present(row):
             if band == "Full":
                 continue
-            col = f"n_assoc_{band}"
+            col = f"n_confused_{band}"
             if col not in row.index or pd.isna(row[col]):
                 continue
             try:
@@ -938,6 +952,63 @@ def flag_jitter_exceeds(
     if not np.isfinite(rms_deg) or not np.isfinite(bmaj_deg) or bmaj_deg <= 0.0:
         return False
     return bool(rms_deg > float(frac) * bmaj_deg)
+
+
+def band_pairwise_max_sep_deg(row: pd.Series | Mapping) -> float:
+    """Max pairwise great-circle separation among per-band RA/DEC (degrees).
+
+    Collects finite ``RA_{band}`` / ``DEC_{band}`` for labels in
+    ``bands_present``. Returns NaN when fewer than two finite positions are
+    available (soft: not calculable).
+    """
+    bands = parse_bands_present(row)
+    if len(bands) < 2:
+        return float("nan")
+    ra_list: list[float] = []
+    dec_list: list[float] = []
+    for band in bands:
+        ra_col = f"RA_{band}"
+        dec_col = f"DEC_{band}"
+        if ra_col not in row or dec_col not in row:
+            continue
+        try:
+            ra = float(pd.to_numeric(row[ra_col], errors="coerce"))
+            dec = float(pd.to_numeric(row[dec_col], errors="coerce"))
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(ra) and np.isfinite(dec):
+            ra_list.append(ra)
+            dec_list.append(dec)
+    if len(ra_list) < 2:
+        return float("nan")
+    sc = SkyCoord(ra=np.asarray(ra_list) * u.deg, dec=np.asarray(dec_list) * u.deg)
+    max_sep = 0.0
+    for i in range(len(ra_list)):
+        seps = sc[i].separation(sc[i + 1 :]).deg
+        if seps.size:
+            max_sep = max(max_sep, float(np.max(seps)))
+    return float(max_sep)
+
+
+def flag_band_position_inconsistent(
+    df: pd.DataFrame,
+    *,
+    frac: float = 0.3,
+) -> pd.Series:
+    """True when max pairwise band–band sep exceeds ``frac × BMAJ_match``.
+
+    Soft semantics: fewer than two finite band positions, or non-finite /
+    non-positive BMAJ, leave the bit clear.
+    """
+    name = "band_position_inconsistent"
+    if df is None or df.empty:
+        return pd.Series(dtype=bool, name=name)
+    flags: list[bool] = []
+    for _idx, row in df.iterrows():
+        max_sep = band_pairwise_max_sep_deg(row)
+        bmaj = resolve_bmaj(row)
+        flags.append(flag_jitter_exceeds(max_sep, bmaj, frac=frac))
+    return pd.Series(flags, index=df.index, dtype=bool, name=name)
 
 
 def seed_lst_rows(
@@ -1546,9 +1617,9 @@ def assign_source_quality_flags(
 
     Reuses the reliability context (seed LST residuals, unphysical flux, jitter,
     confused association) and adds NaN, single-LST, single-band association,
-    residual-percentile, VLSSR, ``S_Code``, morphology, and near-bright-sidelobe
-    bits. Bit 0 on each flag means that check is good/reliable;
-    ``quality_flag == 0`` means all checks passed.
+    residual-percentile, VLSSR, ``S_Code``, morphology, near-bright-sidelobe,
+    and inter-band position-consistency bits. Bit 0 on each flag means that
+    check is good/reliable; ``quality_flag == 0`` means all checks passed.
     """
     cfg = config or ReliabilityConfig()
     if metacatalog is None or metacatalog.empty:
@@ -1599,6 +1670,9 @@ def assign_source_quality_flags(
         sep_bmaj_hi=cfg.sidelobe_sep_bmaj_hi,
         flux_ratio=cfg.sidelobe_flux_ratio,
         bmaj=flags["bmaj_deg"],
+    ).to_numpy()
+    flags["band_position_inconsistent"] = flag_band_position_inconsistent(
+        meta, frac=cfg.band_offset_bmaj_frac
     ).to_numpy()
 
     quality = pack_quality_flags(flags)

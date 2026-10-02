@@ -18,6 +18,7 @@ from astropy.wcs import WCS
 
 __all__ = [
     "HealpixMapCache",
+    "cutout_grid_shape",
     "healpix_coadd_path",
     "healpix_cutout",
     "plot_band_cutouts",
@@ -164,6 +165,22 @@ class HealpixMapCache:
         self._cache.clear()
 
 
+def cutout_grid_shape(n: int) -> tuple[int, int]:
+    """Return ``(nrows, ncols)`` with ``ncols ≈ 2 × nrows`` covering *n* panels."""
+    n = max(int(n), 1)
+    best: tuple[int, int] | None = None
+    best_key: tuple[float, int, int] | None = None
+    for nrows in range(1, n + 1):
+        ncols = int(np.ceil(n / nrows))
+        empty = nrows * ncols - n
+        key = (abs(ncols / nrows - 2.0), empty, nrows)
+        if best_key is None or key < best_key:
+            best_key = key
+            best = (nrows, ncols)
+    assert best is not None
+    return best
+
+
 def _cutout_size_deg(
     lst_matches: pd.DataFrame,
     *,
@@ -236,15 +253,18 @@ def plot_band_cutouts(
     percentile: tuple[float, float] = (2.0, 98.0),
     fig=None,
 ):
-    """Row of HEALPix coadd stamps centered on the fused position.
+    """Grid of HEALPix coadd stamps centered on the fused position.
 
-    Overlays the fused RA/DEC cross and each band's ``Maj``/``Min``/``PA``
-    ellipse from *lst_matches* when present. Missing coadd files become titled
-    empty panels (no exception).
+    Panel layout is roughly 2∶1 (columns∶rows). Overlays the fused RA/DEC
+    cross and each band's ``Maj``/``Min``/``PA`` ellipse from *lst_matches*
+    when present. Missing coadd files become titled empty panels (no
+    exception). Bands with ``n_confused_{band} > 1`` on *meta_row* get a
+    dashed yellow box around the subplot.
     """
     import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
 
-    from lwa_catalog.analyze.trace import _band_palette
+    from lwa_catalog.analyze.trace import _band_palette, confused_bands
 
     ref_ra = float(meta_row["RA"])
     ref_dec = float(meta_row["DEC"])
@@ -279,17 +299,22 @@ def plot_band_cutouts(
         default_bmaj_deg=default_bmaj_deg,
     )
     palette = _band_palette(band_list)
+    confused = confused_bands(meta_row)
     n = len(band_list)
+    nrows, ncols = cutout_grid_shape(n)
+    fig_w = figsize_per[0] * ncols
+    fig_h = figsize_per[1] * nrows
     if fig is None:
         fig, axes = plt.subplots(
-            1,
-            n,
-            figsize=(figsize_per[0] * n, figsize_per[1]),
+            nrows,
+            ncols,
+            figsize=(fig_w, fig_h),
             squeeze=False,
         )
     else:
         fig.clf()
-        axes = fig.subplots(1, n, squeeze=False)
+        fig.set_size_inches(fig_w, fig_h, forward=True)
+        axes = fig.subplots(nrows, ncols, squeeze=False)
 
     match_by_band: dict[str, pd.Series] = {}
     if lst_matches is not None and not lst_matches.empty and "band" in lst_matches.columns:
@@ -297,7 +322,8 @@ def plot_band_cutouts(
             match_by_band[str(row["band"])] = row
 
     for i, band in enumerate(band_list):
-        ax = axes[0, i]
+        r, c = divmod(i, ncols)
+        ax = axes[r, c]
         color = palette.get(band, "#ffcc00")
         try:
             healpix_map, weight, meta = map_cache.get(band)
@@ -349,9 +375,11 @@ def plot_band_cutouts(
                     pa_deg=pa,
                     color=color,
                 )
-            ax.set_title(band, fontsize=8, color=color, pad=2)
+            title = f"{band} (confused)" if band in confused else band
+            ax.set_title(title, fontsize=8, color=color, pad=2)
         except FileNotFoundError:
-            ax.set_title(band, fontsize=8, color=color, pad=2)
+            title = f"{band} (confused)" if band in confused else band
+            ax.set_title(title, fontsize=8, color=color, pad=2)
             ax.text(
                 0.5,
                 0.5,
@@ -363,7 +391,8 @@ def plot_band_cutouts(
                 wrap=True,
             )
         except Exception as exc:  # noqa: BLE001 — show failure in panel
-            ax.set_title(band, fontsize=8, color=color, pad=2)
+            title = f"{band} (confused)" if band in confused else band
+            ax.set_title(title, fontsize=8, color=color, pad=2)
             ax.text(
                 0.5,
                 0.5,
@@ -376,6 +405,25 @@ def plot_band_cutouts(
             )
         ax.set_xticks([])
         ax.set_yticks([])
+        if band in confused:
+            ax.add_patch(
+                Rectangle(
+                    (0.0, 0.0),
+                    1.0,
+                    1.0,
+                    transform=ax.transAxes,
+                    fill=False,
+                    edgecolor="yellow",
+                    linewidth=2.0,
+                    linestyle="--",
+                    clip_on=False,
+                    zorder=20,
+                )
+            )
+
+    for j in range(n, nrows * ncols):
+        r, c = divmod(j, ncols)
+        axes[r, c].set_visible(False)
 
     fig.suptitle(
         f"HEALPix cutouts @ RA={ref_ra:.4f}, Dec={ref_dec:.4f} "

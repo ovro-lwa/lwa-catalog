@@ -304,9 +304,15 @@ def _set_mpl_pane(pane, fig) -> None:
     old = pane.object
     if old is fig:
         pane.param.trigger("object")
-        return
-    pane.object = fig
-    _close_mpl_figure(old)
+    else:
+        pane.object = fig
+        _close_mpl_figure(old)
+    if fig is not None and hasattr(pane, "height"):
+        try:
+            _, h_in = fig.get_size_inches()
+            pane.height = int(max(280, min(900, round(float(h_in) * 85))))
+        except Exception:  # noqa: BLE001 — keep prior pane height
+            pass
 
 
 def _mpl_placeholder(pane, title: str) -> None:
@@ -344,15 +350,15 @@ def _mpl_trace_figures(
     fig1.tight_layout()
 
     fig2, ax2 = _axis(1, (6.5, 3.4))
-    plot_band_flux_vs_frequency(lst_matches, ax=ax2)
+    plot_band_flux_vs_frequency(lst_matches, meta_row, ax=ax2)
     fig2.tight_layout()
 
     if figures is not None and len(figures) > 2 and figures[2] is not None:
         fig3 = figures[2]
         fig3.clf()
     else:
-        n_bands = max(len(lst_matches) if lst_matches is not None else 1, 1)
-        fig3 = plt.figure(figsize=(min(3.2 * n_bands, 16), 3.4))
+        # Size is finalized inside plot_band_cutouts (≈2∶1 grid).
+        fig3 = plt.figure(figsize=(6.4, 3.2))
     if map_cache is not None:
         plot_band_cutouts(
             lst_matches,

@@ -149,6 +149,7 @@ def test_build_global_metacatalog_tile_assoc_without_lst_hour() -> None:
     assert len(meta) >= 1
     row = meta.loc[meta["origin_band"] == "Full"].iloc[0]
     assert int(row["n_assoc_Blue"]) == 2
+    assert int(row["n_confused_Blue"]) == 1
     assert float(row["Peak_flux_Blue"]) == pytest.approx(0.8)
 
 
@@ -347,7 +348,46 @@ def test_build_global_picks_highest_elevation_blue_when_multiple_in_beam() -> No
     assert len(meta) == 1
     row = meta.iloc[0]
     assert int(row["n_assoc_Blue"]) == 2
+    assert int(row["n_confused_Blue"]) == 1
     assert float(row["Peak_flux_Blue"]) == 1.0
+
+
+def test_n_confused_counts_meta_rows_sharing_band_source() -> None:
+    """Two seed rows claiming one Blue source → n_confused_Blue=2, n_assoc_Blue=1."""
+    full = pd.DataFrame(
+        [
+            {
+                **_src(ra=30.0, dec=37.0, peak=2.0, lst_hour="02h", band="Full"),
+                "n_lst_contributions": 1,
+                "lst_hours": "02h",
+                "representative_lst": "02h",
+            },
+            {
+                **_src(ra=30.2, dec=37.0, peak=1.5, lst_hour="02h", band="Full"),
+                "n_lst_contributions": 1,
+                "lst_hours": "02h",
+                "representative_lst": "02h",
+            },
+        ]
+    )
+    blue = pd.DataFrame(
+        [
+            {
+                **_src(ra=30.1, dec=37.0, peak=1.0, lst_hour="02h", band="Blue", bmaj=0.5),
+                "n_lst_contributions": 1,
+                "lst_hours": "02h",
+                "representative_lst": "02h",
+            }
+        ]
+    )
+    meta = build_global_metacatalog(
+        {"Full": full, "Blue": blue, "Green": pd.DataFrame(), "Red": pd.DataFrame()}
+    )
+    full_rows = meta.loc[meta["origin_band"] == "Full"]
+    assert len(full_rows) == 2
+    assert (full_rows["n_assoc_Blue"] == 1).all()
+    assert (full_rows["n_confused_Blue"] == 2).all()
+    assert (full_rows["Peak_flux_Blue"] == 1.0).all()
 
 
 def test_build_global_associates_matching_bands() -> None:

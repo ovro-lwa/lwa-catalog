@@ -378,14 +378,26 @@ def test_band_merge_offsets_and_plots() -> None:
 
     matplotlib.use("Agg")
     from matplotlib.axes import Axes
+    from matplotlib.lines import Line2D
 
     from lwa_catalog.analyze.trace import (
         band_merge_offsets,
+        confused_bands,
         plot_band_flux_vs_frequency,
         plot_band_position_offsets,
     )
 
-    meta = pd.Series({"RA": 30.0, "DEC": 37.0, "bands_present": "82MHz,55MHz"})
+    meta = pd.Series(
+        {
+            "RA": 30.0,
+            "DEC": 37.0,
+            "bands_present": "82MHz,55MHz",
+            "n_confused_82MHz": 2,
+            "n_confused_55MHz": 1,
+        }
+    )
+    assert confused_bands(meta) == frozenset({"82MHz"})
+    assert confused_bands(None) == frozenset()
     lst = pd.DataFrame(
         {
             "band": ["82MHz", "55MHz"],
@@ -412,9 +424,12 @@ def test_band_merge_offsets_and_plots() -> None:
     )
 
     ax1 = plot_band_position_offsets(lst, meta)
-    ax2 = plot_band_flux_vs_frequency(lst)
+    ax2 = plot_band_flux_vs_frequency(lst, meta)
     assert isinstance(ax1, Axes)
     assert isinstance(ax2, Axes)
+    assert ax1.get_legend() is not None
+    assert any("confused" in t.get_text() for t in ax1.get_legend().get_texts())
+    assert any(isinstance(ln, Line2D) and ln.get_marker() == "x" for ln in ax2.lines)
     assert isinstance(plot_band_position_offsets(pd.DataFrame(), meta), Axes)
     assert isinstance(plot_band_flux_vs_frequency(pd.DataFrame()), Axes)
 

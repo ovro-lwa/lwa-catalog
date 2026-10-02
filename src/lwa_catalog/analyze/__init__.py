@@ -54,6 +54,7 @@ from lwa_catalog.analyze.forced_photometry import (
 )
 from lwa_catalog.analyze.healpix_cutout import (
     HealpixMapCache,
+    cutout_grid_shape,
     healpix_coadd_path,
     healpix_cutout,
     plot_band_cutouts,
@@ -135,6 +136,7 @@ from lwa_catalog.analyze.survey_attach import (
 from lwa_catalog.analyze.trace import (
     SourceTrace,
     band_merge_offsets,
+    confused_bands,
     plot_band_flux_vs_frequency,
     plot_band_position_offsets,
     plot_maj_min_scatter,
@@ -216,7 +218,9 @@ __all__ = [
     "assign_source_quality_flags",
     "assert_gold_subset_of_cleaned",
     "band_merge_offsets",
+    "confused_bands",
     "bands_present_counts",
+    "cutout_grid_shape",
     "decode_quality_flag",
     "filter_by_quality_flags",
     "filter_by_quality_mask",

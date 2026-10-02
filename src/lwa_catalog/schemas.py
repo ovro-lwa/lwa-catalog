@@ -87,6 +87,7 @@ def metacatalog_schema() -> pa.Schema:
     ]
     for band in ASSOC_BANDS:
         fields.append(pa.field(f"n_assoc_{band}", pa.int64(), nullable=True))
+        fields.append(pa.field(f"n_confused_{band}", pa.int64(), nullable=True))
         for name in BAND_FIELDS:
             fields.append(pa.field(f"{name}_{band}", pa.float64(), nullable=True))
         fields.append(pa.field(f"source_file_{band}", pa.string(), nullable=True))

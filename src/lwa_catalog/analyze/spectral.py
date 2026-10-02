@@ -33,6 +33,8 @@ class SpectralFitConfig:
     max_terms: int = _MAX_TAYLOR_TERMS
     use_flux_errors: bool = True
     column_prefix: str = "spec_"
+    # When True, gather only bands with ``n_confused_{band} == 1`` (unique reverse claim).
+    unconfused_only: bool = True
 
 
 @dataclass(frozen=True)
@@ -86,12 +88,27 @@ def resolve_sed_bands(
     return tuple(out)
 
 
+def _band_is_unconfused(row: pd.Series, band: str) -> bool:
+    """True when ``n_confused_{band}`` is present and equals 1."""
+    conf_col = f"n_confused_{band}"
+    if conf_col not in row.index:
+        return False
+    n_conf = pd.to_numeric(row[conf_col], errors="coerce")
+    if not np.isfinite(n_conf):
+        return False
+    try:
+        return int(n_conf) == 1
+    except (TypeError, ValueError):
+        return False
+
+
 def gather_band_flux_measurements(
     row: pd.Series,
     *,
     bands: tuple[str, ...] = SUBBAND_BANDS_MHZ,
     flux_kind: FluxKind = "total",
     origin_band_key: str = "origin_band",
+    unconfused_only: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return ``(nu_hz, flux_jy, err_jy)`` for positive finite per-band fluxes.
 
@@ -99,6 +116,10 @@ def gather_band_flux_measurements(
   missing or invalid and *band* equals ``row[origin_band_key]``, falls back to the
   primary unsuffixed flux column (same pattern as
   :func:`~lwa_catalog.analyze.nedlvs.resolve_highest_frequency_peak_flux`).
+
+  When *unconfused_only* is True, skip bands unless ``n_confused_{band} == 1``
+  (unique reverse claim of the stored band source). Missing / non-finite /
+  other values exclude the band.
     """
     flux_prefix, err_prefix = _flux_column_names(flux_kind)
     origin_band = str(row.get(origin_band_key, "") or "")
@@ -108,6 +129,9 @@ def gather_band_flux_measurements(
     err_list: list[float] = []
 
     for band in bands:
+        if unconfused_only and not _band_is_unconfused(row, band):
+            continue
+
         freq = band_frequency_hz(band)
         if not np.isfinite(freq) or freq <= 0.0:
             continue
@@ -419,6 +443,7 @@ def fit_metacatalog_spectra(
             row,
             bands=cfg.bands,
             flux_kind=cfg.flux_kind,
+            unconfused_only=cfg.unconfused_only,
         )
         fit = fit_single_spectrum(nu_hz, flux_jy, err_jy, config=cfg)
         fit_rows.append(_single_fit_to_row(fit, prefix))

@@ -38,6 +38,7 @@ def test_metacatalog_schema_has_required_and_assoc_fields() -> None:
     assert "Peak_flux_Blue" in names
     assert "E_Total_flux_Blue" in names
     assert "n_assoc_Green" in names
+    assert "n_confused_Green" in names
     assert "source_file_Red" in names
     assert {"alpha_RG", "E_alpha_RG", "alpha_GB", "E_alpha_GB"} <= names
     assert "Peak_flux_std" in names

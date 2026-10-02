@@ -204,6 +204,7 @@ def _mini_metacatalog_rows() -> pd.DataFrame:
         for band, value in zip(bands, flux, strict=True):
             row[f"Total_flux_{band}"] = float(value)
             row[f"E_Total_flux_{band}"] = 0.05 * float(value)
+            row[f"n_confused_{band}"] = 1
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -243,6 +244,7 @@ def test_fit_metacatalog_skips_single_band_rows() -> None:
                 "bands_present": "18MHz",
                 "Total_flux_18MHz": 1.0,
                 "E_Total_flux_18MHz": 0.05,
+                "n_confused_18MHz": 1,
             },
             {
                 "meta_id": 1,
@@ -250,8 +252,10 @@ def test_fit_metacatalog_skips_single_band_rows() -> None:
                 "bands_present": "18MHz,23MHz",
                 "Total_flux_18MHz": 1.0,
                 "E_Total_flux_18MHz": 0.05,
+                "n_confused_18MHz": 1,
                 "Total_flux_23MHz": 0.9,
                 "E_Total_flux_23MHz": 0.05,
+                "n_confused_23MHz": 1,
             },
         ]
     )
@@ -267,6 +271,68 @@ def test_fit_metacatalog_skips_single_band_rows() -> None:
     assert int(result.metacatalog.loc[1, "spec_model_n_terms"]) == 2
     assert not (result.metacatalog["spec_model_n_flux"] == 0).any()
     assert not (result.metacatalog["spec_model_n_flux"] == 1).any()
+
+
+def test_gather_unconfused_only_skips_confused_bands() -> None:
+    row = pd.Series(
+        {
+            "Total_flux_18MHz": 1.0,
+            "Total_flux_23MHz": 0.9,
+            "Total_flux_27MHz": 0.8,
+            "n_confused_18MHz": 1,
+            "n_confused_23MHz": 3,
+            # 27MHz missing n_confused → excluded when unconfused_only
+        }
+    )
+    nu_all, flux_all, _ = gather_band_flux_measurements(
+        row,
+        bands=("18MHz", "23MHz", "27MHz"),
+        flux_kind="total",
+        unconfused_only=False,
+    )
+    assert list(nu_all) == pytest.approx([18e6, 23e6, 27e6])
+    assert list(flux_all) == pytest.approx([1.0, 0.9, 0.8])
+
+    nu_ok, flux_ok, _ = gather_band_flux_measurements(
+        row,
+        bands=("18MHz", "23MHz", "27MHz"),
+        flux_kind="total",
+        unconfused_only=True,
+    )
+    assert list(nu_ok) == pytest.approx([18e6])
+    assert list(flux_ok) == pytest.approx([1.0])
+
+
+def test_fit_metacatalog_unconfused_only_drops_confused_channels() -> None:
+    meta = pd.DataFrame(
+        [
+            {
+                "meta_id": 0,
+                "origin_band": "18MHz",
+                "bands_present": "18MHz,23MHz,27MHz",
+                "Total_flux_18MHz": 1.0,
+                "E_Total_flux_18MHz": 0.05,
+                "n_confused_18MHz": 1,
+                "Total_flux_23MHz": 0.9,
+                "E_Total_flux_23MHz": 0.05,
+                "n_confused_23MHz": 2,
+                "Total_flux_27MHz": 0.8,
+                "E_Total_flux_27MHz": 0.05,
+                "n_confused_27MHz": 1,
+            }
+        ]
+    )
+    bands = ("18MHz", "23MHz", "27MHz")
+    result_strict = fit_metacatalog_spectra(
+        meta,
+        config=SpectralFitConfig(bands=bands, use_flux_errors=False, unconfused_only=True),
+    )
+    result_all = fit_metacatalog_spectra(
+        meta,
+        config=SpectralFitConfig(bands=bands, use_flux_errors=False, unconfused_only=False),
+    )
+    assert int(result_strict.metacatalog.loc[0, "spec_model_n_flux"]) == 2
+    assert int(result_all.metacatalog.loc[0, "spec_model_n_flux"]) == 3
 
 
 def test_fit_metacatalog_spectra_summary() -> None:

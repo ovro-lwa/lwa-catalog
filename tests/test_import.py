@@ -187,6 +187,7 @@ def test_analyze_band_merge_trace_exports() -> None:
     from lwa_catalog.analyze import (
         HealpixMapCache,
         band_merge_offsets,
+        confused_bands,
         healpix_coadd_path,
         healpix_cutout,
         plot_band_cutouts,
@@ -196,6 +197,7 @@ def test_analyze_band_merge_trace_exports() -> None:
     )
 
     assert callable(band_merge_offsets)
+    assert callable(confused_bands)
     assert callable(plot_band_flux_vs_frequency)
     assert callable(plot_band_position_offsets)
     assert callable(healpix_coadd_path)

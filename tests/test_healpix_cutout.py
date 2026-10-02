@@ -16,6 +16,7 @@ from lwa_healpix import write_healpix_fits  # noqa: E402
 
 from lwa_catalog.analyze.healpix_cutout import (  # noqa: E402
     HealpixMapCache,
+    cutout_grid_shape,
     healpix_coadd_path,
     healpix_cutout,
     plot_band_cutouts,
@@ -116,3 +117,107 @@ def test_plot_band_cutouts_handles_missing(tmp_path: Path) -> None:
     fig = plot_band_cutouts(lst, meta, cache, beam_factor=3.0)
     assert fig is not None
     assert len(fig.axes) == 2
+
+
+def test_plot_band_cutouts_confused_yellow_box(tmp_path: Path) -> None:
+    pytest.importorskip("matplotlib")
+    import matplotlib
+    from matplotlib.patches import Rectangle
+
+    matplotlib.use("Agg")
+
+    nside = 8
+    npix = 12 * nside**2
+    for band in ("82MHz", "55MHz"):
+        write_healpix_fits(
+            tmp_path / f"healpix_{band}_nside{nside}.fits",
+            np.ones(npix, dtype=np.float32),
+            np.ones(npix, dtype=np.float32),
+            nside=nside,
+            nested=True,
+            overwrite=True,
+        )
+    cache = HealpixMapCache(tmp_path, nside=nside)
+    meta = pd.Series(
+        {
+            "RA": 45.0,
+            "DEC": 10.0,
+            "bands_present": "82MHz,55MHz",
+            "n_confused_82MHz": 3,
+            "n_confused_55MHz": 1,
+        }
+    )
+    lst = pd.DataFrame(
+        {
+            "band": ["82MHz", "55MHz"],
+            "RA": [45.05, 44.95],
+            "DEC": [10.02, 9.98],
+            "Peak_flux": [1.0, 0.8],
+            "BMAJ": [1.0, 1.2],
+            "Maj": [0.5, 0.6],
+            "Min": [0.4, 0.5],
+            "PA": [0.0, 30.0],
+        }
+    )
+    fig = plot_band_cutouts(lst, meta, cache, beam_factor=3.0)
+    yellow_boxes = [
+        p
+        for ax in fig.axes
+        for p in ax.patches
+        if isinstance(p, Rectangle)
+        and p.get_edgecolor()[:3] == (1.0, 1.0, 0.0)
+        and p.get_linestyle() == "--"
+    ]
+    assert len(yellow_boxes) == 1
+    titles = [ax.get_title() for ax in fig.axes if ax.get_visible()]
+    assert any("confused" in t for t in titles)
+
+
+def test_cutout_grid_shape_aspect() -> None:
+    assert cutout_grid_shape(1) == (1, 1)
+    assert cutout_grid_shape(2) == (1, 2)
+    assert cutout_grid_shape(8) == (2, 4)
+    nrows, ncols = cutout_grid_shape(15)
+    assert nrows * ncols >= 15
+    assert ncols >= nrows
+    # Prefer roughly 2∶1 width∶height for mid-sized n.
+    assert abs(ncols / nrows - 2.0) < 0.6
+
+
+def test_plot_band_cutouts_uses_grid(tmp_path: Path) -> None:
+    pytest.importorskip("matplotlib")
+    import matplotlib
+
+    matplotlib.use("Agg")
+
+    nside = 8
+    npix = 12 * nside**2
+    bands = [f"{f}MHz" for f in (18, 34, 55, 74, 82)]
+    for band in bands:
+        write_healpix_fits(
+            tmp_path / f"healpix_{band}_nside{nside}.fits",
+            np.ones(npix, dtype=np.float32),
+            np.ones(npix, dtype=np.float32),
+            nside=nside,
+            nested=True,
+            overwrite=True,
+        )
+    cache = HealpixMapCache(tmp_path, nside=nside)
+    meta = pd.Series({"RA": 45.0, "DEC": 10.0, "bands_present": ",".join(bands)})
+    lst = pd.DataFrame(
+        {
+            "band": bands,
+            "RA": [45.0] * len(bands),
+            "DEC": [10.0] * len(bands),
+            "Peak_flux": [1.0] * len(bands),
+            "BMAJ": [1.0] * len(bands),
+            "Maj": [0.5] * len(bands),
+            "Min": [0.4] * len(bands),
+            "PA": [0.0] * len(bands),
+        }
+    )
+    fig = plot_band_cutouts(lst, meta, cache, beam_factor=3.0)
+    nrows, ncols = cutout_grid_shape(len(bands))
+    assert len(fig.axes) == nrows * ncols
+    visible = sum(1 for ax in fig.axes if ax.get_visible())
+    assert visible == len(bands)

@@ -503,7 +503,17 @@ def _empty_band_cols(
         for field in band_fields:
             out[f"{field}_{band}"] = np.nan
         out[f"n_assoc_{band}"] = 0
+        out[f"n_confused_{band}"] = 0
     return out
+
+
+def _claimant_counts(hits: Mapping[int, Sequence[int]]) -> dict[int, int]:
+    """Count how many base/meta rows claim each band-catalog row index."""
+    counts: dict[int, int] = {}
+    for js in hits.values():
+        for j in js:
+            counts[j] = counts.get(j, 0) + 1
+    return counts
 
 
 def _lst_meta_from_band_row(row: pd.Series) -> tuple[int, str, str, float]:
@@ -586,9 +596,12 @@ def _attach_band_columns(
     band: str,
     n_assoc: int,
     *,
+    n_confused: int | None = None,
     band_fields: Sequence[str] = BAND_FIELDS,
 ) -> None:
     entry[f"n_assoc_{band}"] = n_assoc
+    # Reverse multiplicity: how many meta/base rows claim the stored band source.
+    entry[f"n_confused_{band}"] = int(n_assoc if n_confused is None else n_confused)
     for field in band_fields:
         entry[f"{field}_{band}"] = band_row.get(field, np.nan)
     entry[f"source_file_{band}"] = band_row.get("source_file", "")
@@ -761,6 +774,7 @@ def merge_full_and_blue(
     seed_df = seed_df.reset_index(drop=True)
     assoc_df = assoc_df.reset_index(drop=True)
     hits, matched_assoc = _associate_catalogs(seed_df, assoc_df)
+    claimants = _claimant_counts(hits)
     if band_freq_hz is None:
         band_freq_hz = BAND_FREQ_HZ
     seed_kw = _merge_build_kwargs(
@@ -779,7 +793,15 @@ def merge_full_and_blue(
         if assoc_hits:
             sub = assoc_df.iloc[assoc_hits]
             best = _pick_highest_elevation_row(sub)
-            _attach_band_columns(entry, best, assoc_band, len(assoc_hits), band_fields=band_fields)
+            j_best = int(best.name)
+            _attach_band_columns(
+                entry,
+                best,
+                assoc_band,
+                len(assoc_hits),
+                n_confused=claimants.get(j_best, 1),
+                band_fields=band_fields,
+            )
             _accumulate_n_lst_contributions(entry, best)
             if astrometry_from_highest_frequency:
                 _maybe_update_astrometry_from_band(
@@ -871,6 +893,7 @@ def associate_band_into_metacatalog(
     else:
         match_base["BMAJ"] = meta_df["BMAJ_match"].to_numpy(dtype=float)
     hits, matched_band = _associate_catalogs(match_base, band_df)
+    claimants = _claimant_counts(hits)
 
     rows: list[dict] = []
     for i, mrow in meta_df.iterrows():
@@ -881,7 +904,15 @@ def associate_band_into_metacatalog(
         if band_hits:
             sub = band_df.iloc[band_hits]
             best = _pick_associated_row(sub, representative)
-            _attach_band_columns(entry, best, band, len(band_hits), band_fields=band_fields)
+            j_best = int(best.name)
+            _attach_band_columns(
+                entry,
+                best,
+                band,
+                len(band_hits),
+                n_confused=claimants.get(j_best, 1),
+                band_fields=band_fields,
+            )
             _accumulate_n_lst_contributions(entry, best)
             if astrometry_from_highest_frequency:
                 _maybe_update_astrometry_from_band(entry, best, band, band_freq_hz=band_freq_hz)
