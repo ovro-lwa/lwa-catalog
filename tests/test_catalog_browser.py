@@ -48,8 +48,10 @@ def test_spectrum_figure_includes_survey_points() -> None:
             "meta_id": 1,
             "Total_flux_55MHz": 1.0,
             "E_Total_flux_55MHz": 0.1,
+            "n_confused_55MHz": 1,
             "Total_flux_NVSS": 0.2,
             "E_Total_flux_NVSS": 0.02,
+            "n_confused_NVSS": 1,
             "spec_model_n_terms": 2,
             "spec_model_n_flux": 2,
             "spec_model_a0": 0.0,
@@ -66,10 +68,11 @@ def test_spectrum_figure_includes_survey_points() -> None:
     labels = set(ax.get_legend_handles_labels()[1])
     assert "LWA" in labels
     assert "survey" in labels
+    assert "n_flux=2" in ax.get_title()
 
 
 def test_spectrum_figure_confused_uses_x_marker() -> None:
-    """Confused channels (n_confused > 1) are plotted with an x marker."""
+    """Channels with n_confused != 1 (or missing) use an x marker; title n_flux matches fit."""
     pytest.importorskip("matplotlib")
     from lwa_catalog.constants import SUBBAND_BANDS_MHZ
     from lwa_catalog.viz.browser import _spectrum_figure_for_row
@@ -78,7 +81,7 @@ def test_spectrum_figure_confused_uses_x_marker() -> None:
         {
             "meta_id": 7,
             "spec_model_n_terms": 2,
-            "spec_model_n_flux": 2,
+            "spec_model_n_flux": 1,
             "spec_model_a0": 0.0,
             "spec_model_a1": -0.7,
             "spec_model_a2": float("nan"),
@@ -91,7 +94,10 @@ def test_spectrum_figure_confused_uses_x_marker() -> None:
             "n_confused_55MHz": 1,
             "Total_flux_82MHz": 0.8,
             "E_Total_flux_82MHz": 0.08,
-            "n_confused_82MHz": 3,
+            # Missing n_confused_82MHz → excluded from unconfused fit (seed-band bug).
+            "Total_flux_41MHz": 0.9,
+            "E_Total_flux_41MHz": 0.09,
+            "n_confused_41MHz": 3,
         }
     )
     fig = _spectrum_figure_for_row(row, bands=SUBBAND_BANDS_MHZ)
@@ -99,6 +105,7 @@ def test_spectrum_figure_confused_uses_x_marker() -> None:
     labels = set(ax.get_legend_handles_labels()[1])
     assert "LWA" in labels
     assert "LWA (confused)" in labels
+    assert "n_flux=1" in ax.get_title()
     confused_handles = [
         h
         for h, lab in zip(*ax.get_legend_handles_labels(), strict=True)
@@ -106,6 +113,29 @@ def test_spectrum_figure_confused_uses_x_marker() -> None:
     ]
     assert confused_handles
     assert confused_handles[0].lines[0].get_marker() == "x"
+
+
+def test_spectrum_figure_title_n_flux_without_model_is_unconfused_count() -> None:
+    """Without spec_model_* columns, title n_flux counts unconfused channels only."""
+    pytest.importorskip("matplotlib")
+    from lwa_catalog.constants import SUBBAND_BANDS_MHZ
+    from lwa_catalog.viz.browser import _spectrum_figure_for_row
+
+    row = pd.Series(
+        {
+            "meta_id": 3,
+            "Total_flux_55MHz": 1.0,
+            "E_Total_flux_55MHz": 0.1,
+            "n_confused_55MHz": 1,
+            "Total_flux_82MHz": 0.8,
+            "E_Total_flux_82MHz": 0.08,
+            "n_confused_82MHz": 2,
+        }
+    )
+    fig = _spectrum_figure_for_row(row, bands=SUBBAND_BANDS_MHZ)
+    title = fig.axes[0].get_title()
+    assert "n_flux=1" in title
+    assert "no Taylor model columns" in title
 
 
 def test_spectrum_figure_ylim_follows_data_not_fit() -> None:

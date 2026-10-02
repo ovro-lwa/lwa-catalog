@@ -17,7 +17,6 @@ from astropy.coordinates import SkyCoord
 
 from lwa_catalog.analyze import (
     HealpixMapCache,
-    confused_bands,
     gather_band_flux_measurements,
     rematch_meta_source,
 )
@@ -411,8 +410,11 @@ def _spectrum_figure_for_row(
 
     When *bands* is omitted, uses :func:`resolve_sed_bands` so LWA subbands and
     any attached survey channels (VLSSR/NVSS/VLASS) are included.
-    Bands with ``n_confused_{band} > 1`` use an ``x`` marker.
+    Channels not eligible for the unconfused-only fit (``n_confused != 1``,
+    including missing ``n_confused_*``) use an ``x`` marker.
     Y-limits follow the data (± errors), not the Taylor curve.
+    Title ``n_flux`` is the fit's channel count (stored ``spec_model_n_flux``,
+    or the live unconfused count when no model columns are present).
     """
     _mpl_configure()
 
@@ -444,11 +446,19 @@ def _spectrum_figure_for_row(
         fig.tight_layout()
         return fig
 
+    # Same eligibility rule as SpectralFitConfig.unconfused_only (n_confused == 1).
+    _, _, _, fit_bands = gather_band_flux_measurements(
+        row,
+        bands=sed_bands,
+        flux_kind="total",
+        unconfused_only=True,
+    )
+    fit_band_set = set(fit_bands)
+
     nu_mhz = nu_hz / 1e6
     lwa_set = set(SUBBAND_BANDS_MHZ)
     is_lwa = np.array([b in lwa_set for b in point_bands], dtype=bool)
-    confused = confused_bands(row)
-    is_confused = np.array([b in confused for b in point_bands], dtype=bool)
+    is_fit = np.array([b in fit_band_set for b in point_bands], dtype=bool)
 
     def _errorbar(mask: np.ndarray, *, fmt: str, label: str, markersize: float) -> None:
         if not mask.any():
@@ -464,11 +474,11 @@ def _spectrum_figure_for_row(
             label=label,
         )
 
-    # Unconfused: circle (LWA) / square (survey). Confused: x for both.
-    _errorbar(is_lwa & ~is_confused, fmt="o", label="LWA", markersize=6)
-    _errorbar(is_lwa & is_confused, fmt="x", label="LWA (confused)", markersize=7)
-    _errorbar((~is_lwa) & ~is_confused, fmt="s", label="survey", markersize=5)
-    _errorbar((~is_lwa) & is_confused, fmt="x", label="survey (confused)", markersize=7)
+    # Fit channels: circle (LWA) / square (survey). Excluded / confused: x.
+    _errorbar(is_lwa & is_fit, fmt="o", label="LWA", markersize=6)
+    _errorbar(is_lwa & ~is_fit, fmt="x", label="LWA (confused)", markersize=7)
+    _errorbar((~is_lwa) & is_fit, fmt="s", label="survey", markersize=5)
+    _errorbar((~is_lwa) & ~is_fit, fmt="x", label="survey (confused)", markersize=7)
 
     fit = _row_to_spectrum_fit(row, prefix=prefix)
     if fit is not None:
@@ -501,16 +511,17 @@ def _spectrum_figure_for_row(
         if ymin < ymax:
             ax.set_ylim(ymin / 1.15, ymax * 1.15)
 
+    n_flux_title = int(fit.n_flux) if fit is not None else int(is_fit.sum())
     ax.set_xlabel("Frequency (MHz)")
     ax.set_ylabel("Total flux (Jy)")
     if fit is not None and np.isfinite(fit.chi2_red):
         ax.set_title(
-            f"{label}  n_flux={fit.n_flux}  n_terms={fit.n_terms}  χ²_red={fit.chi2_red:.3g}"
+            f"{label}  n_flux={n_flux_title}  n_terms={fit.n_terms}  χ²_red={fit.chi2_red:.3g}"
         )
     elif fit is not None:
-        ax.set_title(f"{label}  n_flux={fit.n_flux}  n_terms={fit.n_terms}")
+        ax.set_title(f"{label}  n_flux={n_flux_title}  n_terms={fit.n_terms}")
     else:
-        ax.set_title(f"{label}  n_flux={nu_hz.size}  (no Taylor model columns)")
+        ax.set_title(f"{label}  n_flux={n_flux_title}  (no Taylor model columns)")
     ax.grid(True, which="both", alpha=0.3)
     ax.legend(fontsize=8, loc="best")
     fig.tight_layout()

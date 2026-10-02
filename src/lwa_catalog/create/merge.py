@@ -722,9 +722,9 @@ def _seed_row_from_band(
     entry.update(_empty_band_cols(assoc_bands=assoc_bands, band_fields=band_fields))
     if band == seed_band:
         entry["BMAJ_full"] = float(band_row["BMAJ"])
-        entry[f"source_file_{band}"] = band_row.get("source_file", "")
-        for field in band_fields:
-            entry[f"{field}_{band}"] = band_row.get(field, np.nan)
+        # Same band columns + n_assoc/n_confused as associated bands. Seed rows
+        # uniquely claim their seed detection (forward and reverse multiplicity 1).
+        _attach_band_columns(entry, band_row, band, 1, band_fields=band_fields)
     else:
         entry["BMAJ_full"] = np.nan
         _attach_band_columns(entry, band_row, band, 1, band_fields=band_fields)

@@ -701,8 +701,39 @@ def test_build_subband_metacatalog_flux_only_and_highest_freq_astrometry() -> No
     assert float(row["Peak_flux_27MHz"]) == 2.0
     assert float(row["Peak_flux_18MHz"]) == 1.0
     assert float(row["E_Peak_flux_18MHz"]) == 0.1
+    assert int(row["n_assoc_27MHz"]) == 1
+    assert int(row["n_confused_27MHz"]) == 1
     assert "alpha_23_27" not in meta.columns
     assert int(row["n_lst_contributions"]) == 3
+
+
+def test_build_subband_metacatalog_seed_band_has_n_confused() -> None:
+    """Seed band must write n_assoc/n_confused (else unconfused_only SED drops it)."""
+    bands = ("18MHz", "23MHz", "27MHz")
+    catalogs = {
+        "27MHz": pd.DataFrame(
+            [_src(ra=10.0, dec=20.0, peak=2.0, lst_hour="01h", band="27MHz")]
+        ),
+        "23MHz": pd.DataFrame(
+            [_src(ra=10.05, dec=20.0, peak=1.5, lst_hour="01h", band="23MHz")]
+        ),
+        "18MHz": pd.DataFrame(
+            [_src(ra=10.2, dec=20.1, peak=1.0, lst_hour="01h", band="18MHz")]
+        ),
+    }
+    freq = {b: float(b.removesuffix("MHz")) * 1e6 for b in bands}
+    meta = build_subband_metacatalog(
+        catalogs,
+        seed_band="27MHz",
+        assoc_bands=("23MHz", "18MHz"),
+        color_bands=bands,
+        band_freq_hz=freq,
+    )
+    row = meta.iloc[0]
+    assert "n_confused_27MHz" in meta.columns
+    assert "n_assoc_27MHz" in meta.columns
+    assert int(row["n_confused_27MHz"]) == 1
+    assert int(row["n_assoc_27MHz"]) == 1
 
 
 def test_build_subband_metacatalog_sums_n_lst_contributions() -> None:
