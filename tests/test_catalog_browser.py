@@ -68,6 +68,46 @@ def test_spectrum_figure_includes_survey_points() -> None:
     assert "survey" in labels
 
 
+def test_spectrum_figure_confused_uses_x_marker() -> None:
+    """Confused channels (n_confused > 1) are plotted with an x marker."""
+    pytest.importorskip("matplotlib")
+    from lwa_catalog.constants import SUBBAND_BANDS_MHZ
+    from lwa_catalog.viz.browser import _spectrum_figure_for_row
+
+    row = pd.Series(
+        {
+            "meta_id": 7,
+            "spec_model_n_terms": 2,
+            "spec_model_n_flux": 2,
+            "spec_model_a0": 0.0,
+            "spec_model_a1": -0.7,
+            "spec_model_a2": float("nan"),
+            "spec_model_a3": float("nan"),
+            "spec_model_bic": 1.0,
+            "spec_model_chi2_red": 1.0,
+            "spec_model_nu0_mhz": 55.0,
+            "Total_flux_55MHz": 1.0,
+            "E_Total_flux_55MHz": 0.1,
+            "n_confused_55MHz": 1,
+            "Total_flux_82MHz": 0.8,
+            "E_Total_flux_82MHz": 0.08,
+            "n_confused_82MHz": 3,
+        }
+    )
+    fig = _spectrum_figure_for_row(row, bands=SUBBAND_BANDS_MHZ)
+    ax = fig.axes[0]
+    labels = set(ax.get_legend_handles_labels()[1])
+    assert "LWA" in labels
+    assert "LWA (confused)" in labels
+    confused_handles = [
+        h
+        for h, lab in zip(*ax.get_legend_handles_labels(), strict=True)
+        if lab == "LWA (confused)"
+    ]
+    assert confused_handles
+    assert confused_handles[0].lines[0].get_marker() == "x"
+
+
 def test_spectrum_figure_unconfused_only_mask_length() -> None:
     """Regression: LWA mask must match gathered points when a confused band is skipped."""
     pytest.importorskip("matplotlib")

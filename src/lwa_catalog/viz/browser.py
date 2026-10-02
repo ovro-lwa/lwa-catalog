@@ -17,6 +17,7 @@ from astropy.coordinates import SkyCoord
 
 from lwa_catalog.analyze import (
     HealpixMapCache,
+    confused_bands,
     gather_band_flux_measurements,
     rematch_meta_source,
 )
@@ -410,6 +411,7 @@ def _spectrum_figure_for_row(
 
     When *bands* is omitted, uses :func:`resolve_sed_bands` so LWA subbands and
     any attached survey channels (VLSSR/NVSS/VLASS) are included.
+    Bands with ``n_confused_{band} > 1`` use an ``x`` marker.
     """
     _mpl_configure()
 
@@ -444,24 +446,28 @@ def _spectrum_figure_for_row(
     nu_mhz = nu_hz / 1e6
     lwa_set = set(SUBBAND_BANDS_MHZ)
     is_lwa = np.array([b in lwa_set for b in point_bands], dtype=bool)
-    if is_lwa.any():
+    confused = confused_bands(row)
+    is_confused = np.array([b in confused for b in point_bands], dtype=bool)
+
+    def _errorbar(mask: np.ndarray, *, fmt: str, label: str, markersize: float) -> None:
+        if not mask.any():
+            return
         ax.errorbar(
-            nu_mhz[is_lwa],
-            flux_jy[is_lwa],
-            yerr=err_jy[is_lwa],
-            fmt="o",
+            nu_mhz[mask],
+            flux_jy[mask],
+            yerr=err_jy[mask],
+            fmt=fmt,
             capsize=2,
-            label="LWA",
+            markersize=markersize,
+            markeredgewidth=1.6 if fmt == "x" else 1.0,
+            label=label,
         )
-    if (~is_lwa).any():
-        ax.errorbar(
-            nu_mhz[~is_lwa],
-            flux_jy[~is_lwa],
-            yerr=err_jy[~is_lwa],
-            fmt="s",
-            capsize=2,
-            label="survey",
-        )
+
+    # Unconfused: circle (LWA) / square (survey). Confused: x for both.
+    _errorbar(is_lwa & ~is_confused, fmt="o", label="LWA", markersize=6)
+    _errorbar(is_lwa & is_confused, fmt="x", label="LWA (confused)", markersize=7)
+    _errorbar((~is_lwa) & ~is_confused, fmt="s", label="survey", markersize=5)
+    _errorbar((~is_lwa) & is_confused, fmt="x", label="survey (confused)", markersize=7)
 
     fit = _row_to_spectrum_fit(row, prefix=prefix)
     if fit is not None:
