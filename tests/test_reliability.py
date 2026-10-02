@@ -68,6 +68,7 @@ def test_reliability_config_defaults() -> None:
     assert cfg.resid_percentile_lo == 1.0
     assert cfg.resid_percentile_hi == 99.0
     assert cfg.jitter_bmaj_frac == 0.3
+    assert cfg.band_offset_bmaj_frac == 1.0
     assert cfg.min_elevation_deg == 10.0
     assert cfg.max_source_ellipticity == 3.0
     assert cfg.require_unique_assoc_include is True
@@ -762,6 +763,84 @@ def test_band_pairwise_max_sep_and_flag() -> None:
     packed = pack_quality_flags(pd.DataFrame({"band_position_inconsistent": [True]}))
     assert int(packed[0]) == int(SourceQualityFlag.BAND_POSITION_INCONSISTENT)
     assert decode_quality_flag(int(packed[0])) == ["BAND_POSITION_INCONSISTENT"]
+
+
+def test_band_position_flag_rematches_subband_without_ra_columns(tmp_path: Path) -> None:
+    """Subband fusion omits RA_{band}; flag must rematch LST catalogs.
+
+    Two attached bands can each lie within BMAJ of the seed while their
+    mutual separation exceeds 1 × BMAJ (triangle inequality).
+    """
+    layout = CatalogLayout(tmp_path)
+    bmaj = 0.5
+    seed = pd.DataFrame(
+        [
+            _src(
+                ra=30.0,
+                dec=37.0,
+                peak=2.0,
+                lst_hour="01h",
+                band="82MHz",
+                source_id=101,
+                bmaj=bmaj,
+            )
+        ]
+    )
+    low = pd.DataFrame(
+        [
+            _src(
+                ra=30.4,
+                dec=37.0,
+                peak=1.5,
+                lst_hour="01h",
+                band="18MHz",
+                source_id=201,
+                bmaj=bmaj,
+            )
+        ]
+    )
+    mid = pd.DataFrame(
+        [
+            _src(
+                ra=29.6,
+                dec=37.0,
+                peak=1.7,
+                lst_hour="01h",
+                band="50MHz",
+                source_id=301,
+                bmaj=bmaj,
+            )
+        ]
+    )
+    lst_seed = merge_lst_metacatalog([seed], band="82MHz")
+    lst_low = merge_lst_metacatalog([low], band="18MHz")
+    lst_mid = merge_lst_metacatalog([mid], band="50MHz")
+    write_lst_merged(lst_seed, layout, "82MHz")
+    write_lst_merged(lst_low, layout, "18MHz")
+    write_lst_merged(lst_mid, layout, "50MHz")
+    meta = build_subband_metacatalog(
+        {"82MHz": lst_seed, "50MHz": lst_mid, "18MHz": lst_low},
+        seed_band="82MHz",
+        assoc_bands=("50MHz", "18MHz"),
+        color_bands=("82MHz", "50MHz", "18MHz"),
+        band_freq_hz={"82MHz": 82e6, "50MHz": 50e6, "18MHz": 18e6},
+    )
+    assert "RA_82MHz" not in meta.columns
+    assert len(meta) >= 1
+
+    # Without rematch context → soft clear (no RA_{band} columns)
+    assert bool(flag_band_position_inconsistent(meta).iloc[0]) is False
+
+    lst_merged = {"82MHz": lst_seed, "50MHz": lst_mid, "18MHz": lst_low}
+    flagged = flag_band_position_inconsistent(
+        meta, layout=layout, lst_merged=lst_merged
+    )
+    # 18MHz–50MHz sep ≈ 0.8 deg > 1 × BMAJ (0.5)
+    assert bool(flagged.iloc[0]) is True
+
+    result = assign_source_quality_flags(meta, layout, lst_merged=lst_merged)
+    bit = int(SourceQualityFlag.BAND_POSITION_INCONSISTENT)
+    assert int(result.catalog["quality_flag"].iloc[0]) & bit == bit
 
 
 def test_large_single_composite_logic() -> None:

@@ -954,6 +954,149 @@ def flag_jitter_exceeds(
     return bool(rms_deg > float(frac) * bmaj_deg)
 
 
+def _haversine_sep_deg(
+    ra1_deg: float,
+    dec1_deg: float,
+    ra2_deg: np.ndarray,
+    dec2_deg: np.ndarray,
+) -> np.ndarray:
+    """Great-circle separations (degrees) from one point to many."""
+    ra1 = np.deg2rad(float(ra1_deg))
+    dec1 = np.deg2rad(float(dec1_deg))
+    ra2 = np.deg2rad(np.asarray(ra2_deg, dtype=float))
+    dec2 = np.deg2rad(np.asarray(dec2_deg, dtype=float))
+    dlon = ra2 - ra1
+    dlat = dec2 - dec1
+    a = np.sin(dlat / 2.0) ** 2 + np.cos(dec1) * np.cos(dec2) * np.sin(dlon / 2.0) ** 2
+    return np.rad2deg(2.0 * np.arcsin(np.minimum(1.0, np.sqrt(a))))
+
+
+def _flux_band_labels(meta: pd.DataFrame) -> list[str]:
+    """Band labels that have ``Peak_flux_{band}`` or ``Total_flux_{band}`` columns."""
+    bands: list[str] = []
+    seen: set[str] = set()
+    for col in meta.columns:
+        band: str | None = None
+        if col.startswith("Peak_flux_") and col != "Peak_flux_std":
+            band = col[len("Peak_flux_") :]
+        elif col.startswith("Total_flux_"):
+            band = col[len("Total_flux_") :]
+        if band and band not in seen:
+            seen.add(band)
+            bands.append(band)
+    return bands
+
+
+def attach_rematched_band_positions(
+    meta: pd.DataFrame,
+    layout: CatalogLayout | None = None,
+    *,
+    lst_merged: Mapping[str, pd.DataFrame] | None = None,
+    warnings: list[str] | None = None,
+) -> pd.DataFrame:
+    """Fill missing ``RA_{band}`` / ``DEC_{band}`` via LST rematch.
+
+    Subband fusion persists fluxes only (``SUBBAND_METACATALOG_FLUX_FIELDS``).
+    This recovers per-band sky positions with the same beam matcher and
+    Peak_flux-then-separation pick as
+    :func:`~lwa_catalog.analyze.trace.rematch_meta_source`. Finite existing
+    ``RA_{band}`` / ``DEC_{band}`` values are left unchanged.
+
+    Returns a copy; *meta* is not mutated. When neither *layout* nor
+    *lst_merged* can supply a band catalog, that band is skipped.
+    """
+    warn = warnings if warnings is not None else []
+    if meta is None or meta.empty:
+        return meta.copy() if meta is not None else pd.DataFrame()
+    if layout is None and not lst_merged:
+        return meta.copy()
+
+    out = meta.reset_index(drop=True).copy()
+    bands = _flux_band_labels(out)
+    # Also consider bands that already have RA_* columns (RGB).
+    for col in out.columns:
+        if col.startswith("RA_"):
+            band = col[len("RA_") :]
+            if band and band not in bands and f"DEC_{band}" in out.columns:
+                bands.append(band)
+    if not bands:
+        return out
+
+    base = out.copy()
+    if "BMAJ" not in base.columns:
+        base["BMAJ"] = [resolve_bmaj(row) for _, row in out.iterrows()]
+    else:
+        base["BMAJ"] = pd.to_numeric(base["BMAJ"], errors="coerce").fillna(0.0)
+
+    meta_ra = pd.to_numeric(out["RA"], errors="coerce").to_numpy(dtype=float)
+    meta_dec = pd.to_numeric(out["DEC"], errors="coerce").to_numpy(dtype=float)
+
+    for band in bands:
+        ra_col = f"RA_{band}"
+        dec_col = f"DEC_{band}"
+        have_ra = ra_col in out.columns
+        have_dec = dec_col in out.columns
+        if have_ra and have_dec:
+            existing_ok = (
+                pd.to_numeric(out[ra_col], errors="coerce").notna()
+                & pd.to_numeric(out[dec_col], errors="coerce").notna()
+            )
+            if bool(existing_ok.all()):
+                continue
+        else:
+            existing_ok = pd.Series(False, index=out.index)
+            if not have_ra:
+                out[ra_col] = np.nan
+            if not have_dec:
+                out[dec_col] = np.nan
+
+        lst_df = None
+        if lst_merged is not None and band in lst_merged:
+            frame = lst_merged[band]
+            if frame is not None and isinstance(frame, pd.DataFrame) and not frame.empty:
+                lst_df = _ensure_bmaj_column(frame)
+        if lst_df is None and layout is not None:
+            lst_df = _load_lst_band(layout, band, lst_merged, warn)
+        if lst_df is None or lst_df.empty:
+            continue
+
+        hits, _ = associate_catalogs(base, lst_df)
+        cat_ra = pd.to_numeric(lst_df["RA"], errors="coerce").to_numpy(dtype=float)
+        cat_dec = pd.to_numeric(lst_df["DEC"], errors="coerce").to_numpy(dtype=float)
+        cat_peak = pd.to_numeric(lst_df["Peak_flux"], errors="coerce").to_numpy(dtype=float)
+        seed_col = f"Peak_flux_{band}"
+        seed_flux = (
+            pd.to_numeric(out[seed_col], errors="coerce").to_numpy(dtype=float)
+            if seed_col in out.columns
+            else np.full(len(out), np.nan)
+        )
+
+        for i, js in hits.items():
+            if existing_ok.iloc[i] or not js:
+                continue
+            # Only fill when this band is claimed on the row.
+            row = out.iloc[i]
+            present = parse_bands_present(row)
+            if band not in present and not (np.isfinite(seed_flux[i]) and seed_flux[i] > 0.0):
+                continue
+            js_arr = np.asarray(list(js), dtype=int)
+            peaks = cat_peak[js_arr]
+            sf = seed_flux[i]
+            if np.isfinite(sf):
+                dpeak = np.abs(peaks - sf)
+                dpeak = np.where(np.isfinite(peaks), dpeak, np.inf)
+            else:
+                dpeak = np.where(np.isfinite(peaks), 0.0, np.inf)
+            if not (np.isfinite(meta_ra[i]) and np.isfinite(meta_dec[i])):
+                continue
+            sep = _haversine_sep_deg(meta_ra[i], meta_dec[i], cat_ra[js_arr], cat_dec[js_arr])
+            j = int(js_arr[np.lexsort((sep, dpeak))[0]])
+            out.at[i, ra_col] = float(cat_ra[j])
+            out.at[i, dec_col] = float(cat_dec[j])
+
+    return out
+
+
 def band_pairwise_max_sep_deg(row: pd.Series | Mapping) -> float:
     """Max pairwise great-circle separation among per-band RA/DEC (degrees).
 
@@ -994,18 +1137,30 @@ def flag_band_position_inconsistent(
     df: pd.DataFrame,
     *,
     frac: float = 1.0,
+    layout: CatalogLayout | None = None,
+    lst_merged: Mapping[str, pd.DataFrame] | None = None,
+    warnings: list[str] | None = None,
 ) -> pd.Series:
     """True when max pairwise band–band sep exceeds ``frac × BMAJ_match``.
 
     Soft semantics: fewer than two finite band positions, or non-finite /
     non-positive BMAJ, leave the bit clear. Default *frac* is ``1.0``
     (``max_sep / BMAJ > 1``).
+
+    When *layout* and/or *lst_merged* are provided, missing ``RA_{band}`` /
+    ``DEC_{band}`` columns are filled by rematching LST-merged catalogs (needed
+    for subband metacatalogs that store fluxes only).
     """
     name = "band_position_inconsistent"
     if df is None or df.empty:
         return pd.Series(dtype=bool, name=name)
+    work = df
+    if layout is not None or lst_merged:
+        work = attach_rematched_band_positions(
+            df, layout, lst_merged=lst_merged, warnings=warnings
+        )
     flags: list[bool] = []
-    for _idx, row in df.iterrows():
+    for _idx, row in work.iterrows():
         max_sep = band_pairwise_max_sep_deg(row)
         bmaj = resolve_bmaj(row)
         flags.append(flag_jitter_exceeds(max_sep, bmaj, frac=frac))
@@ -1673,7 +1828,11 @@ def assign_source_quality_flags(
         bmaj=flags["bmaj_deg"],
     ).to_numpy()
     flags["band_position_inconsistent"] = flag_band_position_inconsistent(
-        meta, frac=cfg.band_offset_bmaj_frac
+        meta,
+        frac=cfg.band_offset_bmaj_frac,
+        layout=layout,
+        lst_merged=lst_merged,
+        warnings=warn,
     ).to_numpy()
 
     quality = pack_quality_flags(flags)
