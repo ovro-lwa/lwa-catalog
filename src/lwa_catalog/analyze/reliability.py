@@ -22,6 +22,7 @@ from lwa_catalog.analyze.trace import (
     _parse_bands_present,
     _parse_lst_hours,
     _pick_rematch_lst_row,
+    confused_bands,
 )
 from lwa_catalog.constants import (
     CLUSTER_JITTER_RMS_COL,
@@ -164,6 +165,7 @@ class SourceQualityFlag(IntFlag):
                                  source ≥30× brighter (likely sidelobe)
     17     BAND_POSITION_INCONSISTENT
                                  max pairwise band–band sep ``> 1 × BMAJ``
+                                 (skips bands with ``n_confused_* > 1``)
     ====== ===================== =================================================
     """
 
@@ -233,7 +235,8 @@ _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
         "within 2–4 × bright-neighbor BMAJ of a source ≥30× brighter"
     ),
     SourceQualityFlag.BAND_POSITION_INCONSISTENT: (
-        "max pairwise band–band position sep > band_offset_bmaj_frac × BMAJ"
+        "max pairwise band–band position sep > band_offset_bmaj_frac × BMAJ "
+        "(bands with n_confused_* > 1 excluded)"
     ),
 }
 
@@ -1115,10 +1118,15 @@ def band_pairwise_max_sep_deg(row: pd.Series | Mapping) -> float:
     """Max pairwise great-circle separation among per-band RA/DEC (degrees).
 
     Collects finite ``RA_{band}`` / ``DEC_{band}`` for labels in
-    ``bands_present``. Returns NaN when fewer than two finite positions are
-    available (soft: not calculable).
+    ``bands_present``, skipping bands with ``n_confused_{band} > 1`` (reverse
+    multiplicity; same rule as :func:`~lwa_catalog.analyze.trace.confused_bands`).
+    Missing ``n_confused_*`` does not exclude a band. Returns NaN when fewer
+    than two finite positions remain (soft: not calculable).
     """
     bands = parse_bands_present(row)
+    skip = confused_bands(row)
+    if skip:
+        bands = [b for b in bands if b not in skip]
     if len(bands) < 2:
         return float("nan")
     ra_list: list[float] = []
@@ -1159,7 +1167,8 @@ def flag_band_position_inconsistent(
 
     Soft semantics: fewer than two finite band positions, or non-finite /
     non-positive BMAJ, leave the bit clear. Default *frac* is ``1.0``
-    (``max_sep / BMAJ > 1``).
+    (``max_sep / BMAJ > 1``). Bands with ``n_confused_{band} > 1`` are
+    omitted from the pairwise check (missing ``n_confused_*`` keeps the band).
 
     When *layout* and/or *lst_merged* are provided, missing ``RA_{band}`` /
     ``DEC_{band}`` columns are filled by rematching LST-merged catalogs (needed

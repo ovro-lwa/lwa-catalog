@@ -760,6 +760,23 @@ def test_band_pairwise_max_sep_and_flag() -> None:
     assert band_pairwise_max_sep_deg(triple.iloc[0]) == pytest.approx(1.2, abs=1e-6)
     assert bool(flag_band_position_inconsistent(triple).iloc[0]) is True
 
+    # Same geometry, but the outlier band is confused → ignored; remaining pair passes
+    triple_confused = triple.copy()
+    triple_confused["n_confused_Blue"] = 1
+    triple_confused["n_confused_Green"] = 1
+    triple_confused["n_confused_Red"] = 3
+    assert band_pairwise_max_sep_deg(triple_confused.iloc[0]) == pytest.approx(
+        0.1, abs=1e-6
+    )
+    assert bool(flag_band_position_inconsistent(triple_confused).iloc[0]) is False
+
+    # Only one unconfused band left → soft clear
+    only_one_unconfused = far.copy()
+    only_one_unconfused["n_confused_Blue"] = 1
+    only_one_unconfused["n_confused_Green"] = 2
+    assert np.isnan(band_pairwise_max_sep_deg(only_one_unconfused.iloc[0]))
+    assert bool(flag_band_position_inconsistent(only_one_unconfused).iloc[0]) is False
+
     packed = pack_quality_flags(pd.DataFrame({"band_position_inconsistent": [True]}))
     assert int(packed[0]) == int(SourceQualityFlag.BAND_POSITION_INCONSISTENT)
     assert decode_quality_flag(int(packed[0])) == ["BAND_POSITION_INCONSISTENT"]
