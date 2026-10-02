@@ -712,6 +712,11 @@ class CatalogBrowser(pn.viewable.Viewer):
                 sizing_mode="fixed",
             )
             self._sky_btn.on_click(self._on_load_sky)
+            # Blur any focused IntInput first so typed meta_id commits before Python runs.
+            self._sky_btn.js_on_click(
+                args={},
+                code="if (document.activeElement) { document.activeElement.blur(); }",
+            )
             self._spectrum_btn = pn.widgets.Button(
                 name="Plot spectrum",
                 button_type="primary",
@@ -719,6 +724,10 @@ class CatalogBrowser(pn.viewable.Viewer):
                 sizing_mode="fixed",
             )
             self._spectrum_btn.on_click(self._on_plot_spectrum)
+            self._spectrum_btn.js_on_click(
+                args={},
+                code="if (document.activeElement) { document.activeElement.blur(); }",
+            )
             self._find_btn = pn.widgets.Button(
                 name="Load nearest",
                 button_type="primary",
@@ -785,6 +794,10 @@ class CatalogBrowser(pn.viewable.Viewer):
                 sizing_mode="fixed",
             )
             self._trace_btn.on_click(self._on_load_trace)
+            self._trace_btn.js_on_click(
+                args={},
+                code="if (document.activeElement) { document.activeElement.blur(); }",
+            )
 
             hips_surveys = self._fetch_hips_surveys(Path(self.catalog_dir))
             hips_default = self._preferred_hips_survey(Path(self.catalog_dir), hips_surveys)
@@ -1509,19 +1522,19 @@ class CatalogBrowser(pn.viewable.Viewer):
     def _catalog_row_for_selection(self) -> pd.Series | None:
         """Full catalog row for the active selection (not display-truncated).
 
-        Prefers the ``meta_id`` field / sky pick, then the browse-table row.
+        Prefers the ``meta_id`` field, then the browse-table row.
         """
         if self._df is None or self._df.empty:
             return None
         if "meta_id" in self._df.columns:
-            mid = (
-                int(self._selected_meta_id)
-                if self._selected_meta_id is not None
-                else int(self.meta_id)
-            )
+            mid = int(self.meta_id)
             matches = self._df.loc[self._df["meta_id"] == mid]
             if not matches.empty:
                 return matches.iloc[0]
+            if self._selected_meta_id is not None:
+                matches = self._df.loc[self._df["meta_id"] == int(self._selected_meta_id)]
+                if not matches.empty:
+                    return matches.iloc[0]
         view_row = self._selected_table_row()
         if view_row is None:
             return None
@@ -1536,9 +1549,14 @@ class CatalogBrowser(pn.viewable.Viewer):
         return view_row
 
     def _on_plot_spectrum(self, _event=None) -> None:
+        self._run_after_input_sync(self._plot_spectrum_impl)
+
+    def _plot_spectrum_impl(self) -> None:
         if self._df is None or self._df.empty:
             self._spectrum_status.object = "**Load a catalog first.**"
             return
+        if "meta_id" in self._df.columns:
+            self._meta_id_from_input()
         row = self._catalog_row_for_selection()
         if row is None:
             self._spectrum_status.object = (
@@ -1955,9 +1973,40 @@ class CatalogBrowser(pn.viewable.Viewer):
                 except Exception as exc:
                     self._set_overlay_note(f"**Overlay refresh failed:** `{exc}`")
 
+    def _meta_id_from_input(self) -> int:
+        """Return the meta_id IntInput value, syncing it onto the Param.
+
+        Reading the widget (not only ``self.meta_id``) matters when the user
+        types and immediately clicks a button: Bokeh may not have committed the
+        typed text to the Parameterized attribute until blur.
+        """
+        try:
+            raw = self._meta_id_w.value
+        except Exception:
+            raw = self.meta_id
+        meta_id = int(raw) if raw is not None else int(self.meta_id)
+        if self.meta_id != meta_id:
+            self.meta_id = meta_id
+        return meta_id
+
+    def _run_after_input_sync(self, fn) -> None:
+        """Run *fn* after pending IntInput blur/value sync can land.
+
+        Typing in ``IntInput`` then clicking a button often delivers the click
+        before the spinner's committed value in the same Jupyter/Panel batch.
+        Scheduling one turn later lets the typed value win.
+        """
+        try:
+            pn.state.execute(fn, schedule=True)
+        except Exception:
+            fn()
+
     def _on_load_sky(self, _event=None) -> None:
+        self._run_after_input_sync(self._load_sky_impl)
+
+    def _load_sky_impl(self) -> None:
         if self._df is not None and not self._df.empty and "meta_id" in self._df.columns:
-            meta_id = int(self.meta_id)
+            meta_id = self._meta_id_from_input()
             matches = self._df.loc[self._df["meta_id"] == meta_id]
             if matches.empty:
                 msg = f"**meta_id={meta_id}** not found in the loaded catalog."
@@ -1976,6 +2025,9 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._apply_row_coordinate(row)
 
     def _on_load_trace(self, _event=None) -> None:
+        self._run_after_input_sync(self._load_trace_impl)
+
+    def _load_trace_impl(self) -> None:
         if not self._is_metacatalog():
             self._trace_status.object = (
                 "_Source trace needs a metacatalog-style table with `meta_id`._"
@@ -1984,7 +2036,7 @@ class CatalogBrowser(pn.viewable.Viewer):
         if self._df is None or self._df.empty or "meta_id" not in self._df.columns:
             self._trace_status.object = "**Load a metacatalog first.**"
             return
-        meta_id = int(self.meta_id)
+        meta_id = self._meta_id_from_input()
         matches = self._df.loc[self._df["meta_id"] == meta_id]
         if matches.empty:
             self._trace_status.object = (

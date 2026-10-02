@@ -309,7 +309,9 @@ def test_load_sky_view_centers_on_meta_id_field(
     br = CatalogBrowser(index, config=cfg)
     assert br._selected_meta_id == 10
 
-    br.meta_id = 20
+    # Simulate typed IntInput value (may not yet be on the Param).
+    br._meta_id_w.value = 20
+    monkeypatch.setattr(br, "_run_after_input_sync", lambda fn: fn())
     br._on_load_sky()
 
     assert br._selected_meta_id == 20
