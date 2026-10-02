@@ -59,6 +59,38 @@ from lwa_catalog.viz.hips import (
     preferred_hips_survey,
 )
 
+# Force TextInput DOM text into the Bokeh model before a button's Python callback.
+# Spinner ``IntInput`` only commits typed text on blur/Enter (arrow clicks update
+# immediately) — that mismatch made type-then-click unreliable. Copying
+# ``input_el.value`` here fixes it for a plain TextInput as well.
+_COMMIT_META_ID_JS = """\
+const inp = meta_id;
+let view = null;
+try {
+  if (Bokeh.index.get_by_id) {
+    view = Bokeh.index.get_by_id(inp.id);
+  } else if (Bokeh.index[inp.id]) {
+    view = Bokeh.index[inp.id];
+  }
+} catch (e) {}
+let el = null;
+if (view) {
+  el = view.input_el || null;
+  if (!el && view.shadow_el) {
+    el = view.shadow_el.querySelector('input');
+  }
+  if (!el && view.el) {
+    el = view.el.querySelector('input');
+  }
+}
+if (!el && document.activeElement && document.activeElement.tagName === 'INPUT') {
+  el = document.activeElement;
+}
+if (el && el.value != null) {
+  inp.value = String(el.value);
+}
+"""
+
 
 @dataclass(frozen=True)
 class CatalogBrowserConfig:
@@ -712,11 +744,6 @@ class CatalogBrowser(pn.viewable.Viewer):
                 sizing_mode="fixed",
             )
             self._sky_btn.on_click(self._on_load_sky)
-            # Blur any focused IntInput first so typed meta_id commits before Python runs.
-            self._sky_btn.js_on_click(
-                args={},
-                code="if (document.activeElement) { document.activeElement.blur(); }",
-            )
             self._spectrum_btn = pn.widgets.Button(
                 name="Plot spectrum",
                 button_type="primary",
@@ -724,10 +751,6 @@ class CatalogBrowser(pn.viewable.Viewer):
                 sizing_mode="fixed",
             )
             self._spectrum_btn.on_click(self._on_plot_spectrum)
-            self._spectrum_btn.js_on_click(
-                args={},
-                code="if (document.activeElement) { document.activeElement.blur(); }",
-            )
             self._find_btn = pn.widgets.Button(
                 name="Load nearest",
                 button_type="primary",
@@ -784,8 +807,13 @@ class CatalogBrowser(pn.viewable.Viewer):
                 disabled=True,
                 sortable=True,
             )
-            self._meta_id_w = pn.widgets.IntInput.from_param(
-                self.param.meta_id, name="meta_id", width=140
+            # TextInput (not Spinner IntInput): typed digits stay visible, and
+            # button JS flushes the DOM string into the model before Python runs.
+            self._meta_id_w = pn.widgets.TextInput(
+                name="meta_id",
+                value=str(int(self.meta_id)),
+                placeholder="meta_id",
+                width=140,
             )
             self._trace_btn = pn.widgets.Button(
                 name="Load trace",
@@ -794,10 +822,8 @@ class CatalogBrowser(pn.viewable.Viewer):
                 sizing_mode="fixed",
             )
             self._trace_btn.on_click(self._on_load_trace)
-            self._trace_btn.js_on_click(
-                args={},
-                code="if (document.activeElement) { document.activeElement.blur(); }",
-            )
+            for _btn in (self._sky_btn, self._spectrum_btn, self._trace_btn):
+                _btn.js_on_click(args={"meta_id": self._meta_id_w}, code=_COMMIT_META_ID_JS)
 
             hips_surveys = self._fetch_hips_surveys(Path(self.catalog_dir))
             hips_default = self._preferred_hips_survey(Path(self.catalog_dir), hips_surveys)
@@ -1374,7 +1400,7 @@ class CatalogBrowser(pn.viewable.Viewer):
             if row is None:
                 row = df.iloc[0]
             if "meta_id" in row.index and pd.notna(row.get("meta_id")):
-                self.meta_id = int(row["meta_id"])
+                self._set_meta_id_field(int(row["meta_id"]))
                 self._selected_meta_id = int(row["meta_id"])
                 self._highlight_meta_id_widget(active=True)
                 self._set_selection_status(
@@ -1635,7 +1661,7 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._selection_status.object = text
 
     def _highlight_meta_id_widget(self, *, active: bool) -> None:
-        """Gold border on the ``meta_id`` IntInput while a pick is active."""
+        """Gold border on the ``meta_id`` TextInput while a pick is active."""
         try:
             self._meta_id_w.styles = (
                 {
@@ -1847,7 +1873,7 @@ class CatalogBrowser(pn.viewable.Viewer):
             self._set_selection_status(f"**meta_id={meta_id}** not found in the loaded catalog.")
             return
 
-        self.meta_id = int(meta_id)
+        self._set_meta_id_field(int(meta_id))
         self._selected_meta_id = int(meta_id)
         self._highlight_meta_id_widget(active=True)
 
@@ -1961,7 +1987,7 @@ class CatalogBrowser(pn.viewable.Viewer):
             # Avoid re-entrant refresh when sky click already set this pick.
             if self._selected_meta_id == meta_id and self.meta_id == meta_id:
                 return
-            self.meta_id = meta_id
+            self._set_meta_id_field(meta_id)
             self._selected_meta_id = meta_id
             self._highlight_meta_id_widget(active=True)
             self._set_selection_status(
@@ -1973,34 +1999,50 @@ class CatalogBrowser(pn.viewable.Viewer):
                 except Exception as exc:
                     self._set_overlay_note(f"**Overlay refresh failed:** `{exc}`")
 
-    def _meta_id_from_input(self) -> int:
-        """Return the meta_id IntInput value, syncing it onto the Param.
-
-        Reading the widget (not only ``self.meta_id``) matters when the user
-        types and immediately clicks a button: Bokeh may not have committed the
-        typed text to the Parameterized attribute until blur.
-        """
+    def _set_meta_id_field(self, meta_id: int) -> None:
+        """Update the Param and the meta_id TextInput display together."""
+        meta_id = int(meta_id)
+        self.meta_id = meta_id
+        text = str(meta_id)
         try:
-            raw = self._meta_id_w.value
+            if str(self._meta_id_w.value) != text:
+                self._meta_id_w.value = text
         except Exception:
-            raw = self.meta_id
-        meta_id = int(raw) if raw is not None else int(self.meta_id)
-        if self.meta_id != meta_id:
-            self.meta_id = meta_id
+            pass
+
+    def _meta_id_from_input(self) -> int:
+        """Return the meta_id TextInput value, syncing it onto the Param.
+
+        Prefer the widget string (flushed from the DOM by button JS) over the
+        Param — Bokeh only commits typed text on blur/Enter unless JS copies
+        ``input_el.value`` into the model first.
+        """
+        raw = ""
+        try:
+            raw = str(self._meta_id_w.value or "").strip()
+        except Exception:
+            raw = ""
+        meta_id: int
+        try:
+            meta_id = int(raw)
+        except (TypeError, ValueError):
+            meta_id = int(self.meta_id)
+        if meta_id < 0:
+            meta_id = int(self.meta_id)
+        self._set_meta_id_field(meta_id)
         return meta_id
 
     def _run_after_input_sync(self, fn) -> None:
-        """Run *fn* after pending IntInput blur/value sync can land.
+        """Run *fn* after pending TextInput value sync can land.
 
-        Typing in ``IntInput`` then clicking a button often delivers the click
-        before the spinner's committed value in the same Jupyter/Panel batch.
-        Scheduling one turn later lets the typed value win.
+        Button JS copies the DOM text into the model; that message and the
+        click often share one Jupyter/Panel batch. One scheduled turn later
+        the typed value is visible to Python.
         """
         try:
             pn.state.execute(fn, schedule=True)
         except Exception:
             fn()
-
     def _on_load_sky(self, _event=None) -> None:
         self._run_after_input_sync(self._load_sky_impl)
 
@@ -2071,7 +2113,7 @@ class CatalogBrowser(pn.viewable.Viewer):
             return
 
         self._trace = trace
-        self.meta_id = int(trace.meta_id)
+        self._set_meta_id_field(int(trace.meta_id))
         warn = ""
         if trace.warnings:
             warn = "  \n" + "  \n".join(f"- {w}" for w in trace.warnings)
