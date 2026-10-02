@@ -412,6 +412,7 @@ def _spectrum_figure_for_row(
     When *bands* is omitted, uses :func:`resolve_sed_bands` so LWA subbands and
     any attached survey channels (VLSSR/NVSS/VLASS) are included.
     Bands with ``n_confused_{band} > 1`` use an ``x`` marker.
+    Y-limits follow the data (± errors), not the Taylor curve.
     """
     _mpl_configure()
 
@@ -484,6 +485,22 @@ def _spectrum_figure_for_row(
     )
     ax.set_xscale("log")
     ax.set_yscale("log")
+    # Keep y-limits on the data (± errors), not the fit curve.
+    err_finite = np.where(np.isfinite(err_jy), err_jy, 0.0)
+    y_lo = flux_jy - err_finite
+    y_hi = flux_jy + err_finite
+    pos_lo = y_lo[np.isfinite(y_lo) & (y_lo > 0)]
+    pos_hi = y_hi[np.isfinite(y_hi) & (y_hi > 0)]
+    if pos_lo.size == 0:
+        pos_lo = flux_jy[np.isfinite(flux_jy) & (flux_jy > 0)]
+    if pos_hi.size == 0:
+        pos_hi = flux_jy[np.isfinite(flux_jy) & (flux_jy > 0)]
+    if pos_lo.size and pos_hi.size:
+        ymin = float(pos_lo.min())
+        ymax = float(pos_hi.max())
+        if ymin < ymax:
+            ax.set_ylim(ymin / 1.15, ymax * 1.15)
+
     ax.set_xlabel("Frequency (MHz)")
     ax.set_ylabel("Total flux (Jy)")
     if fit is not None and np.isfinite(fit.chi2_red):

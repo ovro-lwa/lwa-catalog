@@ -108,6 +108,39 @@ def test_spectrum_figure_confused_uses_x_marker() -> None:
     assert confused_handles[0].lines[0].get_marker() == "x"
 
 
+def test_spectrum_figure_ylim_follows_data_not_fit() -> None:
+    """Y-limits stay near measured fluxes even when the Taylor curve diverges."""
+    pytest.importorskip("matplotlib")
+    from lwa_catalog.constants import SUBBAND_BANDS_MHZ
+    from lwa_catalog.viz.browser import _spectrum_figure_for_row
+
+    row = pd.Series(
+        {
+            "meta_id": 9,
+            "Total_flux_55MHz": 1.0,
+            "E_Total_flux_55MHz": 0.1,
+            "n_confused_55MHz": 1,
+            "Total_flux_82MHz": 0.8,
+            "E_Total_flux_82MHz": 0.08,
+            "n_confused_82MHz": 1,
+            # Steep power law: fit will be far below the points at high freq.
+            "spec_model_n_terms": 2,
+            "spec_model_n_flux": 2,
+            "spec_model_a0": 0.0,
+            "spec_model_a1": -5.0,
+            "spec_model_a2": float("nan"),
+            "spec_model_a3": float("nan"),
+            "spec_model_bic": 1.0,
+            "spec_model_chi2_red": 1.0,
+            "spec_model_nu0_mhz": 55.0,
+        }
+    )
+    fig = _spectrum_figure_for_row(row, bands=SUBBAND_BANDS_MHZ)
+    ymin, ymax = fig.axes[0].get_ylim()
+    assert ymin > 0.5  # not dragged down by the steep fit
+    assert ymax < 2.0
+
+
 def test_spectrum_figure_unconfused_only_mask_length() -> None:
     """Regression: LWA mask must match gathered points when a confused band is skipped."""
     pytest.importorskip("matplotlib")
