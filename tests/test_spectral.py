@@ -122,11 +122,12 @@ def test_gather_band_flux_origin_fallback() -> None:
             "E_Total_flux_18MHz": 0.1,
         }
     )
-    nu_hz, flux, err = gather_band_flux_measurements(
+    nu_hz, flux, err, used = gather_band_flux_measurements(
         row,
         bands=("18MHz", "55MHz"),
         flux_kind="total",
     )
+    assert used == ("18MHz", "55MHz")
     assert nu_hz.size == 2
     assert 18e6 in nu_hz
     assert 55e6 in nu_hz
@@ -144,11 +145,12 @@ def test_gather_includes_radio_survey_bands() -> None:
             "Total_flux_VLASS": 0.05,
         }
     )
-    nu_hz, flux, _ = gather_band_flux_measurements(
+    nu_hz, flux, _, used = gather_band_flux_measurements(
         row,
         bands=("55MHz", "VLSSR", "NVSS", "VLASS"),
         flux_kind="total",
     )
+    assert used == ("55MHz", "VLSSR", "NVSS", "VLASS")
     assert list(nu_hz) == pytest.approx([55e6, 74e6, 1.4e9, 3e9])
     assert list(flux) == pytest.approx([1.0, 0.8, 0.15, 0.05])
 
@@ -284,21 +286,23 @@ def test_gather_unconfused_only_skips_confused_bands() -> None:
             # 27MHz missing n_confused → excluded when unconfused_only
         }
     )
-    nu_all, flux_all, _ = gather_band_flux_measurements(
+    nu_all, flux_all, _, used_all = gather_band_flux_measurements(
         row,
         bands=("18MHz", "23MHz", "27MHz"),
         flux_kind="total",
         unconfused_only=False,
     )
+    assert used_all == ("18MHz", "23MHz", "27MHz")
     assert list(nu_all) == pytest.approx([18e6, 23e6, 27e6])
     assert list(flux_all) == pytest.approx([1.0, 0.9, 0.8])
 
-    nu_ok, flux_ok, _ = gather_band_flux_measurements(
+    nu_ok, flux_ok, _, used_ok = gather_band_flux_measurements(
         row,
         bands=("18MHz", "23MHz", "27MHz"),
         flux_kind="total",
         unconfused_only=True,
     )
+    assert used_ok == ("18MHz",)
     assert list(nu_ok) == pytest.approx([18e6])
     assert list(flux_ok) == pytest.approx([1.0])
 

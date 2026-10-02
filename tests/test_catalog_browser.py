@@ -66,3 +66,48 @@ def test_spectrum_figure_includes_survey_points() -> None:
     labels = set(ax.get_legend_handles_labels()[1])
     assert "LWA" in labels
     assert "survey" in labels
+
+
+def test_spectrum_figure_unconfused_only_mask_length() -> None:
+    """Regression: LWA mask must match gathered points when a confused band is skipped."""
+    pytest.importorskip("matplotlib")
+    from lwa_catalog.constants import SUBBAND_BANDS_MHZ
+    from lwa_catalog.viz.browser import _spectrum_figure_for_row
+
+    row_data: dict = {
+        "meta_id": 42,
+        "spec_model_n_terms": 2,
+        "spec_model_n_flux": 14,
+        "spec_model_a0": 0.0,
+        "spec_model_a1": -0.7,
+        "spec_model_a2": float("nan"),
+        "spec_model_a3": float("nan"),
+        "spec_model_bic": 1.0,
+        "spec_model_chi2_red": 1.0,
+        "spec_model_nu0_mhz": 55.0,
+    }
+    for band in SUBBAND_BANDS_MHZ:
+        row_data[f"Total_flux_{band}"] = 1.0
+        row_data[f"E_Total_flux_{band}"] = 0.1
+        row_data[f"n_confused_{band}"] = 1
+    # One positive-flux channel is confused — gather with unconfused_only would drop it.
+    # Plotting must not rebuild a longer boolean mask from raw Total_flux.
+    confused = SUBBAND_BANDS_MHZ[3]
+    row_data[f"n_confused_{confused}"] = 3
+    row = pd.Series(row_data)
+
+    from lwa_catalog.analyze.spectral import gather_band_flux_measurements
+
+    nu_hz, flux_jy, err_jy, point_bands = gather_band_flux_measurements(
+        row,
+        bands=SUBBAND_BANDS_MHZ,
+        flux_kind="total",
+        unconfused_only=True,
+    )
+    assert nu_hz.size == len(SUBBAND_BANDS_MHZ) - 1
+    assert len(point_bands) == nu_hz.size
+    is_lwa = [b in set(SUBBAND_BANDS_MHZ) for b in point_bands]
+    assert len(is_lwa) == nu_hz.size
+    # Browser path (no unconfused_only) still plots; smoke that it does not raise.
+    fig = _spectrum_figure_for_row(row, bands=SUBBAND_BANDS_MHZ)
+    assert fig.axes

@@ -109,8 +109,8 @@ def gather_band_flux_measurements(
     flux_kind: FluxKind = "total",
     origin_band_key: str = "origin_band",
     unconfused_only: bool = False,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return ``(nu_hz, flux_jy, err_jy)`` for positive finite per-band fluxes.
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, tuple[str, ...]]:
+    """Return ``(nu_hz, flux_jy, err_jy, used_bands)`` for positive finite fluxes.
 
   Checks ``{flux}_{band}`` columns in *bands* order. When the suffixed column is
   missing or invalid and *band* equals ``row[origin_band_key]``, falls back to the
@@ -120,6 +120,9 @@ def gather_band_flux_measurements(
   When *unconfused_only* is True, skip bands unless ``n_confused_{band} == 1``
   (unique reverse claim of the stored band source). Missing / non-finite /
   other values exclude the band.
+
+  *used_bands* is parallel to the returned arrays (same length and order) so
+  callers can classify points (e.g. LWA vs survey) without re-filtering.
     """
     flux_prefix, err_prefix = _flux_column_names(flux_kind)
     origin_band = str(row.get(origin_band_key, "") or "")
@@ -127,6 +130,7 @@ def gather_band_flux_measurements(
     nu_list: list[float] = []
     flux_list: list[float] = []
     err_list: list[float] = []
+    used_bands: list[str] = []
 
     for band in bands:
         if unconfused_only and not _band_is_unconfused(row, band):
@@ -159,17 +163,20 @@ def gather_band_flux_measurements(
         nu_list.append(float(freq))
         flux_list.append(float(flux))
         err_list.append(float(err) if np.isfinite(err) and float(err) >= 0.0 else np.nan)
+        used_bands.append(str(band))
 
     if not nu_list:
         return (
             np.array([], dtype=float),
             np.array([], dtype=float),
             np.array([], dtype=float),
+            (),
         )
     return (
         np.asarray(nu_list, dtype=float),
         np.asarray(flux_list, dtype=float),
         np.asarray(err_list, dtype=float),
+        tuple(used_bands),
     )
 
 
@@ -439,7 +446,7 @@ def fit_metacatalog_spectra(
     n_fitted = 0
 
     for _, row in out.iterrows():
-        nu_hz, flux_jy, err_jy = gather_band_flux_measurements(
+        nu_hz, flux_jy, err_jy, _ = gather_band_flux_measurements(
             row,
             bands=cfg.bands,
             flux_kind=cfg.flux_kind,

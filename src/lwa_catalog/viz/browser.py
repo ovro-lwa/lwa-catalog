@@ -423,7 +423,7 @@ def _spectrum_figure_for_row(
     label = f"meta_id={int(meta_id)}" if pd.notna(meta_id) else "selected source"
 
     sed_bands = bands if bands is not None else resolve_sed_bands(row)
-    nu_hz, flux_jy, err_jy = gather_band_flux_measurements(
+    nu_hz, flux_jy, err_jy, point_bands = gather_band_flux_measurements(
         row,
         bands=sed_bands,
         flux_kind="total",
@@ -443,14 +443,6 @@ def _spectrum_figure_for_row(
 
     nu_mhz = nu_hz / 1e6
     lwa_set = set(SUBBAND_BANDS_MHZ)
-    point_bands: list[str] = []
-    for band in sed_bands:
-        col = f"Total_flux_{band}"
-        if col not in row.index:
-            continue
-        val = pd.to_numeric(row[col], errors="coerce")
-        if np.isfinite(val) and float(val) > 0.0:
-            point_bands.append(band)
     is_lwa = np.array([b in lwa_set for b in point_bands], dtype=bool)
     if is_lwa.any():
         ax.errorbar(
@@ -1505,7 +1497,7 @@ class CatalogBrowser(pn.viewable.Viewer):
             return
 
         sed_bands = resolve_sed_bands(row)
-        nu_hz, _, _ = gather_band_flux_measurements(
+        nu_hz, _, _, _ = gather_band_flux_measurements(
             row,
             bands=sed_bands,
             flux_kind="total",
