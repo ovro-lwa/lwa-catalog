@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -214,3 +216,107 @@ def test_spectrum_figure_unconfused_only_mask_length() -> None:
     # Browser path (no unconfused_only) still plots; smoke that it does not raise.
     fig = _spectrum_figure_for_row(row, bands=SUBBAND_BANDS_MHZ)
     assert fig.axes
+
+
+def test_load_sky_view_centers_on_meta_id_field(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Entering meta_id + Load sky view selects that source and recenters."""
+    pytest.importorskip("ipyaladin")
+    import panel as pn
+    from lwa_catalog.viz import browser as browser_mod
+    from lwa_catalog.viz.browser import CatalogBrowser, CatalogBrowserConfig
+
+    class _FakeAladin:
+        def __init__(self, **kwargs):
+            self.target = kwargs.get("target")
+            self.fov = kwargs.get("fov")
+            self.survey = kwargs.get("survey")
+            self._listeners: dict = {}
+
+        def set_listener(self, event: str, callback) -> None:
+            self._listeners[event] = callback
+
+        def save_view_as_image(self, *args, **kwargs) -> None:
+            return None
+
+    monkeypatch.setattr("ipyaladin.Aladin", _FakeAladin)
+    monkeypatch.setattr(
+        pn.pane,
+        "IPyWidget",
+        lambda object, **kwargs: type("W", (), {"object": object})(),
+    )
+    monkeypatch.setattr(
+        browser_mod,
+        "fetch_catalog_hips_surveys",
+        lambda *a, **k: ["CDS/P/DSS2/color"],
+    )
+    monkeypatch.setattr(
+        browser_mod,
+        "preferred_hips_survey",
+        lambda *a, **k: "CDS/P/DSS2/color",
+    )
+    monkeypatch.setattr(browser_mod, "hips_survey_url", lambda name, base="": f"mock://{name}")
+    monkeypatch.setattr(
+        browser_mod,
+        "DebouncedAladinViewRefresh",
+        lambda *a, **k: type("R", (), {"cancel_pending": lambda self: None})(),
+    )
+    monkeypatch.setattr(
+        browser_mod,
+        "overlay_catalog_by_band",
+        lambda *a, **k: type("O", (), {"drawn": 0, "in_fov": 0, "truncated": False})(),
+    )
+    monkeypatch.setattr(browser_mod, "clear_trace_overlays", lambda *a, **k: None)
+    monkeypatch.setattr(browser_mod, "clear_catalog_overlays", lambda *a, **k: None)
+    monkeypatch.setattr(browser_mod, "cancel_aladin_view_timers", lambda *a, **k: None)
+    monkeypatch.setattr(browser_mod, "aladin_view_center_fov", lambda *a, **k: (None, 10.0))
+
+    catalog_dir = tmp_path / "cat"
+    catalog_dir.mkdir()
+    df = pd.DataFrame(
+        {
+            "meta_id": [10, 20],
+            "RA": [100.0, 200.0],
+            "DEC": [10.0, -20.0],
+            "Peak_flux": [1.0, 2.0],
+            "bands_present": ["Full", "Full"],
+            "origin_band": ["Full", "Full"],
+        }
+    )
+    path = catalog_dir / "metacatalog.parquet"
+    df.to_parquet(path, index=False)
+
+    index = pd.DataFrame(
+        [
+            {
+                "file": "metacatalog.parquet",
+                "kind": "metacatalog",
+                "lst_hour": None,
+                "band": None,
+                "n_rows": 2,
+                "size_mb": 0.01,
+                "path": str(path),
+            }
+        ]
+    )
+    cfg = CatalogBrowserConfig(
+        catalog_dirs=(str(catalog_dir),),
+        default_catalog_dir=str(catalog_dir),
+        quality_flag_mask=None,
+        display_column_prefs_path=tmp_path / "display_cols.json",
+    )
+    br = CatalogBrowser(index, config=cfg)
+    assert br._selected_meta_id == 10
+
+    br.meta_id = 20
+    br._on_load_sky()
+
+    assert br._selected_meta_id == 20
+    assert br._sky_loaded is True
+    assert "200" in br.coordinate
+    assert br._aladin.target.ra.deg == pytest.approx(200.0)
+    assert br._aladin.target.dec.deg == pytest.approx(-20.0)
+    row = br._catalog_row_for_selection()
+    assert row is not None
+    assert int(row["meta_id"]) == 20

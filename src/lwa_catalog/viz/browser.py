@@ -623,13 +623,13 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._status = pn.pane.Markdown("", sizing_mode="stretch_width")
         self._nearest_status = pn.pane.Markdown("", sizing_mode="stretch_width")
         self._trace_status = pn.pane.Markdown(
-            "_Select a table row, then click **Load trace**._",
+            "_Set `meta_id` above, then click **Load trace**._",
             sizing_mode="stretch_width",
         )
         self._selection_status = pn.pane.Markdown(
-            "_After **Load sky view**, click the map to pick the nearest source. "
-            "The pick shows a **gold** cross (+ thick ellipse when shape columns exist) "
-            "and updates `meta_id` below._",
+            "_Enter a `meta_id` and click **Load sky view**, or click the map to pick "
+            "the nearest source. The pick shows a **gold** cross (+ thick ellipse when "
+            "shape columns exist) and updates the `meta_id` field._",
             sizing_mode="stretch_width",
         )
 
@@ -803,9 +803,9 @@ class CatalogBrowser(pn.viewable.Viewer):
                 sizing_mode="stretch_width",
             )
             self._hips_status = pn.pane.Markdown(
-                "_Sky overlay loads for the first table row; "
-                "**Load sky view** recenters on the selection. "
-                "Map clicks pick the nearest source (gold marker)._",
+                "_Sky overlay loads for the first table row; enter a `meta_id` and "
+                "click **Load sky view** to recenter. Map clicks pick the nearest "
+                "source (gold marker)._",
                 sizing_mode="stretch_width",
             )
             self._save_sky_btn = pn.widgets.Button(
@@ -845,11 +845,11 @@ class CatalogBrowser(pn.viewable.Viewer):
                 empty3, tight=True, height=340, sizing_mode="stretch_width"
             )
             self._spectrum_status = pn.pane.Markdown(
-                "_Select a table row, then click **Plot spectrum**._",
+                "_Set `meta_id` (or select a table row), then click **Plot spectrum**._",
                 sizing_mode="stretch_width",
             )
             empty_spec = _mpl_empty_figure(
-                "Total flux spectrum (select a row and click Plot spectrum)"
+                "Total flux spectrum (set meta_id and click Plot spectrum)"
             )
             self._spectrum_plot = pn.pane.Matplotlib(empty_spec, tight=True, height=360)
 
@@ -863,19 +863,19 @@ class CatalogBrowser(pn.viewable.Viewer):
                 self._status,
                 self._table,
                 pn.pane.Markdown("### Sky context (HiPS + catalog overlay)", disable_anchors=True),
-                pn.Row(self._hips_survey_w, self._sky_btn, align="end"),
+                pn.Row(self._hips_survey_w, self._meta_id_w, self._sky_btn, align="end"),
                 pn.Row(self._overlay_w, self._save_sky_btn, align="center"),
                 self._hips_status,
                 self._selection_status,
                 self._hips_view,
                 pn.pane.Markdown(
                     "### Spectral flux (SED)\n"
-                    "Select a browse-table row (the same source as **Load sky view**), "
-                    "then click **Plot spectrum**. Per-band `Total_flux_{band}` "
-                    "measurements are shown (LWA circles; VLSSR/NVSS/VLASS squares when "
-                    "present) with the stored Taylor model when `spec_model_*` columns "
-                    "exist (e.g. `metacatalog_spectral.parquet`). Survey points sit far "
-                    "to the right on the log-frequency axis (74 MHz / 1.4 GHz / ~3 GHz).",
+                    "After centering with **Load sky view**, click **Plot spectrum**. "
+                    "Per-band `Total_flux_{band}` measurements are shown (LWA circles; "
+                    "VLSSR/NVSS/VLASS squares when present) with the stored Taylor model "
+                    "when `spec_model_*` columns exist (e.g. `metacatalog_spectral.parquet`). "
+                    "Survey points sit far to the right on the log-frequency axis "
+                    "(74 MHz / 1.4 GHz / ~3 GHz).",
                     disable_anchors=True,
                 ),
                 pn.Row(self._spectrum_btn),
@@ -883,7 +883,7 @@ class CatalogBrowser(pn.viewable.Viewer):
                 self._spectrum_plot,
                 pn.pane.Markdown(
                     "### Source trace (band-merge rematch)\n"
-                    "Select a table row, then click **Load trace**. Rematch recovers "
+                    "Click **Load trace** for the current `meta_id`. Rematch recovers "
                     "per-band LST-merged rows. Plots use those matches: position "
                     "offsets vs fused RA/DEC, flux vs frequency, and HEALPix coadd "
                     "cutouts (`healpix_{band}_nside*.fits`). Per-hour tables stay for "
@@ -891,7 +891,7 @@ class CatalogBrowser(pn.viewable.Viewer):
                     "change the sky overlay.",
                     disable_anchors=True,
                 ),
-                pn.Row(self._meta_id_w, self._trace_btn),
+                pn.Row(self._trace_btn),
                 self._trace_status,
                 pn.pane.Markdown("#### Per-band LST-merged matches", disable_anchors=True),
                 self._lst_trace_table,
@@ -1370,7 +1370,7 @@ class CatalogBrowser(pn.viewable.Viewer):
             self._sky_loaded = True
             self._apply_row_coordinate(row)
         if self._is_metacatalog():
-            self._clear_trace("_Select a table row, then click **Load trace**._")
+            self._clear_trace("_Set `meta_id` above, then click **Load trace**._")
         else:
             self._clear_trace(
                 "_Source trace needs a metacatalog-style table with `meta_id` "
@@ -1455,23 +1455,25 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._sky_center_note = ""
         self._overlay_note = ""
         self._hips_status.object = (
-            "_Sky overlay loads for the first table row; "
-            "**Load sky view** recenters on the selection. "
-            "Map clicks pick the nearest source (gold marker)._"
+            "_Sky overlay loads for the first table row; enter a `meta_id` and "
+            "click **Load sky view** to recenter. Map clicks pick the nearest "
+            "source (gold marker)._"
         )
         self._set_selection_status(
-            "_After **Load sky view**, click the map to pick the nearest source. "
-            "The pick shows a **gold** cross (+ thick ellipse when shape columns exist) "
-            "and updates `meta_id` below._"
+            "_Enter a `meta_id` and click **Load sky view**, or click the map to pick "
+            "the nearest source. The pick shows a **gold** cross (+ thick ellipse when "
+            "shape columns exist) and updates the `meta_id` field._"
         )
         self._highlight_meta_id_widget(active=False)
         self._reset_spectrum_context()
 
     def _reset_spectrum_context(self) -> None:
-        self._spectrum_status.object = "_Select a table row, then click **Plot spectrum**._"
+        self._spectrum_status.object = (
+            "_Set `meta_id` (or select a table row), then click **Plot spectrum**._"
+        )
         _mpl_placeholder(
             self._spectrum_plot,
-            "Total flux spectrum (select a row and click Plot spectrum)",
+            "Total flux spectrum (set meta_id and click Plot spectrum)",
         )
 
     def _row_sky_coord(self, row: pd.Series) -> SkyCoord | None:
@@ -1505,9 +1507,21 @@ class CatalogBrowser(pn.viewable.Viewer):
         return view.iloc[idx]
 
     def _catalog_row_for_selection(self) -> pd.Series | None:
-        """Full catalog row for the browse-table selection (not display-truncated)."""
+        """Full catalog row for the active selection (not display-truncated).
+
+        Prefers the ``meta_id`` field / sky pick, then the browse-table row.
+        """
         if self._df is None or self._df.empty:
             return None
+        if "meta_id" in self._df.columns:
+            mid = (
+                int(self._selected_meta_id)
+                if self._selected_meta_id is not None
+                else int(self.meta_id)
+            )
+            matches = self._df.loc[self._df["meta_id"] == mid]
+            if not matches.empty:
+                return matches.iloc[0]
         view_row = self._selected_table_row()
         if view_row is None:
             return None
@@ -1527,7 +1541,9 @@ class CatalogBrowser(pn.viewable.Viewer):
             return
         row = self._catalog_row_for_selection()
         if row is None:
-            self._spectrum_status.object = "_Select a table row, then click **Plot spectrum**._"
+            self._spectrum_status.object = (
+                "_Set `meta_id` (or select a table row), then click **Plot spectrum**._"
+            )
             return
 
         sed_bands = resolve_sed_bands(row)
@@ -1840,6 +1856,8 @@ class CatalogBrowser(pn.viewable.Viewer):
             label += " (browse table)"
         elif source == "sky":
             label += " (sky click)"
+        elif source == "input":
+            label += " (meta_id field)"
         if not in_table:
             label += " — _not visible in the browse table (clear header filters to select the row)._"
         elif in_table:
@@ -1938,6 +1956,19 @@ class CatalogBrowser(pn.viewable.Viewer):
                     self._set_overlay_note(f"**Overlay refresh failed:** `{exc}`")
 
     def _on_load_sky(self, _event=None) -> None:
+        if self._df is not None and not self._df.empty and "meta_id" in self._df.columns:
+            meta_id = int(self.meta_id)
+            matches = self._df.loc[self._df["meta_id"] == meta_id]
+            if matches.empty:
+                msg = f"**meta_id={meta_id}** not found in the loaded catalog."
+                self._hips_status.object = msg
+                self._set_selection_status(msg)
+                return
+            self._sky_loaded = True
+            self._select_meta_id(meta_id, source="input")
+            self._apply_row_coordinate(matches.iloc[0])
+            return
+
         row = self._require_selected_row(status=self._hips_status, label="Load sky view")
         if row is None:
             return
@@ -1945,19 +1976,24 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._apply_row_coordinate(row)
 
     def _on_load_trace(self, _event=None) -> None:
-        row = self._require_selected_row(status=self._trace_status, label="Load trace")
-        if row is None:
-            return
         if not self._is_metacatalog():
             self._trace_status.object = (
                 "_Source trace needs a metacatalog-style table with `meta_id`._"
             )
             return
-        if "meta_id" not in row.index or pd.isna(row.get("meta_id")):
-            self._trace_status.object = "**Selected row has no meta_id.**"
+        if self._df is None or self._df.empty or "meta_id" not in self._df.columns:
+            self._trace_status.object = "**Load a metacatalog first.**"
             return
-        self.meta_id = int(row["meta_id"])
-        self._run_trace(self.meta_id)
+        meta_id = int(self.meta_id)
+        matches = self._df.loc[self._df["meta_id"] == meta_id]
+        if matches.empty:
+            self._trace_status.object = (
+                f"**meta_id={meta_id}** not found in the loaded catalog."
+            )
+            return
+        self._selected_meta_id = meta_id
+        self._highlight_meta_id_widget(active=True)
+        self._run_trace(meta_id)
 
     def _on_trace_meta_id(self, _event=None) -> None:
         self._on_load_trace(_event)
