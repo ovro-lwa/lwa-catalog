@@ -117,16 +117,28 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   (False)** — SIN all-sky invalid pixels are not blanked by default.
 - **Do not pass 1-D HEALPix, nfreq>1 cubes, or beamless `coadd_fits` arrays
   into `detect_sources`.** Package a 2-D FITS with WCS + beam + frequency
-  first.
+  first.   Experimental HEALPix-tile detect uses `lwa_healpix.healpix_to_hdu` +
+  `lwa_catalog.create.healpix_detect.attach_beam_and_freq` /
+  `detect_sources_on_healpix_tiles` → `run_pybdsf_on_hdu` (not
+  `detect_sources`). Defaults: `nside_map=2048`, `nside_tile=4`, TAN, nested,
+  `align="diamond"` with `margin=0.05` (HEALPix-edge-aligned tiles; use
+  `align="celestial"` + `overlap` for legacy north-aligned squares). Overlap
+  tile duplicates collapse via `merge_tile_metacatalog`
+  (brightest flux; `n_lst_contributions=1`) into LST-merged-shaped Parquets for
+  `build_global_metacatalog`. Coadd elevation blanking may be circular
+  (`min_elevation`) or elliptical (`min_elevation_ns` / `min_elevation_ew`;
+  notebook default 15° N/S, 40° E/W). Image HEALPix FITS (`write_healpix_fits` MAP+WEIGHT) is an
+  **imaging** product — distinct from catalog→HiPS (`write_healpix_hips`).
 - Prefer `RA---CAR`/`DEC--CAR` if detecting on a CAR mosaic.
   `GLON-CAR`/`GLAT-CAR` still write columns named `RA`/`DEC` but the numbers
   are Galactic.
 - After `prepare_hdu`, `detect_sources` blanks pixels below
   `min_elevation_deg` (default **10°**, `None` to disable) to **NaN** via
-  `blank_below_elevation` — same CRVAL-as-zenith model as lwa-healpix coadd.
-  Do not zero-fill. Valid for native hourly SIN; **wrong** when `CRVAL` is
-  not zenith (NCP mosaic, reprojected CAR/HEALPix). Mosaic detect blanks in
-  coadd and calls `run_pybdsf_on_hdu` directly (skips this path).
+  `blank_below_elevation` — same CRVAL-as-zenith model as lwa-healpix coadd
+  (circular cut only on this detect path). Do not zero-fill. Valid for native hourly SIN; **wrong** when `CRVAL` is
+  not zenith (NCP mosaic, reprojected CAR/HEALPix tiles). Mosaic / HEALPix-tile
+  detect blanks in `coadd_fits` and calls `run_pybdsf_on_hdu` directly (skips
+  this path).
 - Missing hours are skipped, not filled. Merge does not require 24 hours.
 
 `GAUL_COLUMNS` kept from PyBDSF: positions, fluxes, shapes, `Resid_Isl_rms`,
@@ -154,8 +166,13 @@ attach.
 | Step | Graph | Effect |
 | ---- | ----- | ------ |
 | LST merge (`merge_lst_metacatalog` / `_cluster_by_sky_position`) | Transitive **union-find** of all hours pooled together | A–B and B–C ⇒ one cluster even if A–C exceeds the beam (**over-merge**). Well-separated detections stay split (**over-split** persists as multiple `meta_id`s). |
-| Band fusion (`build_global_metacatalog`) | **Bipartite** attach onto existing base rows | Does **not** merge base rows. `n_assoc_{band} > 1` is confused association (many detections on one row), not a duplicate-row detector. |
+| Band fusion (`build_global_metacatalog`) | **Bipartite** attach onto existing base rows | Does **not** merge base rows. `n_assoc_{band}` = forward hits on this row; `n_confused_{band}` = how many meta rows claim the stored band source (reverse). `CONFUSED_ASSOC` uses `n_confused_* > 1`. The **seed** band also gets `n_assoc_{seed}=1` / `n_confused_{seed}=1` (one meta row per seed detection). Missing seed `n_confused_*` makes `unconfused_only` SED fits drop that channel. |
 
+- Optional `transit_window_hr` on `merge_lst_metacatalog` drops detections
+  **before** clustering unless `lst_hour` is within that many hours of transit
+  (`RA / 15`, circular on 24 h, inclusive). `None` (default) keeps every
+  detection. Subband notebook: `TRANSIT_WINDOW`. Changing it requires an LST
+  re-merge (`REUSE_CACHED_CATALOGS` is path existence only).
 - Pool all hours, then cluster. Do not sequential-match hour N onto hour 0.
 - `normalize_ra_columns` before clustering — PyBDSF negative longitudes split
   clusters across the RA wrap.
@@ -196,7 +213,7 @@ top-level `Peak_flux`.
 | Situation | Rule | Notes |
 | --------- | ---- | ----- |
 | LST representative | **Highest elevation** at cluster-median RA/DEC | Zenith at `RA = LST × 15°`, `Dec = OVRO_LATITUDE_DEG` (37.239777). Merged `Peak_flux` can be the **faintest** member. Tests lock this. |
-| Band-fusion multi-match at **build** time | **Highest elevation** (`representative="elevation"`) | `n_assoc_*` still counts **all** hits. |
+| Band-fusion multi-match at **build** time | **Highest elevation** (`representative="elevation"`) | `n_assoc_*` still counts **all** forward hits; `n_confused_*` counts meta rows sharing the chosen band source. |
 | LST cluster-center **nudge during clustering** | **Median flux** (`_pick_median_flux_row`) | Only this use. Not a seeder. |
 | Survey photometric attach | **Brightest `Peak_flux`** (`representative="peak_flux"`) | NVSS `Peak_intensity` is normalized first. |
 | Rematch among beam neighbors | **Seeded `Peak_flux`, then sky separation** | Elevation at rematch recovered the wrong source in confused beams (`meta_id` 17776). |
@@ -208,7 +225,7 @@ Elevation is an **LST / LWA** concept. External surveys have no `lst_hour`.
 ## RGB vs subband vs survey columns
 
 Wide layout: `{field}_{band}`, `origin_band`, comma-separated `bands_present`,
-`n_assoc_{band}`. Missing measurements are `NaN`. RGB schema is the typed core;
+`n_assoc_{band}`, `n_confused_{band}`. Missing measurements are `NaN`. RGB schema is the typed core;
 MHz extras persist via `include_extras=True`.
 
 **`bands_present` is not a flux-validity mask.** A band can be listed while
@@ -255,6 +272,7 @@ Photometric attach (`attach_radio_surveys_to_metacatalog` in
 - Output **row count equals input LWA row count**. Unmatched survey sources
   never become rows.
 - `n_assoc_{survey}` counts all hits; stored flux is the **brightest** hit.
+- `n_confused_{survey}` counts how many LWA meta rows claim that stored survey source.
 - **Never** `append_unmatched=True` for VLASS/NVSS (component tables would
   dominate).
 - **Never** `astrometry_from_highest_frequency` for this attach (VLASS
@@ -288,9 +306,11 @@ Three related but **not interchangeable** layers:
    (avoids double rematch I/O).
 3. **`quality_flag` bitmask** (`SourceQualityFlag`): 0 = check passed, 1 =
    concern. `quality_flag == 0` means every implemented check passed. Bits
-   0–16 are defined (through `NEAR_BRIGHT_SIDELOBE`: faint source within
-   2–4 × bright-neighbor BMAJ of a ≥30× brighter neighbor). Bits 17–31
-   reserved. Written onto `metacatalog.parquet` (optional
+   0–17 are defined (through `BAND_POSITION_INCONSISTENT`: max pairwise
+   band–band position sep > 1 × BMAJ_match). `CONFUSED_ASSOC` is
+   `n_confused_* > 1` (reverse: many meta rows claim one attached-band
+   source), not forward `n_assoc_* > 1`. Bits 18–31 reserved. Written
+   onto `metacatalog.parquet` (optional
    `metacatalog_quality_flags.parquet` keeps per-bit booleans).
 
 Do not conflate **percentile QA** (Fit quality, Mahalanobis) with **absolute
@@ -323,6 +343,9 @@ single-pixel deposits. **Map sum is not Σ Peak_flux.** Then
 - Model: `ln S(ν) = Σ a_j [ln(ν/ν₀)]^j`, ν₀ = `SUBBAND_REF_FREQ_MHZ = 55.0`.
 - Default `flux_kind="total"`; `peak` supported. Weights `σ_lnS = E_S/S`;
   missing errors → equal weights.
+- Default `SpectralFitConfig.unconfused_only=True` (`FIT_UNCONFUSED_ONLY` in
+  the notebook): per row, gather only bands with `n_confused_{band} == 1`
+  (unique reverse claim). Set False to fit all positive finite fluxes.
 - Model selection is **reduced-χ² parsimony tie-break, then BIC** — not
   BIC-only (BIC-only over-fit noise-free power laws to 4-term models).
 - Columns: `spec_model_n_terms`, `spec_model_bic`, `spec_model_chi2_red`,
@@ -383,6 +406,11 @@ UI lives at the bottom of `metacatalog_query.ipynb` (and
   `lwa_catalog.viz.browser`. Other helpers live in `lwa_catalog.viz` (HiPS
   preference / fetch, FOV restore, nearest-source match, overlays). Pan/zoom
   uses `DebouncedAladinViewRefresh`. Explicit **Load sky view** / **Run**.
+  The `meta_id` field sits above the sky widget; **Load sky view** selects that
+  id and recenters. Sky clicks highlight with gold (`SELECTION_OVERLAY_COLOR`
+  cross + thick ellipse) and a selection-status line; overlay selection follows
+  the picked `meta_id`, not only the Tabulator row. **Plot spectrum** / **Load
+  trace** below operate on the current `meta_id`.
 
 ---
 
@@ -399,17 +427,23 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `ovro_lwa_metacatalog.ipynb` | RGB detect → LST merge → fusion; Fit quality section |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same on 15 MHz subbands |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd experiment vs LST-merged catalog |
-| `metacatalog_query.ipynb` | Browse, sky overlay, **source trace**, Mahalanobis |
-| `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + source trace |
+| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix coadd → nested TAN tiles → PyBDSF; `merge_tile_metacatalog` → band fusion (Option 2) |
+| `metacatalog_query.ipynb` | Browse, sky overlay, **band-merge source trace**, Mahalanobis |
+| `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + **band-merge** source trace |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
 | `metacatalog_spectral_modeling.ipynb` | Prefer radio spectral product or create it; Taylor SED (LWA ± surveys) |
 | `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS → `metacatalog_spectral.parquet` |
 | `metacatalog_nedlvs_crossmatch.ipynb` | Galaxy host association (later than this distillation) |
 | `target_samples.ipynb` | Class samples for the query browser |
 
-Trace UI lives in **`metacatalog_query.ipynb`** and the reliability HiPS viewer
-(`metacatalog_reliability.ipynb`: map click → nearest `meta_id`, then **Load
-trace**). Do not put rematch cells back into `ovro_lwa_metacatalog.ipynb`.
+Trace UI lives in **`metacatalog_query.ipynb`** (`CatalogBrowser`) and the
+reliability HiPS viewer (`metacatalog_reliability.ipynb`: map click → nearest
+`meta_id`, then **Load trace**). Both plot **per-band LST matches**: position
+offsets vs fused RA/DEC, flux vs frequency, and TAN cutouts from
+`healpix_{band}_nside*.fits` (`analyze.healpix_cutout`,
+`plot_band_position_offsets`, `plot_band_flux_vs_frequency`). Per-hour
+`source_matches` stay empty when `lst_hours` is blank. Do not put rematch
+cells back into `ovro_lwa_metacatalog.ipynb`.
 
 ---
 
@@ -452,7 +486,10 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 - LWA band colors on external-survey overlays.
 - Silently switching healpix default back to point deposits.
 - Treating `display_columns` as the Mahalanobis feature selector.
-- Passing HEALPix maps or beamless coadds to PyBDSF.
+- Passing raw HEALPix maps or beamless coadds to PyBDSF (package via
+  `healpix_to_hdu` + beam attach first). Catalog map products remain HiPS-only
+  (`write_healpix_hips`); do not add HEALPix FITS for **catalog** paint maps.
+  Imaging coadd HEALPix FITS (`lwa_healpix.write_healpix_fits`) is separate.
 - Using `bands_present` as the SED mask, or two-point `alpha_*` as a Taylor SED.
 - Persisting member ID lists into Parquet (rematch instead), unless a new plan
   explicitly replaces rematch.
@@ -474,6 +511,13 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
   becomes `code`, patch notebook JSON.
 - Units that keep biting: `BMAJ` in **degrees**; VLSSR 80″; jitter in degrees;
   residuals **Jy/beam**; fluxes **Jy**; frequencies **Hz**.
+- **Panel `IntInput` (Bokeh Spinner) does not commit typed text until blur/Enter.**
+  Spinner arrows update `value` immediately; type-then-click a nearby button often
+  still sees the old Param and can overwrite the field. For `meta_id` in
+  `CatalogBrowser`, use a `TextInput`, flush DOM→model with button `js_on_click`
+  (`_COMMIT_META_ID_JS`), read via `_meta_id_from_input()`, and defer the Python
+  handler one turn (`_run_after_input_sync`). Do not trust `self.meta_id` alone
+  on button click.
 
 ---
 
