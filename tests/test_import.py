@@ -190,6 +190,7 @@ def test_analyze_band_merge_trace_exports() -> None:
         confused_bands,
         healpix_coadd_path,
         healpix_cutout,
+        lst_merged_catalog_for_healpix,
         plot_band_cutouts,
         plot_band_flux_vs_frequency,
         plot_band_position_offsets,
@@ -202,6 +203,7 @@ def test_analyze_band_merge_trace_exports() -> None:
     assert callable(plot_band_position_offsets)
     assert callable(healpix_coadd_path)
     assert callable(healpix_cutout)
+    assert callable(lst_merged_catalog_for_healpix)
     assert callable(plot_band_cutouts)
     assert callable(tan_cutout_header)
     assert HealpixMapCache is not None

@@ -61,6 +61,7 @@ from lwa_catalog.analyze.healpix_cutout import (
     tan_cutout_header,
 )
 from lwa_catalog.analyze.healpix_map import (
+    lst_merged_catalog_for_healpix,
     metacatalog_to_healpix,
     metacatalog_to_hips,
     write_healpix_hips,
@@ -234,6 +235,7 @@ __all__ = [
     "filter_or_hesl",
     "healpix_coadd_path",
     "healpix_cutout",
+    "lst_merged_catalog_for_healpix",
     "metacatalog_to_healpix",
     "metacatalog_to_hips",
     "plot_band_cutouts",

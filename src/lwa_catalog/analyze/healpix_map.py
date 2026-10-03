@@ -3,12 +3,147 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
+if TYPE_CHECKING:
+    from lwa_catalog.paths import CatalogLayout
+
 # FWHM → Gaussian σ (degrees): σ = FWHM / (2 √(2 ln 2))
 _FWHM_TO_SIGMA = 1.0 / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+
+# Columns passed to :func:`metacatalog_to_healpix` for Gaussian painting.
+_HEALPIX_GAUSSIAN_COLUMNS: tuple[str, ...] = (
+    "RA",
+    "DEC",
+    "Peak_flux",
+    "Maj",
+    "Min",
+    "PA",
+)
+
+
+def _bmaj_array_for_associate(df: pd.DataFrame) -> np.ndarray:
+    """Per-row BMAJ (degrees) for :func:`associate_catalogs`, else 0."""
+    out = np.zeros(len(df), dtype=float)
+    for key in ("BMAJ_match", "BMAJ_full", "BMAJ"):
+        if key not in df.columns:
+            continue
+        vals = pd.to_numeric(df[key], errors="coerce").to_numpy(dtype=float)
+        need = out <= 0.0
+        take = need & np.isfinite(vals) & (vals > 0.0)
+        out[take] = vals[take]
+    return out
+
+
+def lst_merged_catalog_for_healpix(
+    metacatalog: pd.DataFrame,
+    *,
+    band: str,
+    layout: CatalogLayout | None = None,
+    lst_merged: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Select unique LST-merged Gaussians for band-native HiPS painting.
+
+    Subband fusion stores ``Peak_flux_{band}`` but top-level ``Maj``/``Min``/``PA``
+    come from ``astrometry_band`` (often a different frequency). For a residual
+    against ``healpix_{band}``, paint the LST-merged catalog for *band* instead:
+    rematch each metacatalog row that has a finite ``Peak_flux_{band}`` onto
+    ``metacatalog_lst_{band}`` with the same beam matcher / seeded-flux pick as
+    :func:`~lwa_catalog.analyze.trace.rematch_meta_source`, then collapse
+    duplicate LST rows (confused reverse claims) so each Gaussian is painted once.
+
+    Parameters
+    ----------
+    metacatalog
+        Fused rows to include (e.g. quality-filtered ``core_clean``). Needs
+        ``RA``, ``DEC``, ``Peak_flux_{band}``, and a BMAJ column
+        (``BMAJ_match`` / ``BMAJ_full`` / ``BMAJ``).
+    band
+        LST / coadd band label (e.g. ``\"78MHz\"``).
+    layout
+        Catalog tree used to load ``metacatalog_lst_{band}`` when *lst_merged*
+        is omitted.
+    lst_merged
+        Optional in-memory LST-merged table for *band* (skips disk read).
+
+    Returns
+    -------
+    DataFrame
+        Unique LST rows with ``RA``, ``DEC``, ``Peak_flux``, ``Maj``, ``Min``,
+        ``PA`` suitable for :func:`metacatalog_to_healpix`. Empty if nothing
+        rematches.
+    """
+    from lwa_catalog.analyze.trace import _pick_rematch_lst_row
+    from lwa_catalog.create.merge import associate_catalogs
+    from lwa_catalog.io import read_lst_merged
+
+    if metacatalog is None or metacatalog.empty:
+        return pd.DataFrame(columns=list(_HEALPIX_GAUSSIAN_COLUMNS))
+
+    flux_col = f"Peak_flux_{band}"
+    if flux_col not in metacatalog.columns:
+        msg = f"metacatalog missing {flux_col!r} (needed to rematch LST band {band!r})"
+        raise KeyError(msg)
+    for col in ("RA", "DEC"):
+        if col not in metacatalog.columns:
+            msg = f"metacatalog missing {col!r}"
+            raise KeyError(msg)
+
+    if lst_merged is None:
+        if layout is None:
+            msg = "pass layout= or lst_merged= to load the LST-merged band catalog"
+            raise ValueError(msg)
+        loaded = read_lst_merged(layout, band, as_pandas=True)
+        if not isinstance(loaded, pd.DataFrame):
+            msg = f"expected DataFrame from read_lst_merged({band!r})"
+            raise TypeError(msg)
+        lst_merged = loaded
+
+    if lst_merged.empty:
+        return pd.DataFrame(columns=list(_HEALPIX_GAUSSIAN_COLUMNS))
+    for col in ("RA", "DEC", "Peak_flux"):
+        if col not in lst_merged.columns:
+            msg = f"LST-merged catalog for {band!r} missing {col!r}"
+            raise KeyError(msg)
+
+    flux = pd.to_numeric(metacatalog[flux_col], errors="coerce")
+    base = metacatalog.loc[np.isfinite(flux)].copy()
+    if base.empty:
+        return pd.DataFrame(columns=list(_HEALPIX_GAUSSIAN_COLUMNS))
+    base = base.reset_index(drop=True)
+    base["BMAJ"] = _bmaj_array_for_associate(base)
+
+    lst = lst_merged.reset_index(drop=True).copy()
+    if "BMAJ" in lst.columns:
+        lst["BMAJ"] = pd.to_numeric(lst["BMAJ"], errors="coerce").fillna(0.0)
+    else:
+        lst["BMAJ"] = 0.0
+
+    matches, _matched = associate_catalogs(base, lst)
+    chosen_ilocs: list[int] = []
+    for base_i, band_ilocs in matches.items():
+        ilocs = list(band_ilocs)
+        if not ilocs:
+            continue
+        hits = lst.iloc[ilocs].reset_index(drop=True)
+        pick = _pick_rematch_lst_row(hits, base.iloc[int(base_i)], band)
+        chosen_ilocs.append(int(ilocs[int(pick.name)]))
+
+    if not chosen_ilocs:
+        return pd.DataFrame(columns=list(_HEALPIX_GAUSSIAN_COLUMNS))
+
+    uniq = sorted(set(chosen_ilocs))
+    out = lst.iloc[uniq].copy()
+    keep = [c for c in _HEALPIX_GAUSSIAN_COLUMNS if c in out.columns]
+    # Maj/Min/PA may be absent on odd tables; metacatalog_to_healpix floors them.
+    for col in _HEALPIX_GAUSSIAN_COLUMNS:
+        if col not in out.columns and col in {"Maj", "Min", "PA"}:
+            out[col] = np.nan
+            keep.append(col)
+    return out.loc[:, keep].reset_index(drop=True)
 
 
 def _require_healpy():

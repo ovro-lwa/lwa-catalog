@@ -13,6 +13,7 @@ pytest.importorskip("lwa_healpix")
 
 from lwa_catalog.analyze.healpix_map import (  # noqa: E402
     _FWHM_TO_SIGMA,
+    lst_merged_catalog_for_healpix,
     metacatalog_to_healpix,
     metacatalog_to_hips,
     write_healpix_hips,
@@ -178,3 +179,87 @@ def test_metacatalog_to_hips(tmp_path: Path) -> None:
     assert (out / "properties").is_file()
     props = (out / "properties").read_text()
     assert "hips_pixel_cut" in props or "obs_title" in props
+
+
+def test_lst_merged_catalog_for_healpix_uses_band_native_shape() -> None:
+    """Rematch pulls LST Maj/Min/PA for Peak_flux_{band}, not fused astrometry shape."""
+    # Fused row: astrometry at 82 MHz (wrong shape), flux at 78 MHz.
+    meta = pd.DataFrame(
+        {
+            "meta_id": [1],
+            "RA": [10.0],
+            "DEC": [5.0],
+            "BMAJ_match": [0.5],
+            "Maj": [0.4],
+            "Min": [0.3],
+            "PA": [10.0],
+            "Peak_flux_78MHz": [2.5],
+        }
+    )
+    lst = pd.DataFrame(
+        {
+            "RA": [10.01, 10.2],
+            "DEC": [5.01, 5.2],
+            "BMAJ": [0.2, 0.2],
+            "Peak_flux": [2.5, 9.0],
+            "Maj": [0.12, 0.5],
+            "Min": [0.11, 0.4],
+            "PA": [120.0, 0.0],
+        }
+    )
+    out = lst_merged_catalog_for_healpix(meta, band="78MHz", lst_merged=lst)
+    assert len(out) == 1
+    assert float(out.iloc[0]["Peak_flux"]) == pytest.approx(2.5)
+    assert float(out.iloc[0]["Maj"]) == pytest.approx(0.12)
+    assert float(out.iloc[0]["PA"]) == pytest.approx(120.0)
+
+
+def test_lst_merged_catalog_for_healpix_dedups_confused_lst_row() -> None:
+    """Two meta rows claiming one LST Gaussian → paint once."""
+    meta = pd.DataFrame(
+        {
+            "meta_id": [1, 2],
+            "RA": [10.0, 10.05],
+            "DEC": [5.0, 5.02],
+            "BMAJ_match": [0.5, 0.5],
+            "Peak_flux_78MHz": [3.0, 3.0],
+        }
+    )
+    lst = pd.DataFrame(
+        {
+            "RA": [10.02],
+            "DEC": [5.01],
+            "BMAJ": [0.25],
+            "Peak_flux": [3.0],
+            "Maj": [0.15],
+            "Min": [0.14],
+            "PA": [45.0],
+        }
+    )
+    out = lst_merged_catalog_for_healpix(meta, band="78MHz", lst_merged=lst)
+    assert len(out) == 1
+    assert float(out.iloc[0]["Maj"]) == pytest.approx(0.15)
+
+
+def test_lst_merged_catalog_for_healpix_skips_missing_band_flux() -> None:
+    meta = pd.DataFrame(
+        {
+            "RA": [1.0],
+            "DEC": [2.0],
+            "BMAJ_match": [0.2],
+            "Peak_flux_78MHz": [np.nan],
+        }
+    )
+    lst = pd.DataFrame(
+        {
+            "RA": [1.0],
+            "DEC": [2.0],
+            "BMAJ": [0.2],
+            "Peak_flux": [1.0],
+            "Maj": [0.1],
+            "Min": [0.1],
+            "PA": [0.0],
+        }
+    )
+    out = lst_merged_catalog_for_healpix(meta, band="78MHz", lst_merged=lst)
+    assert out.empty
