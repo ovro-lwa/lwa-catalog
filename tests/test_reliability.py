@@ -959,13 +959,17 @@ def test_core_clean_exclude_mask() -> None:
         "INVALID_ASTROMETRY",
         "UNPHYSICAL_FLUX",
         "RESID_ABS_FAIL",
+        "RESID_PCTL_RMS",
+        "RESID_PCTL_MEAN",
+        "LOW_ELEVATION",
         "LARGE_SINGLE",
         "NEAR_BRIGHT_SIDELOBE",
+        "BAND_POSITION_INCONSISTENT",
     )
     assert CORE_CLEAN_EXCLUDE_MASK == quality_flag_mask_from_names(
         CORE_CLEAN_EXCLUDE_FLAGS
     )
-    assert CORE_CLEAN_EXCLUDE_MASK == 98355
+    assert CORE_CLEAN_EXCLUDE_MASK == 233715
 
 
 def test_filter_or_hesl_or_and_combo() -> None:

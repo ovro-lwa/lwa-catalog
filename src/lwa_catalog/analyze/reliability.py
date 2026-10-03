@@ -800,15 +800,19 @@ def filter_by_quality_flags(
 
 
 # Default analysis / HiPS ``core_clean`` exclusion set (notebooks:
-# ``metacatalog_reliability``, ``radio_crossmatch``, spectral modeling).
+# ``metacatalog_reliability``, ``radio_crossmatch``, spectral modeling, …).
 # Rows with any of these bits set fail ``(quality_flag & mask) == 0``.
 CORE_CLEAN_EXCLUDE_FLAGS: tuple[str, ...] = (
     "HAS_NAN",
     "INVALID_ASTROMETRY",
     "UNPHYSICAL_FLUX",
     "RESID_ABS_FAIL",
+    "RESID_PCTL_RMS",
+    "RESID_PCTL_MEAN",
+    "LOW_ELEVATION",
     "LARGE_SINGLE",
     "NEAR_BRIGHT_SIDELOBE",
+    "BAND_POSITION_INCONSISTENT",
 )
 
 CORE_CLEAN_EXCLUDE_MASK: int = quality_flag_mask_from_names(CORE_CLEAN_EXCLUDE_FLAGS)
