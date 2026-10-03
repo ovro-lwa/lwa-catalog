@@ -146,7 +146,7 @@ def detect_sources_on_healpix_tiles(
     tier2_bdsf_kw
         If not ``None``, run a second PyBDSF pass per tile with
         ``merge_tier2_bdsf_kw(bdsf_kw, tier2_bdsf_kw)`` (defaults
-        ``thresh_isl=7``, ``thresh_pix=4``) and fuse with
+        ``thresh_isl=4``, ``thresh_pix=7``) and fuse with
         :func:`fuse_gaul_m_with_tier2_s` so over-decomposed ``M`` sources
         are replaced by coincident tier-2 ``S`` Gaussians when present.
     skip_empty

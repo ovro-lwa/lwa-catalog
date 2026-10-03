@@ -28,8 +28,8 @@ from lwa_catalog.schemas import sources_schema
 
 DEFAULT_BDSF_KW: dict[str, Any] = {
     "thresh": "hard",
-    "thresh_isl": 7.0,
-    "thresh_pix": 4.0,
+    "thresh_isl": 4.0,
+    "thresh_pix": 7.0,
     "atrous_do": False,
     "psf_vary_do": False,
     "quiet": True,

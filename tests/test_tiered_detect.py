@@ -60,7 +60,7 @@ def test_merge_tier2_bdsf_kw_defaults_and_overrides() -> None:
         {"thresh_isl": 8.0, "quiet": True},
     )
     assert overridden["thresh_isl"] == 8.0
-    assert overridden["thresh_pix"] == 4.0
+    assert overridden["thresh_pix"] == 7.0
     assert overridden["quiet"] is True
 
 

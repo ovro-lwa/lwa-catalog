@@ -18,8 +18,8 @@ __all__ = [
 
 # Overrides merged onto the tier-1 ``bdsf_kw`` for the high-threshold pass.
 DEFAULT_TIER2_BDSF_KW: dict[str, Any] = {
-    "thresh_isl": 7.0,
-    "thresh_pix": 4.0,
+    "thresh_isl": 4.0,
+    "thresh_pix": 7.0,
 }
 
 

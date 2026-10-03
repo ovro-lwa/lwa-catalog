@@ -137,7 +137,7 @@ def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPa
         kw = dict(bdsf_kw or {})
         ra = float(hdu.header["CRVAL1"])
         dec = float(hdu.header["CRVAL2"])
-        if float(kw.get("thresh_isl", 7.0)) >= 6.0:
+        if float(kw.get("thresh_pix", 0.0)) >= 7.0:
             # Tier-2: single S at tile center
             return Table(
                 {
