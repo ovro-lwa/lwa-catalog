@@ -122,3 +122,87 @@ def test_detect_sources_on_healpix_tiles_tags_ipix(monkeypatch: pytest.MonkeyPat
     assert int(df.iloc[0]["nside_tile"]) == nside_tile
     assert df.iloc[0]["band"] == "Full"
     assert df.iloc[0]["BMAJ"] == 0.1
+
+
+def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPatch) -> None:
+    nside_map = 8
+    nside_tile = 2
+    npix = 12 * nside_map**2
+    ratio = (nside_map // nside_tile) ** 2
+    healpix_map = np.ones(npix, dtype=np.float64)
+    weight = np.zeros(npix, dtype=np.float64)
+    weight[0:ratio] = 1.0
+
+    def _fake_pybdsf(hdu, *, bdsf_kw=None, **kwargs):
+        kw = dict(bdsf_kw or {})
+        ra = float(hdu.header["CRVAL1"])
+        dec = float(hdu.header["CRVAL2"])
+        if float(kw.get("thresh_isl", 7.0)) >= 6.0:
+            # Tier-2: single S at tile center
+            return Table(
+                {
+                    "RA": [ra],
+                    "DEC": [dec],
+                    "Peak_flux": [3.0],
+                    "Total_flux": [3.0],
+                    "E_Peak_flux": [0.1],
+                    "E_Total_flux": [0.1],
+                    "Maj": [0.1],
+                    "Min": [0.1],
+                    "PA": [0.0],
+                    "DC_Maj": [0.1],
+                    "DC_Min": [0.1],
+                    "DC_PA": [0.0],
+                    "Resid_Isl_rms": [0.01],
+                    "Resid_Isl_mean": [0.0],
+                    "S_Code": ["S"],
+                    "Source_id": [99],
+                    "Isl_id": [0],
+                }
+            )
+        # Tier-1: over-decomposed M clump
+        return Table(
+            {
+                "RA": [ra, ra + 0.01],
+                "DEC": [dec, dec],
+                "Peak_flux": [1.0, 0.8],
+                "Total_flux": [1.0, 0.8],
+                "E_Peak_flux": [0.1, 0.1],
+                "E_Total_flux": [0.1, 0.1],
+                "Maj": [0.1, 0.1],
+                "Min": [0.1, 0.1],
+                "PA": [0.0, 0.0],
+                "DC_Maj": [0.1, 0.1],
+                "DC_Min": [0.1, 0.1],
+                "DC_PA": [0.0, 0.0],
+                "Resid_Isl_rms": [0.01, 0.01],
+                "Resid_Isl_mean": [0.0, 0.0],
+                "S_Code": ["M", "M"],
+                "Source_id": [0, 1],
+                "Isl_id": [0, 0],
+            }
+        )
+
+    monkeypatch.setattr(
+        "lwa_catalog.create.healpix_detect.run_pybdsf_on_hdu",
+        _fake_pybdsf,
+    )
+
+    df = detect_sources_on_healpix_tiles(
+        healpix_map,
+        weight,
+        nside_map=nside_map,
+        nside_tile=nside_tile,
+        overlap=0.0,
+        bmaj=0.5,
+        bmin=0.5,
+        bpa=0.0,
+        restfreq_hz=5.5e7,
+        band="Full",
+        bdsf_kw={"thresh_isl": 2.0, "thresh_pix": 3.0},
+        tier2_bdsf_kw={},
+        skip_empty=True,
+    )
+    assert len(df) == 1
+    assert df.iloc[0]["S_Code"] == "S"
+    assert int(df.iloc[0]["Source_id"]) == 99

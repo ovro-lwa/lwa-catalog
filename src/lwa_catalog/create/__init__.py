@@ -22,6 +22,11 @@ from lwa_catalog.create.healpix_detect import (
     median_beam_from_paths,
     restfreq_hz_from_header,
 )
+from lwa_catalog.create.tiered_detect import (
+    DEFAULT_TIER2_BDSF_KW,
+    fuse_gaul_m_with_tier2_s,
+    merge_tier2_bdsf_kw,
+)
 from lwa_catalog.create.merge import (
     add_spectral_indices,
     associate_band_into_metacatalog,
@@ -50,12 +55,15 @@ __all__ = [
     "filter_detections_near_transit",
     "detect_sources_many",
     "detect_sources_on_healpix_tiles",
+    "DEFAULT_TIER2_BDSF_KW",
+    "fuse_gaul_m_with_tier2_s",
     "iter_detect_sources",
     "discover_fits_files",
     "discovered_slots",
     "lst_hours_from_discovery",
     "median_beam_from_paths",
     "merge_lst_metacatalog",
+    "merge_tier2_bdsf_kw",
     "merge_tile_metacatalog",
     "parse_fits_metadata",
     "pick_highest_elevation_row",

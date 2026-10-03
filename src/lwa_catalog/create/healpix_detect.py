@@ -19,12 +19,18 @@ from astropy.table import Table
 from lwa_catalog.constants import GAUL_DETECTION_COLUMNS
 from lwa_catalog.coords import normalize_ra_columns
 from lwa_catalog.create.detect import run_pybdsf_on_hdu
+from lwa_catalog.create.tiered_detect import (
+    fuse_gaul_m_with_tier2_s,
+    merge_tier2_bdsf_kw,
+)
 from lwa_catalog.gaul import cast_gaul_string_columns
 
 __all__ = [
     "attach_beam_and_freq",
     "detect_sources_on_healpix_tiles",
+    "fuse_gaul_m_with_tier2_s",
     "median_beam_from_paths",
+    "merge_tier2_bdsf_kw",
     "restfreq_hz_from_header",
 ]
 
@@ -110,6 +116,7 @@ def detect_sources_on_healpix_tiles(
     restfreq_hz: float | None = None,
     band: str = "Full",
     bdsf_kw: Mapping[str, Any] | None = None,
+    tier2_bdsf_kw: Mapping[str, Any] | None = None,
     gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
     skip_empty: bool = True,
     ctype: str = "TAN",
@@ -135,7 +142,13 @@ def detect_sources_on_healpix_tiles(
     band
         Catalog ``band`` column value.
     bdsf_kw
-        Extra PyBDSF keywords.
+        Tier-1 PyBDSF keywords (deep / low-threshold catalog).
+    tier2_bdsf_kw
+        If not ``None``, run a second PyBDSF pass per tile with
+        ``merge_tier2_bdsf_kw(bdsf_kw, tier2_bdsf_kw)`` (defaults
+        ``thresh_isl=7``, ``thresh_pix=4``) and fuse with
+        :func:`fuse_gaul_m_with_tier2_s` so over-decomposed ``M`` sources
+        are replaced by coincident tier-2 ``S`` Gaussians when present.
     skip_empty
         If ``True``, skip tiles whose nested child weight sum is ``<= 0``.
 
@@ -148,6 +161,8 @@ def detect_sources_on_healpix_tiles(
     lwa_healpix = _import_lwa_healpix()
     weight_arr = np.asarray(weight)
     map_arr = np.asarray(healpix_map)
+    run_tier2 = tier2_bdsf_kw is not None
+    tier2_kw = merge_tier2_bdsf_kw(bdsf_kw, tier2_bdsf_kw) if run_tier2 else None
 
     tiles = lwa_healpix.iter_nested_tile_headers(
         nside_tile,
@@ -195,6 +210,20 @@ def detect_sources_on_healpix_tiles(
             bmin=bmin,
             bpa=bpa,
         )
+        if run_tier2:
+            table2 = run_pybdsf_on_hdu(hdu, bdsf_kw=tier2_kw)
+            if table2 is not None and len(table2) > 0:
+                df2 = _table_to_tile_dataframe(
+                    table2,
+                    gaul_columns=gaul_columns,
+                    tile_ipix=ipix,
+                    nside_tile=nside_tile,
+                    band=band,
+                    bmaj=bmaj,
+                    bmin=bmin,
+                    bpa=bpa,
+                )
+                df = fuse_gaul_m_with_tier2_s(df, df2)
         frames.append(df)
 
     if not frames:

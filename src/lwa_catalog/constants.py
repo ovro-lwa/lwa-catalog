@@ -216,13 +216,22 @@ GAUL_COLUMNS: tuple[str, ...] = (
 # PyBDSF Gaussian string columns kept alongside numeric GAUL fields.
 GAUL_STRING_COLUMNS: tuple[str, ...] = ("S_Code",)
 
+# Per-image PyBDSF identity columns (unique within one detect run / tile).
+GAUL_ID_COLUMNS: tuple[str, ...] = (
+    "Source_id",
+    "Isl_id",
+)
+
 # Default columns requested from PyBDSF Gaussian catalogs.
-GAUL_DETECTION_COLUMNS: tuple[str, ...] = GAUL_COLUMNS + GAUL_STRING_COLUMNS
+GAUL_DETECTION_COLUMNS: tuple[str, ...] = (
+    GAUL_COLUMNS + GAUL_STRING_COLUMNS + GAUL_ID_COLUMNS
+)
 
 # PyBDSF Gaussian numeric columns (currently the full GAUL list).
 GAUL_FLOAT_COLUMNS: tuple[str, ...] = tuple(GAUL_COLUMNS)
 
 # Former GAUL columns dropped from the detection default; rewrite helpers strip these.
+# ``Source_id`` / ``Isl_id`` are kept for 2-tier detect fusion and rematch keys.
 DROPPED_GAUL_COLUMNS: frozenset[str] = frozenset(
     {
         "E_RA",
@@ -231,8 +240,6 @@ DROPPED_GAUL_COLUMNS: frozenset[str] = frozenset(
         "E_Min",
         "E_PA",
         "Gaus_id",
-        "Isl_id",
-        "Source_id",
     }
 )
 

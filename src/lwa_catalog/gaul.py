@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from lwa_catalog.constants import GAUL_STRING_COLUMNS
+from lwa_catalog.constants import GAUL_ID_COLUMNS, GAUL_STRING_COLUMNS
 
 
 def cast_s_code_value(val: object) -> object:
@@ -20,7 +20,7 @@ def cast_s_code_value(val: object) -> object:
 
 
 def cast_gaul_string_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Cast PyBDSF string GAUL columns (e.g. ``S_Code``) to pandas string dtype."""
+    """Cast PyBDSF string / id GAUL columns to stable dtypes."""
     out = df
     for col in GAUL_STRING_COLUMNS:
         if col not in out.columns:
@@ -28,4 +28,10 @@ def cast_gaul_string_columns(df: pd.DataFrame) -> pd.DataFrame:
         if out is df:
             out = df.copy()
         out[col] = out[col].map(cast_s_code_value).astype("string")
+    for col in GAUL_ID_COLUMNS:
+        if col not in out.columns:
+            continue
+        if out is df:
+            out = df.copy()
+        out[col] = pd.to_numeric(out[col], errors="coerce").astype("Int64")
     return out

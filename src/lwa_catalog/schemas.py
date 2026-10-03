@@ -9,6 +9,7 @@ from lwa_catalog.constants import (
     ASSOC_BANDS,
     BAND_FIELDS,
     GAUL_FLOAT_COLUMNS,
+    GAUL_ID_COLUMNS,
     GAUL_STRING_COLUMNS,
     SPECTRAL_INDEX_PAIRS,
 )
@@ -21,6 +22,9 @@ def sources_schema() -> pa.Schema:
     ]
     fields.extend(
         pa.field(name, pa.string(), nullable=True) for name in GAUL_STRING_COLUMNS
+    )
+    fields.extend(
+        pa.field(name, pa.int64(), nullable=True) for name in GAUL_ID_COLUMNS
     )
     fields.extend(
         [

@@ -15,13 +15,16 @@ from lwa_catalog.schemas import (
 
 
 def test_sources_schema_includes_gaul_and_provenance() -> None:
+    from lwa_catalog.constants import DROPPED_GAUL_COLUMNS, GAUL_ID_COLUMNS
+
     names = set(sources_schema().names)
     assert set(GAUL_COLUMNS) <= names
     assert set(GAUL_STRING_COLUMNS) <= names
+    assert set(GAUL_ID_COLUMNS) <= names
     assert sources_schema().field("S_Code").type == pa.string()
+    assert sources_schema().field("Source_id").type == pa.int64()
+    assert sources_schema().field("Isl_id").type == pa.int64()
     assert {"lst_hour", "band", "source_file", "BMAJ", "BMIN", "BPA", "time_key"} <= names
-    from lwa_catalog.constants import DROPPED_GAUL_COLUMNS
-
     assert names.isdisjoint(DROPPED_GAUL_COLUMNS)
 
 

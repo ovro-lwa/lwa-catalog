@@ -343,8 +343,10 @@ def test_rewrite_output_dir_gaul_columns_drops_retired_fields(tmp_path: Path) ->
             "DEC": [20.0],
             "Peak_flux": [1.0],
             "E_RA": [0.01],
+            "Gaus_id": [3],
             "S_Code": ["S"],
             "Source_id": [7],
+            "Isl_id": [2],
             "keep_me": ["x"],
             "n_lst_contributions": [1],
             "lst_hours": ["01h"],
@@ -363,12 +365,16 @@ def test_rewrite_output_dir_gaul_columns_drops_retired_fields(tmp_path: Path) ->
     sources = read_sources_catalog(layout, "01h", "Full")
     assert isinstance(sources, pd.DataFrame)
     assert "E_RA" not in sources.columns
-    assert "Source_id" not in sources.columns
+    assert "Gaus_id" not in sources.columns
+    assert int(sources.iloc[0]["Source_id"]) == 7
+    assert int(sources.iloc[0]["Isl_id"]) == 2
     assert sources.iloc[0]["S_Code"] == "S"
     assert sources.iloc[0]["keep_me"] == "x"
 
     lst = read_lst_merged(layout, "Full")
     assert isinstance(lst, pd.DataFrame)
     assert "E_RA" not in lst.columns
+    assert "Gaus_id" not in lst.columns
+    assert int(lst.iloc[0]["Source_id"]) == 7
     assert lst.iloc[0]["S_Code"] == "S"
     assert rewrite_output_dir_gaul_columns(layout) == []
