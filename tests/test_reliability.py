@@ -32,6 +32,7 @@ from lwa_catalog.analyze.reliability import (
     flag_residual_absolute,
     flag_residual_percentile,
     flag_single_unique_band,
+    flag_complex_resid,
     flag_scode_complex,
     flag_unphysical_flux,
     flux_qa_frame,
@@ -512,6 +513,7 @@ def test_flag_confused_assoc_uses_n_confused() -> None:
                 "large_single": [False],
                 "near_bright_sidelobe": [False],
                 "band_position_inconsistent": [False],
+                "complex_resid": [False],
             }
         )
     )
@@ -539,8 +541,8 @@ def test_assert_gold_subset_warns() -> None:
 
 def test_quality_flag_pack_and_decode() -> None:
     legend = quality_flag_legend()
-    assert len(legend) == 18
-    assert set(legend["bit"]) == set(range(18))
+    assert len(legend) == 19
+    assert set(legend["bit"]) == set(range(19))
     flags = pd.DataFrame(
         {
             "has_nan": [True, False],
@@ -561,6 +563,7 @@ def test_quality_flag_pack_and_decode() -> None:
             "large_single": [False, False],
             "near_bright_sidelobe": [False, False],
             "band_position_inconsistent": [False, False],
+            "complex_resid": [False, False],
         }
     )
     packed = pack_quality_flags(flags)
@@ -652,6 +655,22 @@ def test_flag_scode_and_residual_percentile() -> None:
     assert bool(pctl["resid_pctl_rms"].iloc[1]) is False
     assert bool(pctl["resid_pctl_mean"].iloc[0]) is True
     assert bool(pctl["resid_pctl_mean"].iloc[2]) is False
+
+
+def test_flag_complex_resid_threshold() -> None:
+    scode = flag_scode_complex(pd.Series(["S", "C", "M", "C", "M"]))
+    rms = np.array([1.0, 0.2, 0.3, 0.31, np.nan])
+    # default thresh 0.3: need complex AND rms > 0.3
+    flagged = flag_complex_resid(scode, rms)
+    assert flagged.tolist() == [False, False, False, True, False]
+
+    # configurable threshold
+    flagged_lo = flag_complex_resid(scode, rms, rms_thresh_jy=0.2)
+    assert flagged_lo.tolist() == [False, False, True, True, False]
+
+    packed = pack_quality_flags(pd.DataFrame({"complex_resid": [True]}))
+    assert int(packed[0]) == int(SourceQualityFlag.COMPLEX_RESID)
+    assert decode_quality_flag(int(packed[0])) == ["COMPLEX_RESID"]
 
 
 def test_flag_extended() -> None:
@@ -965,11 +984,12 @@ def test_core_clean_exclude_mask() -> None:
         "LARGE_SINGLE",
         "NEAR_BRIGHT_SIDELOBE",
         "BAND_POSITION_INCONSISTENT",
+        "COMPLEX_RESID",
     )
     assert CORE_CLEAN_EXCLUDE_MASK == quality_flag_mask_from_names(
         CORE_CLEAN_EXCLUDE_FLAGS
     )
-    assert CORE_CLEAN_EXCLUDE_MASK == 233715
+    assert CORE_CLEAN_EXCLUDE_MASK == 495859
 
 
 def test_filter_or_hesl_or_and_combo() -> None:

@@ -138,7 +138,7 @@ class SourceQualityFlag(IntFlag):
 
     A bit is **0 when that check is good/reliable** and **1 when the property
     is a quality concern**. ``quality_flag == 0`` means every implemented check
-    passed. Bits 18–31 are reserved (stay 0).
+    passed. Bits 19–31 are reserved (stay 0).
 
     ====== ===================== =================================================
     Bit    Name                  Set (1) when
@@ -166,6 +166,8 @@ class SourceQualityFlag(IntFlag):
     17     BAND_POSITION_INCONSISTENT
                                  max pairwise band–band sep ``> 1 × BMAJ``
                                  (skips bands with ``n_confused_* > 1``)
+    18     COMPLEX_RESID         SCODE_COMPLEX and Resid_Isl_rms above
+                                 ``complex_resid_rms_thresh_jy`` (default 0.3)
     ====== ===================== =================================================
     """
 
@@ -187,6 +189,7 @@ class SourceQualityFlag(IntFlag):
     LARGE_SINGLE = 1 << 15
     NEAR_BRIGHT_SIDELOBE = 1 << 16
     BAND_POSITION_INCONSISTENT = 1 << 17
+    COMPLEX_RESID = 1 << 18
 
 
 _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
@@ -208,6 +211,7 @@ _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
     ("large_single", SourceQualityFlag.LARGE_SINGLE),
     ("near_bright_sidelobe", SourceQualityFlag.NEAR_BRIGHT_SIDELOBE),
     ("band_position_inconsistent", SourceQualityFlag.BAND_POSITION_INCONSISTENT),
+    ("complex_resid", SourceQualityFlag.COMPLEX_RESID),
 )
 
 _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
@@ -238,6 +242,9 @@ _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
         "max pairwise band–band position sep > band_offset_bmaj_frac × BMAJ "
         "(bands with n_confused_* > 1 excluded)"
     ),
+    SourceQualityFlag.COMPLEX_RESID: (
+        "S_Code is C/M and Resid_Isl_rms > complex_resid_rms_thresh_jy"
+    ),
 }
 
 
@@ -258,6 +265,7 @@ class ReliabilityConfig:
     sidelobe_sep_bmaj_lo: float = 2.0
     sidelobe_sep_bmaj_hi: float = 4.0
     sidelobe_flux_ratio: float = 30.0
+    complex_resid_rms_thresh_jy: float = 0.3
     min_lst_contributions: int = 2
     require_unique_assoc_include: bool = True
     require_unique_assoc_exclude: bool = False
@@ -513,6 +521,30 @@ def flag_scode_complex(codes: pd.Series | np.ndarray) -> pd.Series:
     series = pd.Series(codes, dtype=object)
     text = series.astype("string").str.strip().str.upper()
     return text.isin(["C", "M"]).fillna(False).rename("scode_complex")
+
+
+def flag_complex_resid(
+    scode_complex: pd.Series | np.ndarray,
+    resid_rms: pd.Series | np.ndarray,
+    *,
+    rms_thresh_jy: float = 0.3,
+) -> pd.Series:
+    """True when ``S_Code`` is C/M and ``Resid_Isl_rms`` exceeds *rms_thresh_jy*.
+
+    Soft semantics: non-finite residual leaves the bit clear even when the
+    source is complex.
+    """
+    name = "complex_resid"
+    complex_ = np.asarray(scode_complex, dtype=bool)
+    rms = np.asarray(pd.to_numeric(resid_rms, errors="coerce"), dtype=float)
+    if complex_.shape != rms.shape:
+        msg = (
+            f"scode_complex and resid_rms length mismatch: "
+            f"{complex_.shape} vs {rms.shape}"
+        )
+        raise ValueError(msg)
+    flagged = complex_ & np.isfinite(rms) & (rms > float(rms_thresh_jy))
+    return pd.Series(flagged, dtype=bool, name=name)
 
 
 def flag_low_elevation(
@@ -813,6 +845,7 @@ CORE_CLEAN_EXCLUDE_FLAGS: tuple[str, ...] = (
     "LARGE_SINGLE",
     "NEAR_BRIGHT_SIDELOBE",
     "BAND_POSITION_INCONSISTENT",
+    "COMPLEX_RESID",
 )
 
 CORE_CLEAN_EXCLUDE_MASK: int = quality_flag_mask_from_names(CORE_CLEAN_EXCLUDE_FLAGS)
@@ -1800,9 +1833,10 @@ def assign_source_quality_flags(
 
     Reuses the reliability context (seed LST residuals, unphysical flux, jitter,
     confused association) and adds NaN, single-LST, single-band association,
-    residual-percentile, VLSSR, ``S_Code``, morphology, near-bright-sidelobe,
-    and inter-band position-consistency bits. Bit 0 on each flag means that
-    check is good/reliable; ``quality_flag == 0`` means all checks passed.
+    residual-percentile, VLSSR, ``S_Code``, complex+residual, morphology,
+    near-bright-sidelobe, and inter-band position-consistency bits. Bit 0 on
+    each flag means that check is good/reliable; ``quality_flag == 0`` means
+    all checks passed.
     """
     cfg = config or ReliabilityConfig()
     if metacatalog is None or metacatalog.empty:
@@ -1826,6 +1860,11 @@ def assign_source_quality_flags(
     flags["single_lst"] = flag_single_lst(meta).to_numpy()
     flags["single_unique_band"] = flag_single_unique_band(meta).to_numpy()
     flags["scode_complex"] = flag_scode_complex(flags["s_code"]).to_numpy()
+    flags["complex_resid"] = flag_complex_resid(
+        flags["scode_complex"],
+        flags["resid_rms"],
+        rms_thresh_jy=cfg.complex_resid_rms_thresh_jy,
+    ).to_numpy()
 
     pctl = flag_residual_percentile(
         flags["resid_rms"].to_numpy(dtype=float),
