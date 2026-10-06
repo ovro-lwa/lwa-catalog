@@ -63,11 +63,16 @@ CSV/FITS catalogs or HEALPix FITS maps.
 
 `read_metacatalog(layout)` reads `metacatalog.parquet` (or
 `metacatalog_spectral.parquet` when `prefer_spectral=True`). Default
-`quality_mask` keeps rows with `(quality_flag & DEFAULT_QUALITY_FLAG_MASK) == 0`
-(`DEFAULT_QUALITY_FLAG_MASK = 247`). Set `quality_mask=None` to skip filtering.
-Optional `radio_crossmatch.ipynb` quality-filters fusion and writes
-`metacatalog_spectral.parquet` with survey columns; spectral modeling then
-reads that file (or creates it from fusion) and adds `spec_*`.
+`quality_mask` keeps rows with `(quality_flag & mask) == 0`. Library default
+`DEFAULT_QUALITY_FLAG_MASK = 247` (legacy); analysis notebooks use
+`CORE_CLEAN_EXCLUDE_MASK` (`HAS_NAN`, `INVALID_ASTROMETRY`, `UNPHYSICAL_FLUX`,
+`RESID_ABS_FAIL`, `RESID_PCTL_RMS`, `RESID_PCTL_MEAN`, `LOW_ELEVATION`,
+`LARGE_SINGLE`, `NEAR_BRIGHT_SIDELOBE`, `BAND_POSITION_INCONSISTENT`,
+`COMPLEX_RESID`). Set `quality_mask=None` to skip filtering. Optional
+`radio_crossmatch.ipynb`
+quality-filters fusion and writes `metacatalog_spectral.parquet` with survey
+columns; spectral modeling then reads that file (or creates it from fusion)
+and adds `spec_*`.
 
 RGB color bands: `COLOR_BANDS = ("Full", "Blue", "Green", "Red")`.
 Association order: Full+Blue seed, then Green, then Red (`ASSOC_BANDS`).
@@ -112,17 +117,27 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   so PyBDSF blanks them. Do not convert mosaic holes to 0.
 - Requires `BMAJ`/`BMIN` (degrees). `BPA` defaults 0. Needs `CDELT1`/`CDELT2`
   (PC-only headers fail). Beam→pixels uses **center CDELT only**.
-- Default PyBDSF: `thresh="hard"`, `thresh_isl=7`, `thresh_pix=4`,
+- Default PyBDSF: `thresh="hard"`, `thresh_isl=4`, `thresh_pix=7`,
   `atrous_do=False`, `psf_vary_do=False`. `check_outsideuniv` is **unset
   (False)** — SIN all-sky invalid pixels are not blanked by default.
 - **Do not pass 1-D HEALPix, nfreq>1 cubes, or beamless `coadd_fits` arrays
   into `detect_sources`.** Package a 2-D FITS with WCS + beam + frequency
-  first.   Experimental HEALPix-tile detect uses `lwa_healpix.healpix_to_hdu` +
+  first. Experimental HEALPix-tile detect uses `lwa_healpix.healpix_to_hdu` +
   `lwa_catalog.create.healpix_detect.attach_beam_and_freq` /
   `detect_sources_on_healpix_tiles` → `run_pybdsf_on_hdu` (not
   `detect_sources`). Defaults: `nside_map=2048`, `nside_tile=4`, TAN, nested,
   `align="diamond"` with `margin=0.05` (HEALPix-edge-aligned tiles; use
-  `align="celestial"` + `overlap` for legacy north-aligned squares). Overlap
+  `align="celestial"` + `overlap` for legacy north-aligned squares). Band-median
+  header `BMAJ`/`BMIN` are multiplied by `beam_scale` (library default
+  **`DEFAULT_BEAM_SCALE = 1.1`**; pass `1.0` for unscaled) before both tiers;
+  catalog `BMAJ`/`BMIN`/`BPA` follow the scaled fit-time beam. Optional
+  **2-tier detect** (`tier2_bdsf_kw` not `None`): tier-1 deep catalog
+  (notebook `thresh_isl=2` / `thresh_pix=3`) plus a high-threshold pass
+  (defaults `thresh_isl=4` / `thresh_pix=7` via `DEFAULT_TIER2_BDSF_KW`);
+  `fuse_gaul_m_with_tier2_s` replaces coincident tier-1 `S_Code=M` clumps
+  with tier-2 `S` Gaussians (beam match via `associate_catalogs`); unmatched
+  `M` and all non-`M` rows stay. Downstream tile merge / fusion is unchanged.
+  Pass `tier2_bdsf_kw={}` to enable defaults, or `None` to skip. Overlap
   tile duplicates collapse via `merge_tile_metacatalog`
   (brightest flux; `n_lst_contributions=1`) into LST-merged-shaped Parquets for
   `build_global_metacatalog`. Coadd elevation blanking may be circular
@@ -143,8 +158,10 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
 
 `GAUL_COLUMNS` kept from PyBDSF: positions, fluxes, shapes, `Resid_Isl_rms`,
 `Resid_Isl_mean`. `S_Code` is a string classification (`S`/`C`/`M`), not a
-numeric residual. Several former GAUL columns (`E_RA`, `Source_id`, island IDs,
-…) are in `DROPPED_GAUL_COLUMNS` and are stripped on rewrite.
+numeric residual. Per-image identity columns `Source_id` and `Isl_id` are kept
+(`GAUL_ID_COLUMNS`) for rematch / 2-tier detect fusion. Former GAUL columns
+(`E_RA`, `E_DEC`, shape errors, `Gaus_id`) are in `DROPPED_GAUL_COLUMNS` and
+are stripped on rewrite.
 
 ---
 
@@ -196,8 +213,9 @@ The representative row is **not** a cluster aggregate. Positions, fluxes, and
 Membership is **not persisted**. Recover with `rematch_meta_source` /
 `associate_catalogs`. Durable detection key is
 `(band, lst_hour, Source_id)` (+ `source_file` when present). `Source_id`
-alone is not globally unique, and it may be absent on rewritten trees
-(`DROPPED_GAUL_COLUMNS`).
+alone is not globally unique (per PyBDSF run / tile). Older rewritten trees
+may lack `Source_id` / `Isl_id` until re-detect or a column rewrite that
+keeps them.
 
 `validate_metacatalog` / `validate_sources_catalog` are **schema** checks, not
 scientific validation.
@@ -306,11 +324,14 @@ Three related but **not interchangeable** layers:
    (avoids double rematch I/O).
 3. **`quality_flag` bitmask** (`SourceQualityFlag`): 0 = check passed, 1 =
    concern. `quality_flag == 0` means every implemented check passed. Bits
-   0–17 are defined (through `BAND_POSITION_INCONSISTENT`: max pairwise
-   band–band position sep > 1 × BMAJ_match). `CONFUSED_ASSOC` is
-   `n_confused_* > 1` (reverse: many meta rows claim one attached-band
-   source), not forward `n_assoc_* > 1`. Bits 18–31 reserved. Written
-   onto `metacatalog.parquet` (optional
+   0–18 are defined (through `COMPLEX_RESID`: `SCODE_COMPLEX` and seed
+   `Resid_Isl_rms > complex_resid_rms_thresh_jy`, default 0.3 Jy/beam;
+   `BAND_POSITION_INCONSISTENT` is max pairwise band–band position sep >
+   1 × BMAJ_match among bands with `n_confused_*` not `> 1`; rematches LST
+   catalogs when `RA_{band}`/`DEC_{band}` are absent, as on subband fusion).
+   `CONFUSED_ASSOC` is `n_confused_* > 1` (reverse: many meta rows claim one
+   attached-band source), not forward `n_assoc_* > 1`. Bits 19–31 reserved.
+   Written onto `metacatalog.parquet` (optional
    `metacatalog_quality_flags.parquet` keeps per-bit booleans).
 
 Do not conflate **percentile QA** (Fit quality, Mahalanobis) with **absolute
@@ -333,6 +354,11 @@ HiPS maps: `metacatalog_to_healpix(profile="gaussian")` paints elliptical
 Gaussians (`Peak_flux`, `Maj`/`Min` FWHM deg, `PA` N→E). `profile="point"` is
 single-pixel deposits. **Map sum is not Σ Peak_flux.** Then
 `write_healpix_hips` / `metacatalog_to_hips`. There is no `write_healpix_fits`.
+For band-matched residual HiPS (observed `healpix_{band}` − model), do **not**
+paint fused subband rows with top-level shape from `astrometry_band`. Use
+`lst_merged_catalog_for_healpix(core_clean, band=..., layout=...)` to rematch
+unique LST-merged Gaussians for that band (seeded `Peak_flux` pick; confused
+duplicates collapsed), then paint those rows.
 
 ---
 
@@ -405,7 +431,10 @@ UI lives at the bottom of `metacatalog_query.ipynb` (and
   `RadioCrossmatchSkyQA`); the reusable `CatalogBrowser` class lives in
   `lwa_catalog.viz.browser`. Other helpers live in `lwa_catalog.viz` (HiPS
   preference / fetch, FOV restore, nearest-source match, overlays). Pan/zoom
-  uses `DebouncedAladinViewRefresh`. Explicit **Load sky view** / **Run**.
+  uses `DebouncedAladinViewRefresh`. Construct Aladin via `make_aladin`
+  (`inertia=False`) — Aladin Lite's default mouse-release coast keeps
+  updating `_target`/`_fov` and looks like runaway spinning after a drag.
+  Explicit **Load sky view** / **Run**.
   The `meta_id` field sits above the sky widget; **Load sky view** selects that
   id and recenters. Sky clicks highlight with gold (`SELECTION_OVERLAY_COLOR`
   cross + thick ellipse) and a selection-status line; overlay selection follows
@@ -484,6 +513,9 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
   `quality_flag`.
 - Stacking NVSS+VLASS HiPS rasters via `overlay_survey`.
 - LWA band colors on external-survey overlays.
+- Leaving Aladin Lite `inertia=True` (default) on catalog sky widgets —
+  mouse-release coast + `DebouncedAladinViewRefresh` looks like runaway spinning.
+  Use `make_aladin` (`inertia=False`).
 - Silently switching healpix default back to point deposits.
 - Treating `display_columns` as the Mahalanobis feature selector.
 - Passing raw HEALPix maps or beamless coadds to PyBDSF (package via
