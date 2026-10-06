@@ -12,6 +12,24 @@ from astropy.coordinates import SkyCoord
 if TYPE_CHECKING:
     from ipyaladin import Aladin
 
+# Aladin Lite defaults ``inertia=True`` (coast after mouse-up). That coast keeps
+# updating ``_target``/``_fov`` while Panel overlay refresh observes those
+# traits, which often looks like the sky spinning wildly after a drag. Catalog
+# sky widgets always disable it.
+ALADIN_INIT_DEFAULTS: dict[str, Any] = {"inertia": False}
+
+
+def make_aladin(**kwargs: Any) -> Aladin:
+    """Construct an ``ipyaladin.Aladin`` with catalog sky-view defaults.
+
+    Always sets ``inertia=False`` unless the caller overrides it. Extra kwargs
+    are forwarded to :class:`ipyaladin.Aladin` (survey, target, fov, …).
+    """
+    from ipyaladin import Aladin
+
+    opts = {**ALADIN_INIT_DEFAULTS, **kwargs}
+    return Aladin(**opts)
+
 
 class DebouncedAladinViewRefresh:
     """Call a callback after Aladin pan/zoom settles (ipyaladin ``_target`` / ``_fov``)."""

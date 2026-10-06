@@ -19,10 +19,12 @@ from lwa_catalog.viz.aladin import (
     shape_complete_mask,
 )
 from lwa_catalog.viz.aladin_view import (
+    ALADIN_INIT_DEFAULTS,
     DebouncedAladinViewRefresh,
     aladin_view_center_fov,
     apply_aladin_view,
     cancel_aladin_view_timers,
+    make_aladin,
     restore_aladin_view,
 )
 from lwa_catalog.viz.bands import band_overlay_color, resolve_band_labels
@@ -41,6 +43,7 @@ from lwa_catalog.viz.hips import (
 )
 
 __all__ = [
+    "ALADIN_INIT_DEFAULTS",
     "CatalogBrowser",
     "CatalogBrowserConfig",
     "DebouncedAladinViewRefresh",
@@ -63,6 +66,7 @@ __all__ = [
     "filter_catalog_fov",
     "format_coordinate_deg",
     "hips_survey_url",
+    "make_aladin",
     "nearest_sources",
     "overlay_catalog_by_band",
     "overlay_trace_members",

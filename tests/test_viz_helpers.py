@@ -129,6 +129,27 @@ def test_restore_aladin_view_applies_and_schedules() -> None:
     cancel_aladin_view_timers(timers)
 
 
+def test_make_aladin_disables_inertia_by_default() -> None:
+    from lwa_catalog.viz.aladin_view import ALADIN_INIT_DEFAULTS, make_aladin
+
+    assert ALADIN_INIT_DEFAULTS.get("inertia") is False
+    captured: dict = {}
+
+    class _FakeAladin:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    with patch("ipyaladin.Aladin", _FakeAladin):
+        make_aladin(survey="mock://s", target="0 0", fov=10.0, height=200)
+    assert captured["inertia"] is False
+    assert captured["fov"] == 10.0
+
+    captured.clear()
+    with patch("ipyaladin.Aladin", _FakeAladin):
+        make_aladin(inertia=True, fov=5.0)
+    assert captured["inertia"] is True
+
+
 def test_survey_hips_url_known() -> None:
     assert survey_hips_url("NVSS").startswith("https://")
     assert survey_hips_url("nvss").endswith("/")

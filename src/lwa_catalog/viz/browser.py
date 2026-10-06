@@ -50,6 +50,7 @@ from lwa_catalog.viz.aladin_view import (
     DebouncedAladinViewRefresh,
     aladin_view_center_fov,
     cancel_aladin_view_timers,
+    make_aladin,
     restore_aladin_view,
 )
 from lwa_catalog.viz.coordinates import format_coordinate_deg, nearest_sources, parse_coordinate
@@ -829,8 +830,6 @@ class CatalogBrowser(pn.viewable.Viewer):
             hips_default = self._preferred_hips_survey(Path(self.catalog_dir), hips_surveys)
             init_coord = parse_coordinate(self.coordinate)
 
-            from ipyaladin import Aladin
-
             self._overlay_w = pn.widgets.Checkbox.from_param(
                 self.param.show_overlay,
                 name="Show catalog overlay",
@@ -855,7 +854,9 @@ class CatalogBrowser(pn.viewable.Viewer):
             )
             self._save_sky_btn.on_click(self._on_save_sky_png)
             self._hips_current_survey = hips_survey_url(hips_default, base=config.hips_server)
-            self._aladin = Aladin(
+            # inertia=False via make_aladin: Aladin Lite coast-after-drag fights
+            # DebouncedAladinViewRefresh and looks like runaway spinning.
+            self._aladin = make_aladin(
                 survey=self._hips_current_survey,
                 target=init_coord,
                 fov=config.sky_fov_deg,
