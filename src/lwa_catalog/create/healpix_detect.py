@@ -25,13 +25,19 @@ from lwa_catalog.create.tiered_detect import (
 )
 from lwa_catalog.gaul import cast_gaul_string_columns
 
+# Global scale on band-median BMAJ/BMIN for HEALPix-tile PyBDSF (both tiers).
+# Default 1.1 from residual / Maj experiment (2026-10); use 1.0 for unscaled median.
+DEFAULT_BEAM_SCALE: float = 1.1
+
 __all__ = [
+    "DEFAULT_BEAM_SCALE",
     "attach_beam_and_freq",
     "detect_sources_on_healpix_tiles",
     "fuse_gaul_m_with_tier2_s",
     "median_beam_from_paths",
     "merge_tier2_bdsf_kw",
     "restfreq_hz_from_header",
+    "scale_beam",
 ]
 
 
@@ -65,6 +71,26 @@ def median_beam_from_paths(paths: Sequence[str | Path]) -> tuple[float, float, f
         bmin.append(float(hdr["BMIN"]))
         bpa.append(float(hdr.get("BPA", 0.0)))
     return float(np.median(bmaj)), float(np.median(bmin)), float(np.median(bpa))
+
+
+def scale_beam(
+    bmaj: float,
+    bmin: float,
+    bpa: float = 0.0,
+    *,
+    scale: float = DEFAULT_BEAM_SCALE,
+) -> tuple[float, float, float]:
+    """Return ``(scale * BMAJ, scale * BMIN, BPA)`` in degrees.
+
+    Used to inflate the band-median restoring beam before PyBDSF on HEALPix
+    tiles (default ``scale=1.1``). ``BPA`` is unchanged. Raises ``ValueError``
+    if *scale* is non-finite or ``<= 0``.
+    """
+    s = float(scale)
+    if not np.isfinite(s) or s <= 0.0:
+        msg = f"beam scale must be finite and > 0, got {scale!r}"
+        raise ValueError(msg)
+    return float(s * float(bmaj)), float(s * float(bmin)), float(bpa)
 
 
 def restfreq_hz_from_header(header: fits.Header) -> float:
@@ -113,6 +139,7 @@ def detect_sources_on_healpix_tiles(
     bmaj: float,
     bmin: float,
     bpa: float = 0.0,
+    beam_scale: float = DEFAULT_BEAM_SCALE,
     restfreq_hz: float | None = None,
     band: str = "Full",
     bdsf_kw: Mapping[str, Any] | None = None,
@@ -138,7 +165,12 @@ def detect_sources_on_healpix_tiles(
         squares. Use reproject healpix frame names (``\"icrs\"``,
         ``\"galactic\"``, ``\"c\"``, ``\"g\"``).
     bmaj, bmin, bpa, restfreq_hz, bunit
-        Attached to each tile HDU before PyBDSF (not stored in lwa-healpix).
+        Band-median restoring beam and frequency. Axes are scaled by
+        *beam_scale* before attach (not stored in lwa-healpix).
+    beam_scale
+        Multiplier applied to ``BMAJ``/``BMIN`` for both tiers (default
+        :data:`DEFAULT_BEAM_SCALE` ``1.1``). Catalog ``BMAJ``/``BMIN``
+        columns use the scaled beam. Pass ``1.0`` for unscaled median.
     band
         Catalog ``band`` column value.
     bdsf_kw
@@ -161,6 +193,7 @@ def detect_sources_on_healpix_tiles(
     lwa_healpix = _import_lwa_healpix()
     weight_arr = np.asarray(weight)
     map_arr = np.asarray(healpix_map)
+    bmaj_s, bmin_s, bpa_s = scale_beam(bmaj, bmin, bpa, scale=beam_scale)
     run_tier2 = tier2_bdsf_kw is not None
     tier2_kw = merge_tier2_bdsf_kw(bdsf_kw, tier2_bdsf_kw) if run_tier2 else None
 
@@ -188,9 +221,9 @@ def detect_sources_on_healpix_tiles(
         )
         hdu = attach_beam_and_freq(
             hdu,
-            bmaj=bmaj,
-            bmin=bmin,
-            bpa=bpa,
+            bmaj=bmaj_s,
+            bmin=bmin_s,
+            bpa=bpa_s,
             restfreq_hz=restfreq_hz,
             bunit=bunit,
         )
@@ -206,9 +239,9 @@ def detect_sources_on_healpix_tiles(
             tile_ipix=ipix,
             nside_tile=nside_tile,
             band=band,
-            bmaj=bmaj,
-            bmin=bmin,
-            bpa=bpa,
+            bmaj=bmaj_s,
+            bmin=bmin_s,
+            bpa=bpa_s,
         )
         if run_tier2:
             table2 = run_pybdsf_on_hdu(hdu, bdsf_kw=tier2_kw)
@@ -219,9 +252,9 @@ def detect_sources_on_healpix_tiles(
                     tile_ipix=ipix,
                     nside_tile=nside_tile,
                     band=band,
-                    bmaj=bmaj,
-                    bmin=bmin,
-                    bpa=bpa,
+                    bmaj=bmaj_s,
+                    bmin=bmin_s,
+                    bpa=bpa_s,
                 )
                 df = fuse_gaul_m_with_tier2_s(df, df2)
         frames.append(df)

@@ -17,10 +17,12 @@ from lwa_catalog.create.discover import (
     resolve_fits_slot,
 )
 from lwa_catalog.create.healpix_detect import (
+    DEFAULT_BEAM_SCALE,
     attach_beam_and_freq,
     detect_sources_on_healpix_tiles,
     median_beam_from_paths,
     restfreq_hz_from_header,
+    scale_beam,
 )
 from lwa_catalog.create.tiered_detect import (
     DEFAULT_TIER2_BDSF_KW,
@@ -46,6 +48,7 @@ __all__ = [
     "add_spectral_indices",
     "associate_band_into_metacatalog",
     "associate_catalogs",
+    "DEFAULT_BEAM_SCALE",
     "attach_beam_and_freq",
     "blank_below_elevation",
     "build_global_metacatalog",
@@ -69,5 +72,6 @@ __all__ = [
     "pick_highest_elevation_row",
     "resolve_fits_slot",
     "restfreq_hz_from_header",
+    "scale_beam",
     "source_elevation_deg",
 ]

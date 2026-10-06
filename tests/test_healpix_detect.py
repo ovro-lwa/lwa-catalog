@@ -12,10 +12,12 @@ from astropy.table import Table
 pytest.importorskip("lwa_healpix")
 
 from lwa_catalog.create.healpix_detect import (  # noqa: E402
+    DEFAULT_BEAM_SCALE,
     attach_beam_and_freq,
     detect_sources_on_healpix_tiles,
     median_beam_from_paths,
     restfreq_hz_from_header,
+    scale_beam,
 )
 from lwa_healpix import iter_nested_tile_headers  # noqa: E402
 
@@ -46,6 +48,27 @@ def test_median_beam_from_paths(tmp_path: Path) -> None:
 def test_restfreq_hz_from_header() -> None:
     hdr = fits.Header({"RESTFRQ": 7.4e7})
     assert restfreq_hz_from_header(hdr) == pytest.approx(7.4e7)
+
+
+def test_scale_beam_default() -> None:
+    bmaj, bmin, bpa = scale_beam(0.10, 0.08, 12.0)
+    assert bmaj == pytest.approx(0.10 * DEFAULT_BEAM_SCALE)
+    assert bmin == pytest.approx(0.08 * DEFAULT_BEAM_SCALE)
+    assert bpa == pytest.approx(12.0)
+    assert DEFAULT_BEAM_SCALE == pytest.approx(1.1)
+
+
+def test_scale_beam_identity_and_invalid() -> None:
+    bmaj, bmin, bpa = scale_beam(0.10, 0.08, 5.0, scale=1.0)
+    assert bmaj == pytest.approx(0.10)
+    assert bmin == pytest.approx(0.08)
+    assert bpa == pytest.approx(5.0)
+    with pytest.raises(ValueError, match="beam scale"):
+        scale_beam(0.1, 0.1, scale=0.0)
+    with pytest.raises(ValueError, match="beam scale"):
+        scale_beam(0.1, 0.1, scale=-1.0)
+    with pytest.raises(ValueError, match="beam scale"):
+        scale_beam(0.1, 0.1, scale=float("nan"))
 
 
 def test_attach_beam_and_freq() -> None:
@@ -121,7 +144,75 @@ def test_detect_sources_on_healpix_tiles_tags_ipix(monkeypatch: pytest.MonkeyPat
     assert int(df.iloc[0]["tile_ipix"]) == 0
     assert int(df.iloc[0]["nside_tile"]) == nside_tile
     assert df.iloc[0]["band"] == "Full"
-    assert df.iloc[0]["BMAJ"] == 0.1
+    # Default beam_scale=1.1 applied to catalog beam columns
+    assert df.iloc[0]["BMAJ"] == pytest.approx(0.1 * DEFAULT_BEAM_SCALE)
+    assert df.iloc[0]["BMIN"] == pytest.approx(0.1 * DEFAULT_BEAM_SCALE)
+
+
+def test_detect_sources_on_healpix_tiles_beam_scale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nside_map = 8
+    nside_tile = 2
+    npix = 12 * nside_map**2
+    ratio = (nside_map // nside_tile) ** 2
+    healpix_map = np.ones(npix, dtype=np.float64)
+    weight = np.zeros(npix, dtype=np.float64)
+    weight[0:ratio] = 1.0
+    attached: list[tuple[float, float, float]] = []
+
+    def _fake_pybdsf(hdu, *, bdsf_kw=None, **kwargs):
+        attached.append(
+            (float(hdu.header["BMAJ"]), float(hdu.header["BMIN"]), float(hdu.header["BPA"]))
+        )
+        return Table(
+            {
+                "RA": [float(hdu.header["CRVAL1"])],
+                "DEC": [float(hdu.header["CRVAL2"])],
+                "Peak_flux": [1.0],
+                "Total_flux": [1.0],
+                "E_Peak_flux": [0.1],
+                "E_Total_flux": [0.1],
+                "Maj": [0.1],
+                "Min": [0.1],
+                "PA": [0.0],
+                "DC_Maj": [0.1],
+                "DC_Min": [0.1],
+                "DC_PA": [0.0],
+                "Resid_Isl_rms": [0.01],
+                "Resid_Isl_mean": [0.0],
+                "S_Code": ["S"],
+            }
+        )
+
+    monkeypatch.setattr(
+        "lwa_catalog.create.healpix_detect.run_pybdsf_on_hdu",
+        _fake_pybdsf,
+    )
+
+    common = dict(
+        healpix_map=healpix_map,
+        weight=weight,
+        nside_map=nside_map,
+        nside_tile=nside_tile,
+        overlap=0.0,
+        bmaj=0.2,
+        bmin=0.1,
+        bpa=3.0,
+        restfreq_hz=5.5e7,
+        band="Full",
+        skip_empty=True,
+    )
+    df_default = detect_sources_on_healpix_tiles(**common)
+    assert df_default.iloc[0]["BMAJ"] == pytest.approx(0.22)
+    assert df_default.iloc[0]["BMIN"] == pytest.approx(0.11)
+    assert df_default.iloc[0]["BPA"] == pytest.approx(3.0)
+    assert attached[-1] == pytest.approx((0.22, 0.11, 3.0))
+
+    df_one = detect_sources_on_healpix_tiles(**common, beam_scale=1.0)
+    assert df_one.iloc[0]["BMAJ"] == pytest.approx(0.2)
+    assert df_one.iloc[0]["BMIN"] == pytest.approx(0.1)
+    assert attached[-1] == pytest.approx((0.2, 0.1, 3.0))
 
 
 def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -197,6 +288,7 @@ def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPa
         bmaj=0.5,
         bmin=0.5,
         bpa=0.0,
+        beam_scale=1.0,
         restfreq_hz=5.5e7,
         band="Full",
         bdsf_kw={"thresh_isl": 2.0, "thresh_pix": 3.0},
