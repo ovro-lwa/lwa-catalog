@@ -557,6 +557,22 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 
 ---
 
+## Experiment conclusions (PSF / HEALPix detect, 2026-10)
+
+Trail under `.agents/` (`research-*`, `plan-*`, `experiment-*`, `implement-*`);
+bulky per-trial FITS/catalogs removed — keep markdown + small `summary*.parquet`.
+
+- **LST coadd smear:** On tile 111 / 73 MHz, all-LST vs single-LST Maj widening
+  (~5% at elev 15°/40°) disappears under stricter elliptical cuts (25°/55° or
+  **22.76°/55°**). Absolute `Maj/BMAJ ≈ 1.29` remains even at N=1 — beam prior
+  dominates over hour count. See `experiment-lst-average-psf-smearing.md`.
+- **Restoring-beam α:** Modest global α (~1.1 at 73 MHz, ~1.3 at 82 MHz) improves
+  map−model residual; library default `DEFAULT_BEAM_SCALE = 1.1`. Raw per-tile
+  Maj-median overshoots (esp. low Dec) and often worsens residual — do not ship.
+  **Keep 2-tier**; PSF scale is complementary, not a 2-tier retirement. See
+  `research-over-decomposition-all-frequencies.md` follow-up +
+  `implement-beam-psf-overdecomposition-residuals.md`.
+
 ## Open and deferred
 
 Still true after the workflow trail (manual Jupyter on `/fast/claw` was almost
@@ -564,6 +580,8 @@ never signed off):
 
 - Mosaic WCS/beam for detection; whether `n_lst_contributions` means anything
   on a single coadd.
+- Wider-band / more-tile confirmation before baking α beyond `DEFAULT_BEAM_SCALE`;
+  capped or Dec-dependent PSF estimators (raw Maj-median rejected).
 - VLSSR completeness denominator (all sources vs Dec cut vs LWA footprint /
   sensitivity). Seeding union-find from VLSSR was explicitly **out of scope**.
 - Peak+Total spectral fits in one pass; RGB as default spectral input; HiPS of
