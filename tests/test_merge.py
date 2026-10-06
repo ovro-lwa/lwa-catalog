@@ -79,7 +79,7 @@ def test_build_global_metacatalog_propagates_cluster_jitter() -> None:
 
 
 def test_merge_tile_metacatalog_collapses_overlap_and_lst_schema() -> None:
-    """Tile detections cluster like LST merge; schema matches build_global input."""
+    """Cross-tile overlap duplicates collapse; schema matches build_global input."""
     tiles = pd.DataFrame(
         [
             _src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")
@@ -112,6 +112,65 @@ def test_merge_tile_metacatalog_collapses_overlap_and_lst_schema() -> None:
     )
     assert len(meta) == 2
     assert set(meta["origin_band"]) == {"Full"}
+
+
+def test_merge_tile_preserves_same_tile_beam_neighbors() -> None:
+    """Same-tile Gaussians within a beam stay as separate rows (incl. M siblings)."""
+    tiles = pd.DataFrame(
+        [
+            _src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")
+            | {"tile_ipix": 0, "Total_flux": 1.0, "S_Code": "M", "Source_id": 1},
+            _src(ra=10.01, dec=20.0, peak=1.5, lst_hour="01h", band="Full")
+            | {"tile_ipix": 0, "Total_flux": 1.5, "S_Code": "M", "Source_id": 2},
+        ]
+    ).drop(columns=["lst_hour"])
+    merged = merge_tile_metacatalog(tiles, band="Full")
+    assert len(merged) == 2
+    peaks = sorted(float(x) for x in merged["Peak_flux"])
+    assert peaks == pytest.approx([1.0, 1.5])
+
+
+def test_merge_tile_requires_tile_ipix() -> None:
+    tiles = pd.DataFrame(
+        [
+            _src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")
+            | {"Total_flux": 1.0},
+        ]
+    ).drop(columns=["lst_hour"])
+    with pytest.raises(ValueError, match="tile_ipix"):
+        merge_tile_metacatalog(tiles, band="Full")
+
+
+def test_merge_tile_requires_finite_tile_ipix() -> None:
+    tiles = pd.DataFrame(
+        [
+            _src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")
+            | {"tile_ipix": np.nan, "Total_flux": 1.0},
+        ]
+    ).drop(columns=["lst_hour"])
+    with pytest.raises(ValueError, match="finite tile_ipix"):
+        merge_tile_metacatalog(tiles, band="Full")
+
+
+def test_merge_tile_hub_chaining_accepted() -> None:
+    """Same-tile neighbors can still merge via a cross-tile hub (deferred debt).
+
+    Decision 2A: union-find with cross-tile edges only. A1—B—A2 collapses to one
+    row when both A Gaussians match B. Flip this assertion if greedy 1:1 lands.
+    """
+    tiles = pd.DataFrame(
+        [
+            _src(ra=10.0, dec=20.0, peak=1.0, lst_hour="01h", band="Full")
+            | {"tile_ipix": 0, "Total_flux": 1.0, "Source_id": 1},
+            _src(ra=10.02, dec=20.0, peak=1.2, lst_hour="01h", band="Full")
+            | {"tile_ipix": 0, "Total_flux": 1.2, "Source_id": 2},
+            _src(ra=10.01, dec=20.0, peak=2.0, lst_hour="01h", band="Full")
+            | {"tile_ipix": 1, "Total_flux": 2.0, "Source_id": 99},
+        ]
+    ).drop(columns=["lst_hour"])
+    merged = merge_tile_metacatalog(tiles, band="Full")
+    assert len(merged) == 1
+    assert float(merged.iloc[0]["Peak_flux"]) == pytest.approx(2.0)
 
 
 def test_build_global_metacatalog_tile_assoc_without_lst_hour() -> None:
