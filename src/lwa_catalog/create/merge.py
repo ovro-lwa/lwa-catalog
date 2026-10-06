@@ -318,11 +318,19 @@ def _cluster_by_sky_position(
     df: pd.DataFrame,
     *,
     bmaj_col: str = "BMAJ",
+    distinct_group_col: str | None = None,
 ) -> list[pd.DataFrame]:
     """Beam-sized clustering via ``search_around_sky`` + connected components.
 
     Detections are linked when their separation is within ``max(BMAJ_i, BMAJ_j)``.
     Transitive links form one cluster (order-independent; no running centroid).
+
+    When *distinct_group_col* is set (e.g. ``\"tile_ipix\"`` for tile merge),
+    pairs that share the same group value never get a **direct** edge. LST merge
+    leaves this ``None`` so all beam neighbors still cluster. Under transitive
+    union-find, two same-group rows can still land in one cluster via a hub in
+    another group (``A—X—B``); that hub chaining is intentional deferred debt
+    for tile merge.
     """
     if df.empty:
         return []
@@ -347,6 +355,9 @@ def _cluster_by_sky_position(
     sep_deg = sep2d.to(u.deg).value
     limits = np.maximum(bmaj[idx_a], bmaj[idx_b])
     keep = (idx_a < idx_b) & (sep_deg <= limits)
+    if distinct_group_col is not None:
+        groups = pd.to_numeric(work[distinct_group_col], errors="coerce").to_numpy(dtype=float)
+        keep = keep & (groups[idx_a] != groups[idx_b])
     idx_a = idx_a[keep]
     idx_b = idx_b[keep]
 
@@ -356,6 +367,22 @@ def _cluster_by_sky_position(
         members = np.flatnonzero(roots == root)
         clusters.append(work.iloc[members].copy())
     return clusters
+
+
+def _require_finite_tile_ipix(catalog: pd.DataFrame) -> None:
+    """Raise if *catalog* lacks finite ``tile_ipix`` (required for tile merge)."""
+    if "tile_ipix" not in catalog.columns:
+        msg = (
+            "merge_tile_metacatalog requires a 'tile_ipix' column "
+            "(set by detect_sources_on_healpix_tiles) for cross-tile-only collapse"
+        )
+        raise ValueError(msg)
+    tile_ipix = pd.to_numeric(catalog["tile_ipix"], errors="coerce").to_numpy(dtype=float)
+    if tile_ipix.size == 0:
+        return
+    if not np.isfinite(tile_ipix).all():
+        msg = "merge_tile_metacatalog requires finite tile_ipix values on every row"
+        raise ValueError(msg)
 
 
 def _sorted_unique_lst_hours(members: pd.DataFrame) -> list[str]:
@@ -461,11 +488,21 @@ def merge_lst_metacatalog(
 
 
 def merge_tile_metacatalog(catalog: pd.DataFrame, *, band: str) -> pd.DataFrame:
-    """Collapse overlapping-tile detections into an LST-merged-shaped catalog.
+    """Collapse **cross-tile** overlap duplicates into an LST-merged-shaped catalog.
 
-    HEALPix-tile (or mosaic) PyBDSF rows have no LST hours. Beam-sized
-    clustering matches :func:`merge_lst_metacatalog`, but the representative is
-    the brightest ``Peak_flux`` / ``Total_flux`` member (elevation is undefined).
+    HEALPix-tile PyBDSF rows have no LST hours. Clustering uses the same beam
+    radius as :func:`merge_lst_metacatalog` (``sep ≤ max(BMAJ_i, BMAJ_j)``), but
+    only links detections with **different** ``tile_ipix``. Same-tile beam
+    neighbors — including ``S_Code=M`` island siblings — remain separate rows.
+    Within a cross-tile cluster the representative is the brightest
+    ``Peak_flux`` / ``Total_flux`` member (elevation is undefined).
+
+    Requires a finite ``tile_ipix`` on every row (as written by
+    :func:`~lwa_catalog.create.healpix_detect.detect_sources_on_healpix_tiles`).
+
+    Transitive hub chaining is accepted deferred debt: two same-tile Gaussians
+    can still merge if both match a third detection on another tile
+    (``A—X—B``). Confusion handling is out of scope here.
 
     Output columns match the LST-merged schema so
     :func:`build_global_metacatalog` can consume the result. A single coadd
@@ -475,10 +512,11 @@ def merge_tile_metacatalog(catalog: pd.DataFrame, *, band: str) -> pd.DataFrame:
     """
     if catalog is None or catalog.empty:
         return pd.DataFrame()
+    _require_finite_tile_ipix(catalog)
     combined = normalize_ra_columns(catalog.copy())
 
     rows: list[dict] = []
-    for members in _cluster_by_sky_position(combined):
+    for members in _cluster_by_sky_position(combined, distinct_group_col="tile_ipix"):
         rep = _pick_peak_flux_row(members)
         entry = rep.to_dict()
         entry["band"] = band

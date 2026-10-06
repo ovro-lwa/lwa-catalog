@@ -120,7 +120,7 @@ def test_build_global_metacatalog_tile_assoc_without_lst_hour() -> None:
         pd.DataFrame(
             [
                 _src(ra=10.0, dec=20.0, peak=2.0, lst_hour="01h", band="Full", bmaj=0.5)
-                | {"Total_flux": 2.0}
+                | {"Total_flux": 2.0, "tile_ipix": 0}
             ]
         ).drop(columns=["lst_hour"]),
         band="Full",
@@ -130,9 +130,9 @@ def test_build_global_metacatalog_tile_assoc_without_lst_hour() -> None:
         pd.DataFrame(
             [
                 _src(ra=10.4, dec=20.0, peak=0.5, lst_hour="01h", band="Blue", bmaj=0.5)
-                | {"Total_flux": 0.5},
+                | {"Total_flux": 0.5, "tile_ipix": 1},
                 _src(ra=9.6, dec=20.0, peak=0.8, lst_hour="01h", band="Blue", bmaj=0.5)
-                | {"Total_flux": 0.8},
+                | {"Total_flux": 0.8, "tile_ipix": 2},
             ]
         ).drop(columns=["lst_hour"]),
         band="Blue",
