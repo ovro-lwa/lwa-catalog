@@ -137,12 +137,15 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   `fuse_gaul_m_with_tier2_s` replaces coincident tier-1 `S_Code=M` clumps
   with tier-2 `S` Gaussians (beam match via `associate_catalogs`); unmatched
   `M` and all non-`M` rows stay. Downstream tile merge / fusion is unchanged.
-  Pass `tier2_bdsf_kw={}` to enable defaults, or `None` to skip. Overlap
-  tile duplicates collapse via `merge_tile_metacatalog`
-  (brightest flux; `n_lst_contributions=1`) into LST-merged-shaped Parquets for
-  `build_global_metacatalog`. Coadd elevation blanking may be circular
+  Pass `tier2_bdsf_kw={}` to enable defaults, or `None` to skip. **Cross-tile**
+  overlap duplicates collapse via `merge_tile_metacatalog` (requires finite
+  `tile_ipix`; brightest flux; `n_lst_contributions=1`). Same-tile beam
+  neighbors — including `S_Code=M` island siblings — remain separate rows.
+  Transitive hub chaining through a third tile (`A—X—B`) is accepted deferred
+  debt. Output is LST-merged-shaped Parquets for `build_global_metacatalog`.
+  Coadd elevation blanking may be circular
   (`min_elevation`) or elliptical (`min_elevation_ns` / `min_elevation_ew`;
-  notebook default 15° N/S, 40° E/W). Image HEALPix FITS (`write_healpix_fits` MAP+WEIGHT) is an
+  notebook default 22.76° N/S ≈ Dec≥−30° at OVRO meridian, 55° E/W). Image HEALPix FITS (`write_healpix_fits` MAP+WEIGHT) is an
   **imaging** product — distinct from catalog→HiPS (`write_healpix_hips`).
 - Prefer `RA---CAR`/`DEC--CAR` if detecting on a CAR mosaic.
   `GLON-CAR`/`GLAT-CAR` still write columns named `RA`/`DEC` but the numbers
@@ -178,11 +181,12 @@ Always reuse `associate_catalogs` / `associate_band_into_metacatalog`. Do not
 invent a second matcher for VLSSR, rematch, reliability seeding, or survey
 attach.
 
-### Two graphs, two failure modes
+### Three graphs, failure modes
 
 | Step | Graph | Effect |
 | ---- | ----- | ------ |
 | LST merge (`merge_lst_metacatalog` / `_cluster_by_sky_position`) | Transitive **union-find** of all hours pooled together | A–B and B–C ⇒ one cluster even if A–C exceeds the beam (**over-merge**). Well-separated detections stay split (**over-split** persists as multiple `meta_id`s). |
+| Tile merge (`merge_tile_metacatalog`) | Same beam union-find, but **no direct edges** between equal `tile_ipix` | Cross-tile overlap duplicates collapse (brightest flux). Same-tile multi-Gaussians stay separate. Hub chaining via a third tile remains possible (deferred). |
 | Band fusion (`build_global_metacatalog`) | **Bipartite** attach onto existing base rows | Does **not** merge base rows. `n_assoc_{band}` = forward hits on this row; `n_confused_{band}` = how many meta rows claim the stored band source (reverse). `CONFUSED_ASSOC` uses `n_confused_* > 1`. The **seed** band also gets `n_assoc_{seed}=1` / `n_confused_{seed}=1` (one meta row per seed detection). Missing seed `n_confused_*` makes `unconfused_only` SED fits drop that channel. |
 
 - Optional `transit_window_hr` on `merge_lst_metacatalog` drops detections
