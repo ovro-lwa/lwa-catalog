@@ -280,6 +280,7 @@ External catalogs live under `REFERENCE_CATALOGS_DIR = Path("/fast/claw/catalogs
 | VLSSR | 74 MHz | circular 80″ | `vlssr_radecpeak.txt` |
 | NVSS | 1.4 GHz | 45″ | `nvss/nvss_vizier.parquet` |
 | VLASS | ~3 GHz | 2.5″ | CIRADA QL component CSV |
+| LoDeSS | 15–30 MHz (ν₀≈23 MHz) | ~45″ | `/fast/claw/LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits` |
 | NED-LVS | hosts | position+diameter | `NEDLVS_current.fits` |
 
 **LWA-centric astrometry.** Match on LWA `RA`/`DEC` + LWA `BMAJ`
@@ -288,7 +289,8 @@ External catalogs live under `REFERENCE_CATALOGS_DIR = Path("/fast/claw/catalogs
 Photometric attach (`attach_radio_surveys_to_metacatalog` in
 `analyze/survey_attach.py`):
 
-- Order **VLASS → NVSS → VLSSR** (high → low frequency).
+- Order **VLASS → NVSS → VLSSR → LoDeSS** (high → low frequency; cascade
+  bootstrap attaches VLSSR → NVSS → VLASS → LoDeSS).
 - Flags: `append_unmatched=False`, `update_bmaj_match=False`,
   `representative="peak_flux"`, plus `base_bmaj` so later radii do not loosen.
 - Output **row count equals input LWA row count**. Unmatched survey sources
@@ -299,6 +301,8 @@ Photometric attach (`attach_radio_surveys_to_metacatalog` in
   dominate).
 - **Never** `astrometry_from_highest_frequency` for this attach (VLASS
   components are not LWA centroids).
+- LoDeSS load/match lives in `analyze/lodess.py` (`load_lodess_catalog`,
+  `match_catalog_to_lodess`); notebook QA compares to LWA **23 MHz**.
 
 Match-direction diagnostics (VLSSR QA, reusable):
 
