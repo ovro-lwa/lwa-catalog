@@ -442,7 +442,7 @@ def _spectrum_figure_for_row(
     """Plot per-band flux measurements and optional Taylor model for one catalog row.
 
     When *bands* is omitted, uses :func:`resolve_sed_bands` so LWA subbands and
-    any attached survey channels (VLSSR/NVSS/VLASS) are included.
+    any attached survey channels (LoDeSS/VLSSR/NVSS/VLASS) are included.
     Channels not eligible for the unconfused-only fit (``n_confused != 1``,
     including missing ``n_confused_*``) use an ``x`` marker.
     Y-limits follow the data (± errors), not the Taylor curve.
@@ -912,7 +912,7 @@ class CatalogBrowser(pn.viewable.Viewer):
                     "### Spectral flux (SED)\n"
                     "After centering with **Load sky view**, click **Plot spectrum**. "
                     "Per-band `Total_flux_{band}` measurements are shown (LWA circles; "
-                    "VLSSR/NVSS/VLASS squares when present) with the stored Taylor model "
+                    "LoDeSS/VLSSR/NVSS/VLASS squares when present) with the stored Taylor model "
                     "when `spec_model_*` columns exist (e.g. `metacatalog_spectral.parquet`). "
                     "Survey points sit far to the right on the log-frequency axis "
                     "(74 MHz / 1.4 GHz / ~3 GHz).",

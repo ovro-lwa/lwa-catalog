@@ -50,6 +50,18 @@ VLASS_DEFAULT_PATH: Path = (
     REFERENCE_CATALOGS_DIR / "vlass" / "CIRADA_VLASS1QLv3.1_table1_components.csv"
 )
 
+# LoDeSS (LOFAR Decametre Sky Survey DR1; Groeneveld et al. 2026; 15–30 MHz,
+# ~45″ restoring beam, Dec ≳ 20°). Default is the PyBDSF Gaussian (gaul) catalog.
+LODES_FREQ_HZ: float = 23e6
+LODES_BMAJ_ARCSEC: float = 45.0
+LODES_BMAJ_DEG: float = LODES_BMAJ_ARCSEC / 3600.0
+LODES_DEC_MIN_DEG: float = 20.0
+# Fallback 1σ when per-source E_RA/E_DEC are missing (~median hypot of LoDeSS gaul).
+LODES_POSITION_ERROR_DEFAULT_ARCSEC: float = 2.5
+LODES_DEFAULT_PATH: Path = Path(
+    "/fast/claw/LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits"
+)
+
 # NED Local Volume Sample (Cook et al. 2023; latest FITS from NED-LVS page).
 NEDLVS_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "NEDLVS_current.fits"
 NEDLVS_DEFAULT_MAX_REDSHIFT: float = 0.2
@@ -188,6 +200,7 @@ BAND_FREQ_HZ: dict[str, float] = {
     "VLSSR": VLSSR_FREQ_HZ,
     "NVSS": NVSS_FREQ_HZ,
     "VLASS": VLASS_FREQ_HZ,
+    "LoDeSS": LODES_FREQ_HZ,
 }
 
 # (label, band_lo_or_a, band_hi_or_b) for α = log(S_a/S_b) / log(ν_a/ν_b).

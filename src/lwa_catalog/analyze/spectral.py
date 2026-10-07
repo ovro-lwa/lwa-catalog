@@ -15,7 +15,7 @@ from lwa_catalog.constants import (
 )
 
 # External survey bands optionally attached before spectral modeling.
-SURVEY_SED_BANDS: tuple[str, ...] = ("VLSSR", "NVSS", "VLASS")
+SURVEY_SED_BANDS: tuple[str, ...] = ("LoDeSS", "VLSSR", "NVSS", "VLASS")
 
 FluxKind = Literal["total", "peak"]
 _MIN_TAYLOR_TERMS = 2
@@ -73,8 +73,8 @@ def resolve_sed_bands(
 ) -> tuple[str, ...]:
     """Return LWA + survey bands that have a ``{flux}_{band}`` column present.
 
-    Used by SED plots so VLSSR/NVSS/VLASS points appear when those columns exist
-    on a radio-enriched ``metacatalog_spectral.parquet`` row.
+    Used by SED plots so LoDeSS/VLSSR/NVSS/VLASS points appear when those
+    columns exist on a radio-enriched ``metacatalog_spectral.parquet`` row.
     """
     flux_prefix, _ = _flux_column_names(flux_kind)
     if isinstance(columns, pd.Series):

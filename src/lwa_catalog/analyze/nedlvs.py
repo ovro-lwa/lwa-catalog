@@ -15,6 +15,7 @@ from astropy.table import Table
 
 from lwa_catalog.analyze.vlssr import select_blue_associated_rows
 from lwa_catalog.constants import (
+    LODES_POSITION_ERROR_DEFAULT_ARCSEC,
     NEDLVS_CATALOG_POSITION_SIGMA_DEG,
     NEDLVS_DEFAULT_CENTROID_SIGMA_DEG,
     NEDLVS_DEFAULT_DIAM_SCALE,
@@ -55,6 +56,7 @@ _MATCH_SOURCE_SIGMA_DEG: dict[str, float] = {
     "VLSSR": VLSSR_POSITION_ERROR_ARCSEC / 3600.0,
     "NVSS": NVSS_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
     "VLASS": VLASS_BMAJ_ARCSEC / 3600.0,
+    "LoDeSS": LODES_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
 }
 
 

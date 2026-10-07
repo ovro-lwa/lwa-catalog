@@ -2,10 +2,10 @@
 
 Unmatched survey sources are not seeded as new rows. ``match_RA`` /
 ``match_DEC`` / ``match_source`` / ``match_sigma_deg`` record the best cascaded
-match position and 1σ radius (survey coords after bijective VLSSR→NVSS→VLASS
-when enabled; otherwise native LWA). Top-level LWA astrometry and
-``BMAJ_match`` are left unchanged. Stored survey flux is the brightest
-associated hit (preferring ``Total_flux`` when available, else peak);
+match position and 1σ radius (survey coords after bijective
+VLSSR→NVSS→VLASS→LoDeSS when enabled; otherwise native LWA). Top-level LWA
+astrometry and ``BMAJ_match`` are left unchanged. Stored survey flux is the
+brightest associated hit (preferring ``Total_flux`` when available, else peak);
 ``n_assoc_{band}`` counts every hit inside the match radius; ``n_confused_{band}``
 counts how many metacatalog rows claim the stored survey source.
 """
@@ -23,6 +23,7 @@ from lwa_catalog.analyze.bootstrap import (
     native_lwa_frame,
 )
 from lwa_catalog.analyze.crossmatch_radius import (
+    LODES_REFERENCE_RADIUS_LOCALIZATION,
     LWA_CROSSMATCH_RADIUS_BEAM,
     NVSS_REFERENCE_RADIUS_LOCALIZATION,
     VLASS_REFERENCE_RADIUS_LOCALIZATION,
@@ -31,23 +32,26 @@ from lwa_catalog.analyze.crossmatch_radius import (
     apply_match_radius,
     match_radius_deg,
 )
+from lwa_catalog.analyze.lodess import _footprint_filter_lodess
 from lwa_catalog.analyze.nvss import _footprint_filter_nvss
 from lwa_catalog.analyze.vlass import _footprint_filter_vlass
 from lwa_catalog.analyze.vlssr import _footprint_filter_vlssr
 from lwa_catalog.constants import (
+    LODES_DEC_MIN_DEG,
     NVSS_DEC_MIN_DEG,
     SUBBAND_METACATALOG_FLUX_FIELDS,
     VLASS_DEC_MIN_DEG,
 )
 from lwa_catalog.create.merge import associate_band_into_metacatalog, associate_catalogs
 
-RADIO_SURVEY_BANDS: tuple[str, ...] = ("VLASS", "NVSS", "VLSSR")
-CASCADE_SURVEY_BANDS: tuple[str, ...] = ("VLSSR", "NVSS", "VLASS")
+RADIO_SURVEY_BANDS: tuple[str, ...] = ("VLASS", "NVSS", "VLSSR", "LoDeSS")
+CASCADE_SURVEY_BANDS: tuple[str, ...] = ("VLSSR", "NVSS", "VLASS", "LoDeSS")
 
 _DEFAULT_REFERENCE_RADIUS: dict[str, CrossmatchRadiusSpec] = {
     "VLASS": VLASS_REFERENCE_RADIUS_LOCALIZATION,
     "NVSS": NVSS_REFERENCE_RADIUS_LOCALIZATION,
     "VLSSR": VLSSR_REFERENCE_RADIUS_FIXED,
+    "LoDeSS": LODES_REFERENCE_RADIUS_LOCALIZATION,
 }
 
 # Radius adopted on the LWA match frame after a bijective hit to this survey.
@@ -55,6 +59,7 @@ _BOOTSTRAP_ADOPT_RADIUS: dict[str, CrossmatchRadiusSpec] = {
     "VLSSR": VLSSR_REFERENCE_RADIUS_FIXED,
     "NVSS": NVSS_REFERENCE_RADIUS_LOCALIZATION,
     "VLASS": VLASS_REFERENCE_RADIUS_LOCALIZATION,
+    "LoDeSS": LODES_REFERENCE_RADIUS_LOCALIZATION,
 }
 
 
@@ -107,6 +112,10 @@ def _footprint_filter_survey(
         return _footprint_filter_vlass(survey_df, meta_df, dec_min_deg=VLASS_DEC_MIN_DEG)
     if band == "VLSSR":
         return _footprint_filter_vlssr(survey_df, meta_df)
+    if band == "LoDeSS":
+        return _footprint_filter_lodess(
+            survey_df, meta_df, dec_min_deg=LODES_DEC_MIN_DEG
+        )
     return survey_df
 
 
@@ -215,7 +224,8 @@ def _prepare_survey_for_attach(
 def _write_match_positions(meta_df: pd.DataFrame, frame: pd.DataFrame) -> pd.DataFrame:
     """Copy bootstrap-frame coords onto *meta_df* as ``match_RA`` / ``match_DEC``.
 
-    Also writes ``match_source`` (``LWA`` / ``VLSSR`` / ``NVSS`` / ``VLASS``) and
+    Also writes ``match_source`` (``LWA`` / ``VLSSR`` / ``NVSS`` / ``VLASS`` /
+    ``LoDeSS``) and
     ``match_sigma_deg`` from the frame ``BMAJ`` (adopted 1σ / fixed survey
     localization radius in degrees). Top-level ``RA``/``DEC`` are unchanged.
     """
@@ -249,14 +259,14 @@ def attach_radio_surveys_to_metacatalog(
     footprint_filter: bool = True,
     cascade_bootstrap: bool = False,
 ) -> pd.DataFrame:
-    """Attach VLASS, NVSS, and/or VLSSR onto *meta_df* as photometric bands.
+    """Attach VLASS, NVSS, VLSSR, and/or LoDeSS onto *meta_df* as photometric bands.
 
-    Keys in *surveys* should be ``VLASS``, ``NVSS``, and/or ``VLSSR``. Missing
-    keys are skipped. Row count is unchanged.
+    Keys in *surveys* should be ``VLASS``, ``NVSS``, ``VLSSR``, and/or ``LoDeSS``.
+    Missing keys are skipped. Row count is unchanged.
 
-    When *cascade_bootstrap* is True, surveys attach in VLSSR → NVSS → VLASS
-    order and the match frame advances after each bijective step (adopt survey
-    position/error for the next survey) without rewriting metacatalog
+    When *cascade_bootstrap* is True, surveys attach in VLSSR → NVSS → VLASS →
+    LoDeSS order and the match frame advances after each bijective step (adopt
+    survey position/error for the next survey) without rewriting metacatalog
     ``RA``/``DEC``.
 
     Always adds ``match_RA`` / ``match_DEC`` / ``match_source`` /

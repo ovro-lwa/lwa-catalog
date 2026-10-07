@@ -177,6 +177,8 @@ def _match_result_columns(source: str) -> tuple[str, str, str, str]:
         return "n_nvss", "nvss_positions", "nvss_pos", "nvss_footprint"
     if key == "VLASS":
         return "n_vlass", "vlass_positions", "vlass_pos", "vlass_footprint"
+    if key == "LODESS":
+        return "n_lodess", "lodess_positions", "lodess_pos", "lodess_footprint"
     msg = f"unsupported bootstrap source: {source!r}"
     raise ValueError(msg)
 

@@ -56,8 +56,8 @@ def test_analyze_survey_attach_exports() -> None:
         advance_from_match,
     )
 
-    assert RADIO_SURVEY_BANDS == ("VLASS", "NVSS", "VLSSR")
-    assert CASCADE_SURVEY_BANDS == ("VLSSR", "NVSS", "VLASS")
+    assert RADIO_SURVEY_BANDS == ("VLASS", "NVSS", "VLSSR", "LoDeSS")
+    assert CASCADE_SURVEY_BANDS == ("VLSSR", "NVSS", "VLASS", "LoDeSS")
     assert callable(attach_radio_surveys_to_metacatalog)
     assert callable(attach_survey_to_metacatalog)
     assert callable(normalize_survey_band_catalog)
@@ -113,6 +113,22 @@ def test_analyze_nvss_exports() -> None:
     assert callable(summarize_nvss_match)
     assert NvssMatchConfig().target == "metacatalog"
     assert hasattr(NvssMatchResult, "__dataclass_fields__")
+
+
+def test_analyze_lodess_exports() -> None:
+    from lwa_catalog.analyze import (
+        LodesMatchConfig,
+        LodesMatchResult,
+        load_lodess_catalog,
+        match_catalog_to_lodess,
+        summarize_lodess_match,
+    )
+
+    assert callable(load_lodess_catalog)
+    assert callable(match_catalog_to_lodess)
+    assert callable(summarize_lodess_match)
+    assert LodesMatchConfig().target == "metacatalog"
+    assert hasattr(LodesMatchResult, "__dataclass_fields__")
 
 
 def test_analyze_vlass_exports() -> None:

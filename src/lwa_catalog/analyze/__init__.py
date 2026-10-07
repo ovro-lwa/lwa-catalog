@@ -27,6 +27,8 @@ from lwa_catalog.analyze.bootstrap import (
     select_bijective_pairs,
 )
 from lwa_catalog.analyze.crossmatch_radius import (
+    LODES_REFERENCE_RADIUS_BEAM,
+    LODES_REFERENCE_RADIUS_LOCALIZATION,
     LWA_CROSSMATCH_RADIUS_BEAM,
     LWA_CROSSMATCH_RADIUS_LOCALIZATION,
     NVSS_REFERENCE_RADIUS_BEAM,
@@ -38,6 +40,14 @@ from lwa_catalog.analyze.crossmatch_radius import (
     CrossmatchRadiusSpec,
     describe_crossmatch_radius,
     match_radius_deg,
+)
+from lwa_catalog.analyze.lodess import (
+    LodesMatchConfig,
+    LodesMatchResult,
+    load_lodess_catalog,
+    match_catalog_to_lodess,
+    select_unique_lodess_matches,
+    summarize_lodess_match,
 )
 from lwa_catalog.analyze.forced_photometry import (
     ForcedPhotometryConfig,
@@ -180,6 +190,8 @@ __all__ = [
     "CrossmatchRadiusSpec",
     "LWA_CROSSMATCH_RADIUS_BEAM",
     "LWA_CROSSMATCH_RADIUS_LOCALIZATION",
+    "LODES_REFERENCE_RADIUS_BEAM",
+    "LODES_REFERENCE_RADIUS_LOCALIZATION",
     "NVSS_REFERENCE_RADIUS_BEAM",
     "NVSS_REFERENCE_RADIUS_LOCALIZATION",
     "VLASS_REFERENCE_RADIUS_BEAM",
@@ -188,6 +200,12 @@ __all__ = [
     "VLSSR_REFERENCE_RADIUS_FIXED",
     "describe_crossmatch_radius",
     "match_radius_deg",
+    "LodesMatchConfig",
+    "LodesMatchResult",
+    "load_lodess_catalog",
+    "match_catalog_to_lodess",
+    "select_unique_lodess_matches",
+    "summarize_lodess_match",
     "ForcedPhotometryConfig",
     "ForcedPhotometryResult",
     "discover_and_index_fits",

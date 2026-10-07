@@ -15,6 +15,7 @@ from astropy.table import Table
 
 from lwa_catalog.constants import (
     COLOR_BANDS,
+    LODES_BMAJ_DEG,
     NVSS_BMAJ_DEG,
     VLASS_BMAJ_DEG,
     VLSSR_BMAJ_DEG,
@@ -27,6 +28,7 @@ _SURVEY_BEAM_DEG: dict[str, float] = {
     "VLSSR": VLSSR_BMAJ_DEG,
     "NVSS": NVSS_BMAJ_DEG,
     "VLASS": VLASS_BMAJ_DEG,
+    "LODESS": LODES_BMAJ_DEG,
 }
 
 if TYPE_CHECKING:
@@ -99,7 +101,8 @@ def catalog_with_survey_beam(df: pd.DataFrame, survey: str) -> pd.DataFrame:
     """Return a copy with beam columns set for the selected image-survey overlay.
 
     ``LWA`` keeps catalog ``Maj`` / ``Min`` / ``PA``. ``VLSSR`` / ``NVSS`` /
-    ``VLASS`` replace those with a circular beam at the survey ``BMAJ``.
+    ``VLASS`` / ``LoDeSS`` replace those with a circular beam at the survey
+    ``BMAJ``.
     """
     key = str(survey).strip().upper()
     if key == "LWA":

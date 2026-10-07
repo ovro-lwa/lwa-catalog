@@ -10,6 +10,8 @@ import pandas as pd
 
 from lwa_catalog.analyze.reliability import resolve_bmaj
 from lwa_catalog.constants import (
+    LODES_BMAJ_ARCSEC,
+    LODES_POSITION_ERROR_DEFAULT_ARCSEC,
     NVSS_BMAJ_ARCSEC,
     NVSS_POSITION_ERROR_DEFAULT_ARCSEC,
     VLASS_BMAJ_ARCSEC,
@@ -82,6 +84,14 @@ VLASS_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
 VLASS_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
     mode="beam",
     default_arcsec=VLASS_BMAJ_ARCSEC,
+)
+LODES_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
+    mode="localization",
+    default_arcsec=LODES_POSITION_ERROR_DEFAULT_ARCSEC,
+)
+LODES_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
+    mode="beam",
+    default_arcsec=LODES_BMAJ_ARCSEC,
 )
 
 LWA_CROSSMATCH_RADIUS_BEAM = CrossmatchRadiusSpec(mode="beam")
