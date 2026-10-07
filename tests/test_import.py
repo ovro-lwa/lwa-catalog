@@ -227,13 +227,17 @@ def test_analyze_band_merge_trace_exports() -> None:
 
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
+        DEFAULT_BEAM_SCALE,
+        DEFAULT_BEAM_SCALE_PROBE_TILES,
         DEFAULT_TIER2_BDSF_KW,
+        BeamScaleEstimateConfig,
         attach_beam_and_freq,
         blank_below_elevation,
         detect_sources,
         detect_sources_many,
         detect_sources_on_healpix_tiles,
         discover_fits_files,
+        estimate_beam_scale,
         fuse_gaul_m_with_tier2_s,
         iter_detect_sources,
         median_beam_from_paths,
@@ -255,5 +259,9 @@ def test_create_apis_importable() -> None:
     assert callable(filter_detections_near_transit)
     assert callable(fuse_gaul_m_with_tier2_s)
     assert callable(merge_tier2_bdsf_kw)
+    assert callable(estimate_beam_scale)
     assert isinstance(DEFAULT_TIER2_BDSF_KW, dict)
+    assert DEFAULT_BEAM_SCALE == 1.0
+    assert DEFAULT_BEAM_SCALE_PROBE_TILES == (28, 102, 189)
+    assert BeamScaleEstimateConfig is not None
     assert merge_lst_metacatalog([], band="Full").empty

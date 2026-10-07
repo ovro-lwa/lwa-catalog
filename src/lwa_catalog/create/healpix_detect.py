@@ -26,8 +26,8 @@ from lwa_catalog.create.tiered_detect import (
 from lwa_catalog.gaul import cast_gaul_string_columns
 
 # Global scale on band-median BMAJ/BMIN for HEALPix-tile PyBDSF (both tiers).
-# Default 1.1 from residual / Maj experiment (2026-10); use 1.0 for unscaled median.
-DEFAULT_BEAM_SCALE: float = 1.1
+# Default 1.0 (unscaled median); use estimate_beam_scale for per-band residual-optimal α.
+DEFAULT_BEAM_SCALE: float = 1.0
 
 __all__ = [
     "DEFAULT_BEAM_SCALE",
@@ -82,9 +82,9 @@ def scale_beam(
 ) -> tuple[float, float, float]:
     """Return ``(scale * BMAJ, scale * BMIN, BPA)`` in degrees.
 
-    Used to inflate the band-median restoring beam before PyBDSF on HEALPix
-    tiles (default ``scale=1.1``). ``BPA`` is unchanged. Raises ``ValueError``
-    if *scale* is non-finite or ``<= 0``.
+    Used to scale the band-median restoring beam before PyBDSF on HEALPix
+    tiles (default ``scale=1.0``, identity). ``BPA`` is unchanged. Raises
+    ``ValueError`` if *scale* is non-finite or ``<= 0``.
     """
     s = float(scale)
     if not np.isfinite(s) or s <= 0.0:
@@ -169,8 +169,9 @@ def detect_sources_on_healpix_tiles(
         *beam_scale* before attach (not stored in lwa-healpix).
     beam_scale
         Multiplier applied to ``BMAJ``/``BMIN`` for both tiers (default
-        :data:`DEFAULT_BEAM_SCALE` ``1.1``). Catalog ``BMAJ``/``BMIN``
-        columns use the scaled beam. Pass ``1.0`` for unscaled median.
+        :data:`DEFAULT_BEAM_SCALE` ``1.0``). Catalog ``BMAJ``/``BMIN``
+        columns use the scaled beam. For a residual-optimal per-band scale,
+        see :func:`lwa_catalog.create.estimate_beam_scale`.
     band
         Catalog ``band`` column value.
     bdsf_kw

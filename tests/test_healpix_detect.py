@@ -55,7 +55,7 @@ def test_scale_beam_default() -> None:
     assert bmaj == pytest.approx(0.10 * DEFAULT_BEAM_SCALE)
     assert bmin == pytest.approx(0.08 * DEFAULT_BEAM_SCALE)
     assert bpa == pytest.approx(12.0)
-    assert DEFAULT_BEAM_SCALE == pytest.approx(1.1)
+    assert DEFAULT_BEAM_SCALE == pytest.approx(1.0)
 
 
 def test_scale_beam_identity_and_invalid() -> None:
@@ -144,7 +144,7 @@ def test_detect_sources_on_healpix_tiles_tags_ipix(monkeypatch: pytest.MonkeyPat
     assert int(df.iloc[0]["tile_ipix"]) == 0
     assert int(df.iloc[0]["nside_tile"]) == nside_tile
     assert df.iloc[0]["band"] == "Full"
-    # Default beam_scale=1.1 applied to catalog beam columns
+    # Default beam_scale=1.0 (identity) on catalog beam columns
     assert df.iloc[0]["BMAJ"] == pytest.approx(0.1 * DEFAULT_BEAM_SCALE)
     assert df.iloc[0]["BMIN"] == pytest.approx(0.1 * DEFAULT_BEAM_SCALE)
 
@@ -204,15 +204,15 @@ def test_detect_sources_on_healpix_tiles_beam_scale(
         skip_empty=True,
     )
     df_default = detect_sources_on_healpix_tiles(**common)
-    assert df_default.iloc[0]["BMAJ"] == pytest.approx(0.22)
-    assert df_default.iloc[0]["BMIN"] == pytest.approx(0.11)
+    assert df_default.iloc[0]["BMAJ"] == pytest.approx(0.2)
+    assert df_default.iloc[0]["BMIN"] == pytest.approx(0.1)
     assert df_default.iloc[0]["BPA"] == pytest.approx(3.0)
-    assert attached[-1] == pytest.approx((0.22, 0.11, 3.0))
-
-    df_one = detect_sources_on_healpix_tiles(**common, beam_scale=1.0)
-    assert df_one.iloc[0]["BMAJ"] == pytest.approx(0.2)
-    assert df_one.iloc[0]["BMIN"] == pytest.approx(0.1)
     assert attached[-1] == pytest.approx((0.2, 0.1, 3.0))
+
+    df_scaled = detect_sources_on_healpix_tiles(**common, beam_scale=1.1)
+    assert df_scaled.iloc[0]["BMAJ"] == pytest.approx(0.22)
+    assert df_scaled.iloc[0]["BMIN"] == pytest.approx(0.11)
+    assert attached[-1] == pytest.approx((0.22, 0.11, 3.0))
 
 
 def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPatch) -> None:
