@@ -129,9 +129,14 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   `align="diamond"` with `margin=0.05` (HEALPix-edge-aligned tiles; use
   `align="celestial"` + `overlap` for legacy north-aligned squares). Band-median
   header `BMAJ`/`BMIN` are multiplied by `beam_scale` (library default
-  **`DEFAULT_BEAM_SCALE = 1.1`**; pass `1.0` for unscaled) before both tiers;
+  **`DEFAULT_BEAM_SCALE = 1.0`**, unscaled median) before both tiers;
   catalog `BMAJ`/`BMIN`/`BPA` follow the scaled fit-time beam. Optional
-  **2-tier detect** (`tier2_bdsf_kw` not `None`): tier-1 deep catalog
+  **`estimate_beam_scale`** (`create/beam_scale.py`) picks one α per band
+  HEALPix coadd by minimizing mean map−GAUL `resid_rms` on fixed Dec-stratified
+  probe tiles `(28, 102, 189)` under tier2fuse; notebook flag
+  `ESTIMATE_BEAM_SCALE` calls it before full-sky detect (fallback α=1.0).
+  Do **not** use unconstrained Maj-median as the production estimator.
+  Optional **2-tier detect** (`tier2_bdsf_kw` not `None`): tier-1 deep catalog
   (notebook `thresh_isl=2` / `thresh_pix=3`) plus a high-threshold pass
   (defaults `thresh_isl=4` / `thresh_pix=7` via `DEFAULT_TIER2_BDSF_KW`);
   `fuse_gaul_m_with_tier2_s` replaces coincident tier-1 `S_Code=M` clumps
@@ -564,18 +569,24 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 ## Experiment conclusions (PSF / HEALPix detect, 2026-10)
 
 Trail under `.agents/` (`research-*`, `plan-*`, `experiment-*`, `implement-*`);
-bulky per-trial FITS/catalogs removed — keep markdown + small `summary*.parquet`.
+**bulky per-trial catalogs removed** — keep markdown + `summary*.parquet` (+ small
+recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
 
-- **LST coadd smear:** On tile 111 / 73 MHz, all-LST vs single-LST Maj widening
-  (~5% at elev 15°/40°) disappears under stricter elliptical cuts (25°/55° or
-  **22.76°/55°**). Absolute `Maj/BMAJ ≈ 1.29` remains even at N=1 — beam prior
-  dominates over hour count. See `experiment-lst-average-psf-smearing.md`.
-- **Restoring-beam α:** Modest global α (~1.1 at 73 MHz, ~1.3 at 82 MHz) improves
-  map−model residual; library default `DEFAULT_BEAM_SCALE = 1.1`. Raw per-tile
-  Maj-median overshoots (esp. low Dec) and often worsens residual — do not ship.
-  **Keep 2-tier**; PSF scale is complementary, not a 2-tier retirement. See
-  `research-over-decomposition-all-frequencies.md` follow-up +
-  `implement-beam-psf-overdecomposition-residuals.md`.
+- **LST coadd smear:** Hour-stack Maj widening vanishes under elliptical elev
+  cuts (**22.76°/55°**); absolute `Maj/BMAJ≈1.29` even at N=1 (beam prior).
+  → `experiment-lst-average-psf-smearing.md`
+- **Restoring-beam α (shipped):** Best α is **band-dependent** (~1.0–2.0).
+  Fixed 1.1 is not universal (can worsen high-ν residual). Median
+  Δbest/resid_best ≈ +2%; α=1.1 often ~4–9% above floor. Residual-optimal α
+  **cuts** source/`M` counts (esp. single; muted under tier2fuse) — optimizes
+  map−model fit, not completeness. **Reject** Maj-median / per-tile size
+  estimators (low-Dec overshoot). **Keep 2-tier.**
+  - Default: `DEFAULT_BEAM_SCALE = 1.0`
+  - Estimate: `estimate_beam_scale` — mean resid on probes **28 / 102 / 189**,
+    tier2fuse, discrete α grid; notebook `ESTIMATE_BEAM_SCALE`
+  - Summaries: `experiment-beam-psf-overdecomp/{summary,all-subbands/summary}.*`
+  - Plans: `plan-per-band-beam-alpha-estimate.md`,
+    `implement-per-band-beam-alpha-estimate.md`
 
 ## Open and deferred
 
@@ -584,8 +595,8 @@ never signed off):
 
 - Mosaic WCS/beam for detection; whether `n_lst_contributions` means anything
   on a single coadd.
-- Wider-band / more-tile confirmation before baking α beyond `DEFAULT_BEAM_SCALE`;
-  capped or Dec-dependent PSF estimators (raw Maj-median rejected).
+- Auto-pick Dec-stratified probe tiles from map footprint (fixed 28/102/189
+  shipped); optional estimate-result cache per band in the notebook.
 - VLSSR completeness denominator (all sources vs Dec cut vs LWA footprint /
   sensitivity). Seeding union-find from VLSSR was explicitly **out of scope**.
 - Peak+Total spectral fits in one pass; RGB as default spectral input; HiPS of
