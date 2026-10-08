@@ -131,6 +131,24 @@ def test_analyze_lodess_exports() -> None:
     assert hasattr(LodesMatchResult, "__dataclass_fields__")
 
 
+def test_analyze_erass3_exports() -> None:
+    from lwa_catalog.analyze import (
+        Erass3MatchConfig,
+        Erass3MatchResult,
+        attach_erass3_to_metacatalog,
+        load_erass3_catalog,
+        match_catalog_to_erass3,
+        summarize_erass3_match,
+    )
+
+    assert callable(load_erass3_catalog)
+    assert callable(match_catalog_to_erass3)
+    assert callable(attach_erass3_to_metacatalog)
+    assert callable(summarize_erass3_match)
+    assert Erass3MatchConfig().target == "metacatalog"
+    assert hasattr(Erass3MatchResult, "__dataclass_fields__")
+
+
 def test_analyze_vlass_exports() -> None:
     from lwa_catalog.analyze import (
         VlassMatchConfig,

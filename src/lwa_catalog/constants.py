@@ -62,6 +62,17 @@ LODES_DEFAULT_PATH: Path = Path(
     "/fast/claw/LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits"
 )
 
+# eROSITA eRASS:3 Main + Legacy Survey DR10 counterparts (Merloni et al.;
+# German / western Galactic hemisphere, Galactic longitude 180°–360°).
+ERASS3_DEFAULT_PATH: Path = Path(
+    "/fast/claw/eRASSc3_Main_LS10_Public_27Jul2026.fits"
+)
+# Footprint: western Galactic hemisphere (eROSITA German share).
+ERASS3_GLON_MIN_DEG: float = 180.0
+ERASS3_GLON_MAX_DEG: float = 360.0
+# Fallback 1σ when POS_ERR is missing (~median of Main catalog).
+ERASS3_POSITION_ERROR_DEFAULT_ARCSEC: float = 4.0
+
 # NED Local Volume Sample (Cook et al. 2023; latest FITS from NED-LVS page).
 NEDLVS_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "NEDLVS_current.fits"
 NEDLVS_DEFAULT_MAX_REDSHIFT: float = 0.2

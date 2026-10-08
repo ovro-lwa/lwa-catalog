@@ -27,6 +27,7 @@ from lwa_catalog.analyze.bootstrap import (
     select_bijective_pairs,
 )
 from lwa_catalog.analyze.crossmatch_radius import (
+    ERASS3_REFERENCE_RADIUS_LOCALIZATION,
     LODES_REFERENCE_RADIUS_BEAM,
     LODES_REFERENCE_RADIUS_LOCALIZATION,
     LWA_CROSSMATCH_RADIUS_BEAM,
@@ -40,6 +41,18 @@ from lwa_catalog.analyze.crossmatch_radius import (
     CrossmatchRadiusSpec,
     describe_crossmatch_radius,
     match_radius_deg,
+)
+from lwa_catalog.analyze.erass3 import (
+    ERASS3_ATTACH_COLUMNS,
+    ERASS3_LOAD_COLUMNS,
+    Erass3MatchConfig,
+    Erass3MatchResult,
+    attach_erass3_to_metacatalog,
+    in_erass3_footprint,
+    load_erass3_catalog,
+    match_catalog_to_erass3,
+    select_unique_erass3_matches,
+    summarize_erass3_match,
 )
 from lwa_catalog.analyze.lodess import (
     LodesMatchConfig,
@@ -188,6 +201,7 @@ __all__ = [
     "numeric_feature_matrix",
     "resolve_mahalanobis_columns",
     "CrossmatchRadiusSpec",
+    "ERASS3_REFERENCE_RADIUS_LOCALIZATION",
     "LWA_CROSSMATCH_RADIUS_BEAM",
     "LWA_CROSSMATCH_RADIUS_LOCALIZATION",
     "LODES_REFERENCE_RADIUS_BEAM",
@@ -200,6 +214,16 @@ __all__ = [
     "VLSSR_REFERENCE_RADIUS_FIXED",
     "describe_crossmatch_radius",
     "match_radius_deg",
+    "ERASS3_ATTACH_COLUMNS",
+    "ERASS3_LOAD_COLUMNS",
+    "Erass3MatchConfig",
+    "Erass3MatchResult",
+    "attach_erass3_to_metacatalog",
+    "in_erass3_footprint",
+    "load_erass3_catalog",
+    "match_catalog_to_erass3",
+    "select_unique_erass3_matches",
+    "summarize_erass3_match",
     "LodesMatchConfig",
     "LodesMatchResult",
     "load_lodess_catalog",
