@@ -51,7 +51,8 @@ Under `CatalogLayout(root)` / `OUTPUT_DIR` / `CATALOG_DIR`:
 | Per-image sources | `sources_{lst}_{band}.parquet` | One PyBDSF `gaul` catalog per FITS |
 | LST-merged band | `metacatalog_lst_{band}.parquet` | Same-source identity within one band |
 | Global fusion | `metacatalog.parquet` | One row per unique sky source (+ `quality_flag` after reliability) |
-| Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows; optional survey attach then `spec_*` fits |
+| Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows; optional radio survey attach then `spec_*` fits |
+| X-ray sidecar | `metacatalog_xray.parquet` | LWA×eRASS:3 attach (not fused into spectral) |
 | Quality bit table | `metacatalog_quality_flags.parquet` | Per-bit boolean diagnostics (optional) |
 | Reliability HiPS | `hips_*_nside64/` | Peak-flux-weighted maps, not FITS |
 | Sky PNGs | `sky_screenshots/` | `ipyaladin.save_view_as_image` |
@@ -72,7 +73,9 @@ CSV/FITS catalogs or HEALPix FITS maps.
 `radio_crossmatch.ipynb`
 quality-filters fusion and writes `metacatalog_spectral.parquet` with survey
 columns; spectral modeling then reads that file (or creates it from fusion)
-and adds `spec_*`.
+and adds `spec_*`. X-ray attach writes a separate
+`metacatalog_xray.parquet` sidecar — **never** fold eRASS columns into the
+spectral product.
 
 RGB color bands: `COLOR_BANDS = ("Full", "Blue", "Green", "Red")`.
 Association order: Full+Blue seed, then Green, then Red (`ASSOC_BANDS`).
@@ -286,6 +289,7 @@ External catalogs live under `REFERENCE_CATALOGS_DIR = Path("/fast/claw/catalogs
 | NVSS | 1.4 GHz | 45″ | `nvss/nvss_vizier.parquet` |
 | VLASS | ~3 GHz | 2.5″ | CIRADA QL component CSV |
 | LoDeSS | 15–30 MHz (ν₀≈23 MHz) | ~45″ | `/fast/claw/LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits` |
+| eRASS:3 | X-ray | `POS_ERR` (~1–12″) | `eRASSc3_Main_LS10_Public_*.fits` |
 | NED-LVS | hosts | position+diameter | `NEDLVS_current.fits` |
 
 **LWA-centric astrometry.** Match on LWA `RA`/`DEC` + LWA `BMAJ`
@@ -308,6 +312,10 @@ Photometric attach (`attach_radio_surveys_to_metacatalog` in
   components are not LWA centroids).
 - LoDeSS load/match lives in `analyze/lodess.py` (`load_lodess_catalog`,
   `match_catalog_to_lodess`); notebook QA compares to LWA **23 MHz**.
+- eRASS:3 load/match lives in `analyze/erass3.py`; notebook
+  `xray_crossmatch.ipynb`. Footprint cut is **Galactic**
+  `l ∈ [180°, 360°)` (western Gal sky), not RA-west. Match radius uses
+  `POS_ERR` localization. Product is `metacatalog_xray.parquet` only.
 
 Match-direction diagnostics (VLSSR QA, reusable):
 
@@ -432,14 +440,33 @@ UI lives at the bottom of `metacatalog_query.ipynb` (and
 - Vector overlays (ellipses + markers) can be multi-catalog. LWA uses
   `Maj`/`Min`/`PA`; external surveys use circular `VLSSR_BMAJ_DEG` /
   `NVSS_BMAJ_DEG` / `VLASS_BMAJ_DEG` via `catalog_with_survey_beam`.
+  eRASS:3 overlays map `POS_ERR` (arcsec) → circular `Maj`/`Min` in the
+  notebook (`catalog_with_erass3_pos_err` in `xray_crossmatch.ipynb`).
 - LWA band palette (`BAND_OVERLAY_COLORS`) is for LWA bands only. External
   surveys pass `overlay_catalog_by_band(..., color=)`.
 - FOV filter then cap (default ~500). Overlay names `catalog_Red`, etc.;
   rematch prefixes `trace_lst`, `trace_src`. `replace=True` removes before
-  re-add. Cross fallback when ellipse axes incomplete. PA is N→E.
+  re-add. **Hybrid markers** (`overlay_catalog_by_band`): screen-pixel
+  crosses always (visible at every FOV); sky ellipses only when
+  ``Maj ≥ DEFAULT_MIN_ELLIPSE_FOV_FRAC × FOV`` (default 1%,
+  `ellipse_visible_at_fov`). Pure sky-angular ellipses made tiny beams
+  (eRASS `POS_ERR` ~1–12″) invisible until deep zoom while LWA beams
+  (arcminutes) appeared early — do not revert to ellipse-only. PA is N→E.
+- Cross markers come from ipyaladin `add_table`. ipyaladin hardwires
+  `onClick: "showTable"`: a **click** opens Aladin Lite’s measurement
+  panel with the uploaded VOTable columns (we pass `RA`/`DEC`/
+  `Peak_flux`/`meta_id`/`origin_band`/`band` when present). Hover only
+  recolors (`hoverColor`); the panel vanishing quickly is usually an
+  overlay redraw (`DebouncedAladinViewRefresh` remove+re-add). Region
+  ellipses (`add_graphic_overlay_from_region`) do **not** get this panel.
+- eRASS catalog circles ≠ eRASS1 RGB Rate HiPS: Main+LS10 sources often
+  have no obvious blob on the rate map. Sky QA may filter overlay rows by
+  `DET_LIKE` (notebook default ≥100) so only brighter detections clutter
+  the view.
 - Browser fetches HiPS tiles (kernel does not). URLs must be reachable from
   the user’s browser (SSH tunnels). Local `/fast/claw` HiPS are LWA-only;
-  VLSSR/NVSS/VLASS use public CDS/NRAO URLs (`survey_hips_url`).
+  VLSSR/NVSS/VLASS use public CDS/NRAO URLs (`survey_hips_url`); eRASS
+  uses `survey_hips_url("eRASS3")` / CDS eROSITA HiPS.
 - Sky wiring stays in notebooks (`CatalogBrowser` config + instantiate,
   `RadioCrossmatchSkyQA`); the reusable `CatalogBrowser` class lives in
   `lwa_catalog.viz.browser`. Other helpers live in `lwa_catalog.viz` (HiPS
@@ -461,8 +488,8 @@ UI lives at the bottom of `metacatalog_query.ipynb` (and
 Thin cells over library APIs. Config cell sets `CATALOG_DIR` / `CatalogLayout`.
 Pandas filters in config (`RADIO_QA_FILTER`), not expression-eval UIs. List new
 notebooks in `notebooks/README.md` (that file currently lags: it omits
-`radio_crossmatch.ipynb`, `anomaly_detection.ipynb`, and
-`metacatalog_association_qc_summary.ipynb`).
+`radio_crossmatch.ipynb`, `xray_crossmatch.ipynb`, `anomaly_detection.ipynb`,
+and `metacatalog_association_qc_summary.ipynb`).
 
 | Notebook | Role |
 | -------- | ---- |
@@ -475,6 +502,7 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
 | `metacatalog_spectral_modeling.ipynb` | Prefer radio spectral product or create it; Taylor SED (LWA ± surveys) |
 | `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS → `metacatalog_spectral.parquet` |
+| `xray_crossmatch.ipynb` | eRASS:3 attach → `metacatalog_xray.parquet`; class pie; sky QA (eRASS HiPS + LWA/eRASS3 overlays) |
 | `metacatalog_nedlvs_crossmatch.ipynb` | Galaxy host association (later than this distillation) |
 | `target_samples.ipynb` | Class samples for the query browser |
 
@@ -529,6 +557,9 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 - Leaving Aladin Lite `inertia=True` (default) on catalog sky widgets —
   mouse-release coast + `DebouncedAladinViewRefresh` looks like runaway spinning.
   Use `make_aladin` (`inertia=False`).
+- Ellipse-only catalog overlays (no always-on pixel crosses) — tiny
+  `POS_ERR` / survey beams vanish at wide FOV.
+- Folding eRASS / X-ray columns into `metacatalog_spectral.parquet`.
 - Silently switching healpix default back to point deposits.
 - Treating `display_columns` as the Mahalanobis feature selector.
 - Passing raw HEALPix maps or beamless coadds to PyBDSF (package via
@@ -563,6 +594,15 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
   (`_COMMIT_META_ID_JS`), read via `_meta_id_from_input()`, and defer the Python
   handler one turn (`_run_after_input_sync`). Do not trust `self.meta_id` alone
   on button click.
+- **Sky-angular size ≠ screen size.** Catalog ellipse overlays scale with FOV;
+  pixel `add_table` crosses do not. Hybrid (cross always + FOV-gated ellipse)
+  keeps multi-catalog markers comparable. Override floor via
+  `min_ellipse_fov_frac` on `overlay_catalog_by_band`.
+- **eRASS west means Galactic west.** Operators saying “western sky” for
+  eRASS:3 Main mean `l ≥ 180°`, not `RA` west of the meridian.
+- **Catalog markers vs HiPS rasters are different products.** Matching
+  circles to an eRASS1 rate HiPS blob is often unfair (selection, epoch,
+  DET_LIKE); filter overlays by detection likelihood when the map looks empty.
 
 ---
 
@@ -609,6 +649,8 @@ never signed off):
   sidecars and several notebooks.
 
 Later than this distillation (exists in code; treat the modules as authority):
-`analyze/nedlvs.py`, `nvss.py`, `vlass.py`, `bootstrap.py`,
+`analyze/nedlvs.py`, `nvss.py`, `vlass.py`, `erass3.py`, `bootstrap.py`,
 `crossmatch_radius.py`, expanded `SourceQualityFlag`,
-`notebooks/metacatalog_nedlvs_crossmatch.ipynb`.
+`notebooks/metacatalog_nedlvs_crossmatch.ipynb`,
+`notebooks/xray_crossmatch.ipynb`, hybrid Aladin markers
+(`ellipse_visible_at_fov` / `DEFAULT_MIN_ELLIPSE_FOV_FRAC`).
