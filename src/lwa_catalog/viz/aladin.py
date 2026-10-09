@@ -24,6 +24,9 @@ from lwa_catalog.viz.bands import band_overlay_color, resolve_band_labels
 
 # Distinct from LWA band palette so the selected source is obvious on the sky.
 SELECTION_OVERLAY_COLOR: str = "#FFD700"
+# Draw sky ellipses only when Maj spans at least this fraction of the FOV
+# (~8 px on an ~800 px view). Smaller beams stay as pixel crosses only.
+DEFAULT_MIN_ELLIPSE_FOV_FRAC: float = 0.01
 _SURVEY_BEAM_DEG: dict[str, float] = {
     "VLSSR": VLSSR_BMAJ_DEG,
     "NVSS": NVSS_BMAJ_DEG,
@@ -95,6 +98,26 @@ def shape_complete_mask(df: pd.DataFrame) -> pd.Series:
     min_ = pd.to_numeric(df["Min"], errors="coerce")
     pa = pd.to_numeric(df["PA"], errors="coerce")
     return maj.notna() & min_.notna() & pa.notna() & (maj > 0) & (min_ > 0)
+
+
+def ellipse_visible_at_fov(
+    df: pd.DataFrame,
+    fov_deg: float,
+    *,
+    min_fov_fraction: float = DEFAULT_MIN_ELLIPSE_FOV_FRAC,
+) -> pd.Series:
+    """True where beam ellipses are large enough to see at the current FOV.
+
+    Requires complete ``Maj``/``Min``/``PA`` and ``Maj >= min_fov_fraction * fov``.
+    Tiny error circles (e.g. eRASS ``POS_ERR``) stay invisible as ellipses at
+    wide FOV; pixel crosses remain the always-on marker.
+    """
+    complete = shape_complete_mask(df)
+    if df.empty or not bool(complete.any()):
+        return complete
+    maj = pd.to_numeric(df["Maj"], errors="coerce")
+    floor = float(min_fov_fraction) * max(float(fov_deg), 0.0)
+    return complete & maj.ge(floor)
 
 
 def catalog_with_survey_beam(df: pd.DataFrame, survey: str) -> pd.DataFrame:
@@ -320,33 +343,45 @@ def _add_band_overlay(
     overlay_name: str,
     color: str,
     source_size: int,
+    fov_deg: float,
     line_width: int | None = None,
     cross_suffix: bool = True,
+    draw_crosses: bool = True,
+    min_ellipse_fov_frac: float = DEFAULT_MIN_ELLIPSE_FOV_FRAC,
 ) -> int:
+    """Draw pixel crosses (always) and FOV-gated sky ellipses.
+
+    Returns the number of unique sources that received a marker (cross and/or
+    ellipse). When ``draw_crosses`` is False (selection path), only ellipses
+    that pass the FOV gate are drawn here; the caller adds the gold cross.
+    """
     if df.empty:
         return 0
 
-    complete = shape_complete_mask(df)
-    ellipse_df = df.loc[complete]
-    cross_df = df.loc[~complete]
     drawn = 0
-    drawn += _add_ellipse_overlay(
+    if draw_crosses:
+        cross_name = f"{overlay_name}_cross" if cross_suffix else overlay_name
+        drawn = _add_cross_table_overlay(
+            aladin,
+            df,
+            overlay_name=cross_name,
+            color=color,
+            source_size=source_size,
+            line_width=line_width,
+        )
+
+    ellipse_df = df.loc[
+        ellipse_visible_at_fov(df, fov_deg, min_fov_fraction=min_ellipse_fov_frac)
+    ]
+    n_ellipses = _add_ellipse_overlay(
         aladin,
         ellipse_df,
         overlay_name=overlay_name,
         color=color,
         line_width=line_width,
     )
-    if not cross_df.empty:
-        cross_name = f"{overlay_name}_cross" if cross_suffix else overlay_name
-        drawn += _add_cross_table_overlay(
-            aladin,
-            cross_df,
-            overlay_name=cross_name,
-            color=color,
-            source_size=source_size,
-            line_width=line_width,
-        )
+    if not draw_crosses:
+        drawn = n_ellipses
     return drawn
 
 
@@ -357,8 +392,10 @@ def _draw_band_colored_overlays(
     *,
     name_prefix: str,
     source_size: int,
+    fov_deg: float,
     line_width: int | None = None,
     color_override: str | None = None,
+    min_ellipse_fov_frac: float = DEFAULT_MIN_ELLIPSE_FOV_FRAC,
 ) -> dict[str, int]:
     per_band: dict[str, int] = {}
     if df.empty:
@@ -375,7 +412,9 @@ def _draw_band_colored_overlays(
             overlay_name=f"{name_prefix}_{band}",
             color=color,
             source_size=source_size,
+            fov_deg=fov_deg,
             line_width=line_width,
+            min_ellipse_fov_frac=min_ellipse_fov_frac,
         )
         if count:
             per_band[band] = count
@@ -398,11 +437,13 @@ def overlay_catalog_by_band(
     source_size: int = 8,
     selection_source_size: int = 12,
     color: str | None = None,
+    min_ellipse_fov_frac: float = DEFAULT_MIN_ELLIPSE_FOV_FRAC,
 ) -> OverlayResult:
-    """FOV-filter, cap, and draw band-colored beam ellipses (cross fallback).
+    """FOV-filter, cap, and draw band-colored markers (cross + FOV-gated ellipse).
 
-    Rows with complete ``Maj``/``Min``/``PA`` are drawn as ellipses via
-    ``add_graphic_overlay_from_region``; incomplete rows use cross markers.
+    Every in-FOV source gets a screen-pixel cross so markers stay visible at all
+    zoom levels. Sky ellipses (``Maj``/``Min``/``PA``) are added only when
+    ``Maj`` spans at least ``min_ellipse_fov_frac`` of the current FOV.
 
     Parameters
     ----------
@@ -410,6 +451,9 @@ def overlay_catalog_by_band(
         ``.iloc`` index into ``df`` for the emphasized selection overlay.
     color
         Optional single overlay color (overrides per-band colors).
+    min_ellipse_fov_frac
+        Minimum ``Maj / fov_deg`` required to draw a sky ellipse. Default
+        :data:`DEFAULT_MIN_ELLIPSE_FOV_FRAC`.
     """
     if replace:
         _remove_overlays(aladin, name_prefix)
@@ -426,24 +470,28 @@ def overlay_catalog_by_band(
         band_labels,
         name_prefix=name_prefix,
         source_size=source_size,
+        fov_deg=fov_deg,
         color_override=color,
+        min_ellipse_fov_frac=min_ellipse_fov_frac,
     )
     drawn = int(sum(per_band.values()))
 
     if selection_idx is not None and 0 <= selection_idx < len(df):
         row = df.iloc[selection_idx : selection_idx + 1]
-        # Gold ellipse/cross — never reuse band colors (those blend into the overlay).
+        # Gold ellipse when large enough — never reuse band colors.
         _add_band_overlay(
             aladin,
             row,
             overlay_name=f"{name_prefix}_selection",
             color=SELECTION_OVERLAY_COLOR,
             source_size=selection_source_size,
+            fov_deg=fov_deg,
             line_width=3,
             cross_suffix=False,
+            draw_crosses=False,
+            min_ellipse_fov_frac=min_ellipse_fov_frac,
         )
-        # Always place a gold cross so the pick is visible even when the ellipse
-        # matches a crowded beam or the shape columns are incomplete.
+        # Always place a gold cross so the pick is visible at every FOV.
         _add_cross_table_overlay(
             aladin,
             row,

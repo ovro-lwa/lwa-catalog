@@ -12,11 +12,13 @@ from astropy.coordinates import SkyCoord
 
 from lwa_catalog.constants import BAND_OVERLAY_COLORS
 from lwa_catalog.viz.aladin import (
+    DEFAULT_MIN_ELLIPSE_FOV_FRAC,
     SELECTION_OVERLAY_COLOR,
     _catalog_pa_to_regions_angle,
     _dataframe_to_ellipse_regions,
     catalog_to_astropy_table,
     clear_catalog_overlays,
+    ellipse_visible_at_fov,
     filter_catalog_fov,
     overlay_catalog_by_band,
     shape_complete_mask,
@@ -89,6 +91,23 @@ def test_shape_complete_mask() -> None:
     )
     mask = shape_complete_mask(df)
     assert mask.tolist() == [True, False, False]
+
+
+def test_ellipse_visible_at_fov_gates_tiny_beams() -> None:
+    df = pd.DataFrame(
+        {
+            "Maj": [0.2, 0.001, np.nan],  # LWA-ish, eRASS-ish, incomplete
+            "Min": [0.1, 0.001, np.nan],
+            "PA": [30.0, 0.0, np.nan],
+        }
+    )
+    # At 5° FOV, floor = 0.05° → only the 0.2° beam qualifies.
+    wide = ellipse_visible_at_fov(df, fov_deg=5.0)
+    assert wide.tolist() == [True, False, False]
+    # Zoomed in: floor = 0.0005° → tiny POS_ERR ellipse appears too.
+    tight = ellipse_visible_at_fov(df, fov_deg=0.05)
+    assert tight.tolist() == [True, True, False]
+    assert DEFAULT_MIN_ELLIPSE_FOV_FRAC == pytest.approx(0.01)
 
 
 def test_filter_catalog_fov() -> None:
@@ -187,6 +206,10 @@ def test_overlay_catalog_by_band_color_override() -> None:
         for call in aladin.add_graphic_overlay_from_region.call_args_list
     }
     assert colors == {"#00bcd4"}
+    table_colors = {
+        call.kwargs.get("color") for call in aladin.add_table.call_args_list
+    }
+    assert table_colors == {"#00bcd4"}
 
 
 def test_overlay_catalog_by_band_mock_aladin() -> None:
@@ -222,17 +245,19 @@ def test_overlay_catalog_by_band_mock_aladin() -> None:
     assert result.per_band == {"Red": 1, "Blue": 1}
     assert aladin.remove_overlay.call_count >= 1
     assert aladin.add_graphic_overlay_from_region.call_count >= 1
-    assert aladin.add_table.call_count >= 2
+    # Cross for every band source + selection mark (Blue has no ellipse).
+    assert aladin.add_table.call_count >= 3
 
     ellipse_names = [
         call.kwargs.get("name")
         for call in aladin.add_graphic_overlay_from_region.call_args_list
     ]
     assert "catalog_Red" in ellipse_names
+    assert "catalog_Blue" not in ellipse_names
 
     table_names = [call.kwargs.get("name") for call in aladin.add_table.call_args_list]
+    assert "catalog_Red_cross" in table_names
     assert "catalog_Blue_cross" in table_names
-    assert "catalog_selection" in table_names or "catalog_selection_mark" in table_names
     assert "catalog_selection_mark" in table_names
 
     shapes = {call.kwargs.get("shape") for call in aladin.add_table.call_args_list}
@@ -246,6 +271,35 @@ def test_overlay_catalog_by_band_mock_aladin() -> None:
     assert BAND_OVERLAY_COLORS["Red"] in colors
     assert BAND_OVERLAY_COLORS["Blue"] in colors
     assert SELECTION_OVERLAY_COLOR in colors
+
+
+def test_overlay_skips_tiny_ellipse_at_wide_fov() -> None:
+    center = SkyCoord(ra=0.0 * u.deg, dec=0.0 * u.deg, frame="icrs")
+    # ~5″ POS_ERR-like circle — invisible as ellipse at 5° FOV.
+    df = pd.DataFrame(
+        {
+            "RA": [0.0],
+            "DEC": [0.0],
+            "Maj": [5.0 / 3600.0],
+            "Min": [5.0 / 3600.0],
+            "PA": [0.0],
+            "origin_band": ["Full"],
+        }
+    )
+    aladin = MagicMock()
+    aladin.remove_overlay = MagicMock()
+    aladin.overlays = []
+
+    overlay_catalog_by_band(aladin, df, "metacatalog", center, fov_deg=5.0)
+    assert aladin.add_graphic_overlay_from_region.call_count == 0
+    assert aladin.add_table.call_count == 1
+    assert aladin.add_table.call_args.kwargs.get("name") == "catalog_Full_cross"
+
+    aladin.reset_mock()
+    aladin.overlays = []
+    overlay_catalog_by_band(aladin, df, "metacatalog", center, fov_deg=0.05)
+    assert aladin.add_graphic_overlay_from_region.call_count == 1
+    assert aladin.add_table.call_count == 1
 
 
 def test_clear_catalog_overlays_removes_suffixed_layers() -> None:

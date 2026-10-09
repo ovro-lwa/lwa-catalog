@@ -7,12 +7,14 @@ Requires the ``lwa-catalog[viz]`` extra (``ipyaladin``, ``panel``) for
 from __future__ import annotations
 
 from lwa_catalog.viz.aladin import (
+    DEFAULT_MIN_ELLIPSE_FOV_FRAC,
     OverlayResult,
     catalog_name_from_file,
     catalog_to_astropy_table,
     catalog_with_survey_beam,
     clear_catalog_overlays,
     clear_trace_overlays,
+    ellipse_visible_at_fov,
     filter_catalog_fov,
     overlay_catalog_by_band,
     overlay_trace_members,
@@ -46,6 +48,7 @@ __all__ = [
     "ALADIN_INIT_DEFAULTS",
     "CatalogBrowser",
     "CatalogBrowserConfig",
+    "DEFAULT_MIN_ELLIPSE_FOV_FRAC",
     "DebouncedAladinViewRefresh",
     "OverlayResult",
     "SURVEY_HIPS_URLS",
@@ -61,6 +64,7 @@ __all__ = [
     "clear_trace_overlays",
     "default_hips_survey",
     "discover_local_hips_surveys",
+    "ellipse_visible_at_fov",
     "fetch_catalog_hips_surveys",
     "fetch_hips_surveys",
     "filter_catalog_fov",
