@@ -136,6 +136,7 @@ def test_analyze_erass3_exports() -> None:
         Erass3MatchConfig,
         Erass3MatchResult,
         attach_erass3_to_metacatalog,
+        class_gal_exgal_counts,
         load_erass3_catalog,
         match_catalog_to_erass3,
         summarize_erass3_match,
@@ -144,6 +145,7 @@ def test_analyze_erass3_exports() -> None:
     assert callable(load_erass3_catalog)
     assert callable(match_catalog_to_erass3)
     assert callable(attach_erass3_to_metacatalog)
+    assert callable(class_gal_exgal_counts)
     assert callable(summarize_erass3_match)
     assert Erass3MatchConfig().target == "metacatalog"
     assert hasattr(Erass3MatchResult, "__dataclass_fields__")

@@ -13,6 +13,7 @@ from lwa_catalog.analyze.crossmatch_radius import LWA_CROSSMATCH_RADIUS_BEAM
 from lwa_catalog.analyze.erass3 import (
     Erass3MatchConfig,
     attach_erass3_to_metacatalog,
+    class_gal_exgal_counts,
     in_erass3_footprint,
     load_erass3_catalog,
     match_catalog_to_erass3,
@@ -169,3 +170,15 @@ def test_attach_erass3_prefers_highest_det_like(tmp_path) -> None:
 
 def test_default_position_error_constant() -> None:
     assert ERASS3_POSITION_ERROR_DEFAULT_ARCSEC > 0.0
+
+
+def test_class_gal_exgal_counts_unique_only() -> None:
+    df = pd.DataFrame(
+        {
+            "n_erass3": [1, 1, 2, 0],
+            "eRASS3_class_gal_exgal": [5, 5, 4, -5],
+        }
+    )
+    counts = class_gal_exgal_counts(df, unique_only=True)
+    assert counts.sum() == 2
+    assert any("STAREX ≥95%" in str(idx) for idx in counts.index)

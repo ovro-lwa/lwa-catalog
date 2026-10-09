@@ -49,6 +49,18 @@ ERASS3_LOAD_COLUMNS: tuple[str, ...] = (
 # Columns copied onto unique-match metacatalog rows (prefixed ``eRASS3_``).
 ERASS3_ATTACH_COLUMNS: tuple[str, ...] = ERASS3_LOAD_COLUMNS
 
+# Salvato et al. 2025 / eRASS Main+LS10: negative = Galactic, positive = extragalactic;
+# larger |value| ⇒ higher confidence (see A&A class_gal_exgal definition).
+CLASS_GAL_EXGAL_LABELS: dict[int, str] = {
+    -5: "Galactic (moving PSF)",
+    -1: "Galactic (other)",
+    1: "Extragalactic (1)",
+    2: "Extragalactic (one separator)",
+    3: "Extragalactic (both separators)",
+    4: "Extragalactic (STAREX 50–95%)",
+    5: "Extragalactic (STAREX ≥95%)",
+}
+
 
 @dataclass(frozen=True)
 class Erass3MatchConfig:
@@ -217,6 +229,31 @@ def select_unique_erass3_matches(meta_flags: pd.DataFrame) -> pd.DataFrame:
     if meta_flags.empty or "n_erass3" not in meta_flags.columns:
         return meta_flags.iloc[0:0].copy()
     return meta_flags.loc[meta_flags["n_erass3"] == 1].copy()
+
+
+def class_gal_exgal_counts(
+    df: pd.DataFrame,
+    *,
+    class_col: str = "eRASS3_class_gal_exgal",
+    n_col: str = "n_erass3",
+    unique_only: bool = True,
+) -> pd.Series:
+    """Return ``class_gal_exgal`` value counts (optionally ``n_erass3 == 1`` only)."""
+    if df.empty or class_col not in df.columns:
+        return pd.Series(dtype=int)
+    work = df
+    if unique_only:
+        if n_col not in df.columns:
+            return pd.Series(dtype=int)
+        work = df.loc[pd.to_numeric(df[n_col], errors="coerce") == 1]
+    codes = pd.to_numeric(work[class_col], errors="coerce")
+    codes = codes[np.isfinite(codes)].astype(int)
+    counts = codes.value_counts().sort_index()
+    counts.index = [
+        f"{CLASS_GAL_EXGAL_LABELS.get(int(c), f'class {int(c)}')} [{int(c)}]"
+        for c in counts.index
+    ]
+    return counts
 
 
 def _catalog_match_frame(
