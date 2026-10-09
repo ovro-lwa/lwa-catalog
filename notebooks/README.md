@@ -12,6 +12,8 @@
 | `metacatalog_vlssr_qa.ipynb` | VLSSR cross-match QA — Blue completeness, over-split, multiplicity diagnostics |
 | `metacatalog_spectral_modeling.ipynb` | Post-hoc Taylor spectral fits — BIC model selection, SED diagnostics |
 | `metacatalog_nedlvs_crossmatch.ipynb` | NED-LVS cross-match — galaxy host association, recovery vs distance |
+| `radio_crossmatch.ipynb` | Radio survey attach (LoDeSS/VLSSR/NVSS/VLASS) → `metacatalog_spectral.parquet` |
+| `xray_crossmatch.ipynb` | eRASS:3 X-ray cross-match → `metacatalog_xray.parquet` + eRASS/LWA HiPS sky QA |
 | `target_samples.ipynb` | Class samples (galaxies, clusters, giant radio sources, peaked-spectrum, SNRs, pulsars, PWNe, XRBs, X-ray/optical) for `metacatalog_query.ipynb` |
 
 ## Catalog storage

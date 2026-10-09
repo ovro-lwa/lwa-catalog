@@ -16,6 +16,8 @@ SURVEY_HIPS_URLS: dict[str, str] = {
     "VLSSR": "https://alasky.cds.unistra.fr/VLSSr/",
     "NVSS": "https://alasky.cds.unistra.fr/NVSS/intensity/",
     "VLASS": "https://vlass-dl.nrao.edu/vlass/HiPS/MedianStack/Quicklook/",
+    # eROSITA eRASS1 RGB rate map (used as eRASS:3 visual QA base).
+    "ERASS3": "https://erosita.mpe.mpg.de/erodat/static/hips/eRASS1_RGB_Rate_c010/",
 }
 
 # Canonical Aladin Lite / CDS HiPS identifier for the VLASS median stack.
@@ -35,14 +37,16 @@ def survey_hips_url(
     *,
     overrides: Mapping[str, str] | None = None,
 ) -> str:
-    """Return the HiPS root URL or Aladin ID for *survey* (``VLSSR`` / ``NVSS`` / ``VLASS``).
+    """Return the HiPS root URL or Aladin ID for *survey*.
+
+    Known keys include ``VLSSR``, ``NVSS``, ``VLASS``, and ``ERASS3``.
 
     Parameters
     ----------
     survey
         Survey name (case-insensitive).
     overrides
-        Optional mapping of survey name → HiPS URL or Aladin ID. Keys are
+        Optional mapping of survey name to HiPS URL or Aladin ID. Keys are
         matched case-insensitively and replace the built-in defaults.
     """
     key = str(survey).strip().upper()

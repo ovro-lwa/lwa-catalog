@@ -121,6 +121,7 @@ METACATALOG_QUALITY_FLAGS_FILENAME: str = "metacatalog_quality_flags.parquet"
 # (quality-filtered + survey cols) and/or ``metacatalog_spectral_modeling.ipynb``
 # (adds ``spec_*``; creates the file when radio was skipped).
 METACATALOG_SPECTRAL_FILENAME: str = "metacatalog_spectral.parquet"
+METACATALOG_XRAY_FILENAME: str = "metacatalog_xray.parquet"
 # Legacy name kept for path helpers / old trees; new writes use the spectral file.
 METACATALOG_RADIO_FILENAME: str = "metacatalog_radio.parquet"
 

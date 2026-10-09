@@ -9,6 +9,7 @@ from lwa_catalog.constants import (
     METACATALOG_QUALITY_FLAGS_FILENAME,
     METACATALOG_RADIO_FILENAME,
     METACATALOG_SPECTRAL_FILENAME,
+    METACATALOG_XRAY_FILENAME,
 )
 
 
@@ -61,6 +62,10 @@ class CatalogLayout:
     def metacatalog_radio(self) -> Path:
         """Legacy radio-sidecar path; prefer :meth:`metacatalog_spectral`."""
         return self.root / METACATALOG_RADIO_FILENAME
+
+    def metacatalog_xray(self) -> Path:
+        """X-ray cross-match sidecar (e.g. eRASS:3 columns on LWA rows)."""
+        return self.root / METACATALOG_XRAY_FILENAME
 
     def with_metacatalog(self, metacatalog_file: str | Path) -> CatalogLayout:
         """Return a copy of this layout pointing at a different metacatalog file."""
