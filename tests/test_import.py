@@ -223,10 +223,12 @@ def test_analyze_band_merge_trace_exports() -> None:
     from lwa_catalog.analyze import (
         HealpixMapCache,
         band_merge_offsets,
+        catalog_with_peak_from_total_flux,
         confused_bands,
         healpix_coadd_path,
         healpix_cutout,
         lst_merged_catalog_for_healpix,
+        peak_jy_beam_from_total_flux,
         plot_band_cutouts,
         plot_band_flux_vs_frequency,
         plot_band_position_offsets,
@@ -237,9 +239,11 @@ def test_analyze_band_merge_trace_exports() -> None:
     assert callable(confused_bands)
     assert callable(plot_band_flux_vs_frequency)
     assert callable(plot_band_position_offsets)
+    assert callable(catalog_with_peak_from_total_flux)
     assert callable(healpix_coadd_path)
     assert callable(healpix_cutout)
     assert callable(lst_merged_catalog_for_healpix)
+    assert callable(peak_jy_beam_from_total_flux)
     assert callable(plot_band_cutouts)
     assert callable(tan_cutout_header)
     assert HealpixMapCache is not None

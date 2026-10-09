@@ -86,9 +86,11 @@ from lwa_catalog.analyze.healpix_cutout import (
     tan_cutout_header,
 )
 from lwa_catalog.analyze.healpix_map import (
+    catalog_with_peak_from_total_flux,
     lst_merged_catalog_for_healpix,
     metacatalog_to_healpix,
     metacatalog_to_hips,
+    peak_jy_beam_from_total_flux,
     write_healpix_hips,
 )
 from lwa_catalog.analyze.nedlvs import (
@@ -279,11 +281,13 @@ __all__ = [
     "filter_metacatalog_include",
     "filter_metacatalog_reliability",
     "filter_or_hesl",
+    "catalog_with_peak_from_total_flux",
     "healpix_coadd_path",
     "healpix_cutout",
     "lst_merged_catalog_for_healpix",
     "metacatalog_to_healpix",
     "metacatalog_to_hips",
+    "peak_jy_beam_from_total_flux",
     "plot_band_cutouts",
     "plot_band_flux_vs_frequency",
     "plot_band_position_offsets",

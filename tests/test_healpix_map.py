@@ -13,11 +13,50 @@ pytest.importorskip("lwa_healpix")
 
 from lwa_catalog.analyze.healpix_map import (  # noqa: E402
     _FWHM_TO_SIGMA,
+    catalog_with_peak_from_total_flux,
     lst_merged_catalog_for_healpix,
     metacatalog_to_healpix,
     metacatalog_to_hips,
+    peak_jy_beam_from_total_flux,
     write_healpix_hips,
 )
+
+
+def test_peak_jy_beam_from_total_flux_unresolved() -> None:
+    """When source FWHM equals the beam, Peak == Total."""
+    peak = peak_jy_beam_from_total_flux(
+        total_flux=np.array([2.0]),
+        maj_fwhm=np.array([0.5]),
+        min_fwhm=np.array([0.4]),
+        bmaj=np.array([0.5]),
+        bmin=np.array([0.4]),
+    )
+    assert peak[0] == pytest.approx(2.0)
+
+
+def test_peak_jy_beam_from_total_flux_resolved() -> None:
+    """Resolved source: Peak = Total * Ω_beam / Ω_src."""
+    peak = peak_jy_beam_from_total_flux(
+        total_flux=np.array([4.0]),
+        maj_fwhm=np.array([1.0]),
+        min_fwhm=np.array([0.5]),
+        bmaj=np.array([0.5]),
+        bmin=np.array([0.25]),
+    )
+    assert peak[0] == pytest.approx(4.0 * (0.5 * 0.25) / (1.0 * 0.5))
+
+
+def test_catalog_with_peak_from_total_flux_uses_bmaj_match() -> None:
+    cat = pd.DataFrame(
+        {
+            "Total_flux": [3.0],
+            "Maj": [0.6],
+            "Min": [0.3],
+            "BMAJ_match": [0.2],
+        }
+    )
+    out = catalog_with_peak_from_total_flux(cat)
+    assert float(out.iloc[0]["Peak_flux"]) == pytest.approx(3.0 * (0.2 * 0.2) / (0.6 * 0.3))
 
 
 def test_metacatalog_to_healpix_point_weighted() -> None:
@@ -182,7 +221,7 @@ def test_metacatalog_to_hips(tmp_path: Path) -> None:
 
 
 def test_lst_merged_catalog_for_healpix_uses_band_native_shape() -> None:
-    """Rematch pulls LST Maj/Min/PA for Peak_flux_{band}, not fused astrometry shape."""
+    """Rematch pulls LST Maj/Min/PA; Peak from Total_flux × Ω_beam/Ω_src."""
     # Fused row: astrometry at 82 MHz (wrong shape), flux at 78 MHz.
     meta = pd.DataFrame(
         {
@@ -193,6 +232,7 @@ def test_lst_merged_catalog_for_healpix_uses_band_native_shape() -> None:
             "Maj": [0.4],
             "Min": [0.3],
             "PA": [10.0],
+            "Total_flux_78MHz": [2.5],
             "Peak_flux_78MHz": [2.5],
         }
     )
@@ -201,7 +241,9 @@ def test_lst_merged_catalog_for_healpix_uses_band_native_shape() -> None:
             "RA": [10.01, 10.2],
             "DEC": [5.01, 5.2],
             "BMAJ": [0.2, 0.2],
+            "BMIN": [0.18, 0.18],
             "Peak_flux": [2.5, 9.0],
+            "Total_flux": [2.5, 9.0],
             "Maj": [0.12, 0.5],
             "Min": [0.11, 0.4],
             "PA": [120.0, 0.0],
@@ -209,9 +251,36 @@ def test_lst_merged_catalog_for_healpix_uses_band_native_shape() -> None:
     )
     out = lst_merged_catalog_for_healpix(meta, band="78MHz", lst_merged=lst)
     assert len(out) == 1
-    assert float(out.iloc[0]["Peak_flux"]) == pytest.approx(2.5)
+    expected = 2.5 * (0.2 * 0.18) / (0.12 * 0.11)
+    assert float(out.iloc[0]["Peak_flux"]) == pytest.approx(expected)
     assert float(out.iloc[0]["Maj"]) == pytest.approx(0.12)
     assert float(out.iloc[0]["PA"]) == pytest.approx(120.0)
+
+
+def test_lst_merged_catalog_for_healpix_keeps_peak_without_total() -> None:
+    """Legacy LST rows without Total_flux keep catalog Peak_flux."""
+    meta = pd.DataFrame(
+        {
+            "meta_id": [1],
+            "RA": [10.0],
+            "DEC": [5.0],
+            "BMAJ_match": [0.5],
+            "Peak_flux_78MHz": [2.5],
+        }
+    )
+    lst = pd.DataFrame(
+        {
+            "RA": [10.01],
+            "DEC": [5.01],
+            "BMAJ": [0.2],
+            "Peak_flux": [2.5],
+            "Maj": [0.12],
+            "Min": [0.11],
+            "PA": [120.0],
+        }
+    )
+    out = lst_merged_catalog_for_healpix(meta, band="78MHz", lst_merged=lst)
+    assert float(out.iloc[0]["Peak_flux"]) == pytest.approx(2.5)
 
 
 def test_lst_merged_catalog_for_healpix_dedups_confused_lst_row() -> None:

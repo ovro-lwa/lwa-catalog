@@ -24,6 +24,13 @@ _HEALPIX_GAUSSIAN_COLUMNS: tuple[str, ...] = (
     "PA",
 )
 
+# Extra columns kept when converting Total_flux → Jy/beam peak for painting.
+_HEALPIX_TOTAL_COLUMNS: tuple[str, ...] = (
+    "Total_flux",
+    "BMAJ",
+    "BMIN",
+)
+
 
 def _bmaj_array_for_associate(df: pd.DataFrame) -> np.ndarray:
     """Per-row BMAJ (degrees) for :func:`associate_catalogs`, else 0."""
@@ -38,6 +45,115 @@ def _bmaj_array_for_associate(df: pd.DataFrame) -> np.ndarray:
     return out
 
 
+def _resolve_beam_axes_deg(
+    df: pd.DataFrame,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-row restoring-beam FWHM ``(BMAJ, BMIN)`` in degrees.
+
+    Prefers ``BMAJ`` / ``BMIN``, then ``BMAJ_match`` / ``BMIN_match``, then
+    ``BMAJ_full``. Missing ``BMIN*`` falls back to the resolved major axis
+    (circular beam).
+    """
+    n = len(df)
+    bmaj = np.full(n, np.nan, dtype=float)
+    for key in ("BMAJ", "BMAJ_match", "BMAJ_full"):
+        if key not in df.columns:
+            continue
+        vals = pd.to_numeric(df[key], errors="coerce").to_numpy(dtype=float)
+        need = ~np.isfinite(bmaj) | (bmaj <= 0.0)
+        take = need & np.isfinite(vals) & (vals > 0.0)
+        bmaj[take] = vals[take]
+
+    bmin = np.full(n, np.nan, dtype=float)
+    for key in ("BMIN", "BMIN_match", "BMIN_full"):
+        if key not in df.columns:
+            continue
+        vals = pd.to_numeric(df[key], errors="coerce").to_numpy(dtype=float)
+        need = ~np.isfinite(bmin) | (bmin <= 0.0)
+        take = need & np.isfinite(vals) & (vals > 0.0)
+        bmin[take] = vals[take]
+    need_min = ~np.isfinite(bmin) | (bmin <= 0.0)
+    bmin[need_min] = bmaj[need_min]
+    return bmaj, bmin
+
+
+def peak_jy_beam_from_total_flux(
+    total_flux: np.ndarray | pd.Series,
+    maj_fwhm: np.ndarray | pd.Series,
+    min_fwhm: np.ndarray | pd.Series,
+    bmaj: np.ndarray | pd.Series,
+    bmin: np.ndarray | pd.Series | None = None,
+) -> np.ndarray:
+    """Convert integrated flux (Jy) to Gaussian peak amplitude (Jy/beam).
+
+    For elliptical Gaussians with FWHM axes in the same angular units:
+
+    ``Peak = Total_flux * (BMAJ * BMIN) / (Maj * Min)``.
+
+    When *bmin* is omitted, *bmaj* is used (circular beam). Rows with
+    non-finite / non-positive total, source axes, or beam axes yield NaN.
+    """
+    tot = np.asarray(total_flux, dtype=float)
+    maj = np.asarray(maj_fwhm, dtype=float)
+    minor = np.asarray(min_fwhm, dtype=float)
+    beam_maj = np.asarray(bmaj, dtype=float)
+    if bmin is None:
+        beam_min = beam_maj
+    else:
+        beam_min = np.asarray(bmin, dtype=float)
+
+    src_area = np.asarray(maj * minor, dtype=float)
+    beam_area = np.asarray(beam_maj * beam_min, dtype=float)
+    ok = (
+        np.isfinite(tot)
+        & np.isfinite(src_area)
+        & np.isfinite(beam_area)
+        & (src_area > 0.0)
+        & (beam_area > 0.0)
+    )
+    out = np.full(np.asarray(tot, dtype=float).shape, np.nan, dtype=float)
+    out[ok] = tot[ok] * beam_area[ok] / src_area[ok]
+    return out
+
+
+def catalog_with_peak_from_total_flux(
+    catalog: pd.DataFrame,
+    *,
+    total_col: str = "Total_flux",
+    maj_col: str = "Maj",
+    min_col: str = "Min",
+) -> pd.DataFrame:
+    """Return a copy with ``Peak_flux`` = Jy/beam amplitude from *total_col*.
+
+    Uses :func:`peak_jy_beam_from_total_flux` with ``Maj``/``Min`` FWHM and
+    restoring beam from ``BMAJ``/``BMIN`` (or ``*_match`` / ``*_full``;
+    circular fallback when ``BMIN`` is missing).
+    """
+    if catalog is None or catalog.empty:
+        out = catalog.copy() if catalog is not None else pd.DataFrame()
+        if not out.empty and "Peak_flux" not in out.columns:
+            out["Peak_flux"] = np.nan
+        return out
+    if total_col not in catalog.columns:
+        msg = f"catalog missing total-flux column {total_col!r}"
+        raise KeyError(msg)
+    for col in (maj_col, min_col):
+        if col not in catalog.columns:
+            msg = f"catalog missing shape column {col!r}"
+            raise KeyError(msg)
+
+    out = catalog.copy()
+    bmaj, bmin = _resolve_beam_axes_deg(out)
+    out["Peak_flux"] = peak_jy_beam_from_total_flux(
+        pd.to_numeric(out[total_col], errors="coerce"),
+        pd.to_numeric(out[maj_col], errors="coerce"),
+        pd.to_numeric(out[min_col], errors="coerce"),
+        bmaj,
+        bmin,
+    )
+    return out
+
+
 def lst_merged_catalog_for_healpix(
     metacatalog: pd.DataFrame,
     *,
@@ -47,20 +163,27 @@ def lst_merged_catalog_for_healpix(
 ) -> pd.DataFrame:
     """Select unique LST-merged Gaussians for band-native HiPS painting.
 
-    Subband fusion stores ``Peak_flux_{band}`` but top-level ``Maj``/``Min``/``PA``
-    come from ``astrometry_band`` (often a different frequency). For a residual
-    against ``healpix_{band}``, paint the LST-merged catalog for *band* instead:
-    rematch each metacatalog row that has a finite ``Peak_flux_{band}`` onto
+    Subband fusion stores ``Total_flux_{band}`` / ``Peak_flux_{band}`` but
+    top-level ``Maj``/``Min``/``PA`` come from ``astrometry_band`` (often a
+    different frequency). For a residual against ``healpix_{band}``, paint the
+    LST-merged catalog for *band* instead: rematch each metacatalog row that
+    has a finite ``Total_flux_{band}`` (else ``Peak_flux_{band}``) onto
     ``metacatalog_lst_{band}`` with the same beam matcher / seeded-flux pick as
     :func:`~lwa_catalog.analyze.trace.rematch_meta_source`, then collapse
-    duplicate LST rows (confused reverse claims) so each Gaussian is painted once.
+    duplicate LST rows (confused reverse claims) so each Gaussian is painted
+    once.
+
+    When LST rows have ``Total_flux`` plus shape and beam axes, ``Peak_flux``
+    is set to the Jy/beam amplitude
+    ``Total_flux * (BMAJ * BMIN) / (Maj * Min)`` for
+    :func:`metacatalog_to_healpix`.
 
     Parameters
     ----------
     metacatalog
         Fused rows to include (e.g. quality-filtered ``core_clean``). Needs
-        ``RA``, ``DEC``, ``Peak_flux_{band}``, and a BMAJ column
-        (``BMAJ_match`` / ``BMAJ_full`` / ``BMAJ``).
+        ``RA``, ``DEC``, ``Total_flux_{band}`` or ``Peak_flux_{band}``, and a
+        BMAJ column (``BMAJ_match`` / ``BMAJ_full`` / ``BMAJ``).
     band
         LST / coadd band label (e.g. ``\"78MHz\"``).
     layout
@@ -83,9 +206,17 @@ def lst_merged_catalog_for_healpix(
     if metacatalog is None or metacatalog.empty:
         return pd.DataFrame(columns=list(_HEALPIX_GAUSSIAN_COLUMNS))
 
-    flux_col = f"Peak_flux_{band}"
-    if flux_col not in metacatalog.columns:
-        msg = f"metacatalog missing {flux_col!r} (needed to rematch LST band {band!r})"
+    total_col = f"Total_flux_{band}"
+    peak_col = f"Peak_flux_{band}"
+    if total_col in metacatalog.columns:
+        flux_col = total_col
+    elif peak_col in metacatalog.columns:
+        flux_col = peak_col
+    else:
+        msg = (
+            f"metacatalog missing {total_col!r} or {peak_col!r} "
+            f"(needed to rematch LST band {band!r})"
+        )
         raise KeyError(msg)
     for col in ("RA", "DEC"):
         if col not in metacatalog.columns:
@@ -137,13 +268,17 @@ def lst_merged_catalog_for_healpix(
 
     uniq = sorted(set(chosen_ilocs))
     out = lst.iloc[uniq].copy()
-    keep = [c for c in _HEALPIX_GAUSSIAN_COLUMNS if c in out.columns]
+    keep_cols = list(_HEALPIX_GAUSSIAN_COLUMNS) + list(_HEALPIX_TOTAL_COLUMNS)
+    keep = [c for c in keep_cols if c in out.columns]
     # Maj/Min/PA may be absent on odd tables; metacatalog_to_healpix floors them.
     for col in _HEALPIX_GAUSSIAN_COLUMNS:
         if col not in out.columns and col in {"Maj", "Min", "PA"}:
             out[col] = np.nan
             keep.append(col)
-    return out.loc[:, keep].reset_index(drop=True)
+    out = out.loc[:, keep].reset_index(drop=True)
+    if "Total_flux" in out.columns and "Maj" in out.columns and "Min" in out.columns:
+        out = catalog_with_peak_from_total_flux(out)
+    return out
 
 
 def _require_healpy():
