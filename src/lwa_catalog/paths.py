@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lwa_catalog.constants import (
+    METACATALOG_ASSOCIATIONS_FILENAME,
     METACATALOG_QUALITY_FLAGS_FILENAME,
     METACATALOG_RADIO_FILENAME,
     METACATALOG_SPECTRAL_FILENAME,
@@ -64,8 +65,12 @@ class CatalogLayout:
         return self.root / METACATALOG_RADIO_FILENAME
 
     def metacatalog_xray(self) -> Path:
-        """X-ray cross-match sidecar (e.g. eRASS:3 columns on LWA rows)."""
+        """Legacy x-ray sidecar path; new writes use :meth:`metacatalog_associations`."""
         return self.root / METACATALOG_XRAY_FILENAME
+
+    def metacatalog_associations(self) -> Path:
+        """Long-form unique cross-match associations table."""
+        return self.root / METACATALOG_ASSOCIATIONS_FILENAME
 
     def with_metacatalog(self, metacatalog_file: str | Path) -> CatalogLayout:
         """Return a copy of this layout pointing at a different metacatalog file."""

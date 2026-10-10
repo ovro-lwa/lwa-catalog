@@ -211,6 +211,32 @@ def test_analyze_tworxs_exports() -> None:
     assert TWORXS_REFERENCE_RADIUS_LOCALIZATION.mode == "localization"
 
 
+def test_analyze_associations_exports() -> None:
+    from lwa_catalog.analyze import (
+        ASSOCIATION_SPEC_MILLIQUAS,
+        CatalogAssociationSpec,
+        association_rows_from_match,
+        flag_association_conflicts,
+        harmonize_class_native,
+        read_associations,
+        replace_catalog_associations,
+        summarize_classifications,
+    )
+    from lwa_catalog.paths import CatalogLayout
+
+    assert callable(association_rows_from_match)
+    assert callable(replace_catalog_associations)
+    assert callable(read_associations)
+    assert callable(flag_association_conflicts)
+    assert callable(summarize_classifications)
+    assert ASSOCIATION_SPEC_MILLIQUAS.catalog == "MilliQuas"
+    assert hasattr(CatalogAssociationSpec, "__dataclass_fields__")
+    assert harmonize_class_native("Freund2022", "Freund2022") == "star"
+    assert CatalogLayout("/tmp").metacatalog_associations().name == (
+        "metacatalog_associations.parquet"
+    )
+
+
 def test_analyze_milliquas_exports() -> None:
     from lwa_catalog.analyze import (
         MILLIQUAS_CLASS_LABELS,

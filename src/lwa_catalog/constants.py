@@ -154,6 +154,8 @@ METACATALOG_SPECTRAL_FILENAME: str = "metacatalog_spectral.parquet"
 METACATALOG_XRAY_FILENAME: str = "metacatalog_xray.parquet"
 # Legacy name kept for path helpers / old trees; new writes use the spectral file.
 METACATALOG_RADIO_FILENAME: str = "metacatalog_radio.parquet"
+# Long-form unique cross-match associations (replace-by-catalog writes).
+METACATALOG_ASSOCIATIONS_FILENAME: str = "metacatalog_associations.parquet"
 
 # Default analysis mask for ``(quality_flag & mask) == 0`` row selection.
 # Requires clear: HAS_NAN, INVALID_ASTROMETRY, SINGLE_LST, UNPHYSICAL_FLUX,
