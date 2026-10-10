@@ -88,14 +88,20 @@ RXGCC_DEFAULT_PATH: Path = Path("/fast/claw/xu2022table3.dat")
 RXGCC_DEFAULT_EXTENT_ARCMIN: float = 9.0
 
 # Boller et al. 2016 2RXS compact source catalog (VizieR J/A+A/588/A103).
-# CDS ASCII is large; operator tree keeps the gzipped ``cat2rxs.dat.gz``.
-TWORXS_DEFAULT_PATH: Path = Path("/fast/claw/cat2rxs.dat.gz")
+# CDS ASCII ``cat2rxs.dat`` (``.dat.gz`` also accepted by the loader).
+TWORXS_DEFAULT_PATH: Path = Path("/fast/claw/cat2rxs.dat")
 # Fallback 1σ when XERR/YERR are missing (~median of 45″×hypot(XERR,YERR)).
 TWORXS_POSITION_ERROR_DEFAULT_ARCSEC: float = 15.0
 # Image pixel scale used for XERR/YERR → arcsec (ReadMe: 45 arcsec/pix).
 TWORXS_IMAGE_PIXEL_ARCSEC: float = 45.0
 # Paper recommendation: ExiML ≥ 9 ⇒ ~5% spurious (full catalog ~30%).
 TWORXS_DEFAULT_EXIML_MIN: float = 9.0
+
+# MilliQUAS (Flesch) all-sky quasar/AGN catalog. Operator file is FITS despite
+# the ``.dat`` suffix (e.g. ``/fast/claw/milliquas.dat``).
+MILLIQUAS_DEFAULT_PATH: Path = Path("/fast/claw/milliquas.dat")
+# Typical optical centroid uncertainty (Gaia/SDSS/Pan-STARRS; 1σ, arcsec).
+MILLIQUAS_POSITION_ERROR_DEFAULT_ARCSEC: float = 1.0
 
 # NED Local Volume Sample (Cook et al. 2023; latest FITS from NED-LVS page).
 NEDLVS_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "NEDLVS_current.fits"

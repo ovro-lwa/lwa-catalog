@@ -211,6 +211,32 @@ def test_analyze_tworxs_exports() -> None:
     assert TWORXS_REFERENCE_RADIUS_LOCALIZATION.mode == "localization"
 
 
+def test_analyze_milliquas_exports() -> None:
+    from lwa_catalog.analyze import (
+        MILLIQUAS_CLASS_LABELS,
+        MILLIQUAS_REFERENCE_RADIUS_FIXED,
+        MilliquasMatchConfig,
+        MilliquasMatchResult,
+        attach_milliquas_to_metacatalog,
+        filter_milliquas_by_class,
+        load_milliquas_catalog,
+        match_catalog_to_milliquas,
+        parse_milliquas_type,
+        summarize_milliquas_match,
+    )
+
+    assert callable(load_milliquas_catalog)
+    assert callable(match_catalog_to_milliquas)
+    assert callable(attach_milliquas_to_metacatalog)
+    assert callable(filter_milliquas_by_class)
+    assert callable(parse_milliquas_type)
+    assert callable(summarize_milliquas_match)
+    assert MilliquasMatchConfig().target == "metacatalog"
+    assert hasattr(MilliquasMatchResult, "__dataclass_fields__")
+    assert MILLIQUAS_REFERENCE_RADIUS_FIXED.mode == "fixed"
+    assert "Q" in MILLIQUAS_CLASS_LABELS
+
+
 def test_analyze_vlass_exports() -> None:
     from lwa_catalog.analyze import (
         VlassMatchConfig,
