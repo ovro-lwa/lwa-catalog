@@ -17,6 +17,7 @@ from lwa_catalog.analyze.crossmatch_radius import (
     CrossmatchRadiusSpec,
     apply_match_radius,
     catalog_match_frame,
+    resolve_match_coordinates,
 )
 from lwa_catalog.constants import (
     MILLIQUAS_DEFAULT_PATH,
@@ -261,7 +262,8 @@ def _catalog_match_frame(
     catalog: pd.DataFrame,
     spec: CrossmatchRadiusSpec,
 ) -> pd.DataFrame:
-    return catalog_match_frame(catalog, spec)
+    """Build match frame preferring cascaded ``match_RA``/``match_DEC``."""
+    return catalog_match_frame(catalog, spec, prefer_match_coordinates=True)
 
 
 def _empty_summary() -> dict[str, float | int]:
@@ -292,7 +294,9 @@ def match_catalog_to_milliquas(
     Matching uses ``associate_catalogs`` with configured
     :class:`~lwa_catalog.analyze.crossmatch_radius.CrossmatchRadiusSpec`
     radii. The reference side defaults to a fixed 1″ optical radius; the LWA
-    side defaults to beam mode, so the LWA ``BMAJ`` typically sets the gate.
+    side defaults to beam mode. Sky position prefers ``match_RA`` /
+    ``match_DEC`` when present (cascaded radio best position), else top-level
+    ``RA``/``DEC``.
     """
     cfg = config or MilliquasMatchConfig()
     warnings: list[str] = []
@@ -549,8 +553,8 @@ def attach_milliquas_to_metacatalog(
     Row count is unchanged. Matched rows (``n_milliquas >= 1``) receive the
     chosen counterpart's :data:`MILLIQUAS_ATTACH_COLUMNS` under *column_prefix*,
     plus ``n_milliquas`` and ``sep_arcsec_MilliQUAS``. Multi-match rows prefer a
-    radio-associated hit, then closest on sky. Unmatched rows get NaN / empty
-    defaults.
+    radio-associated hit, then closest on sky (same ``match_RA``/``match_DEC``
+    preference as the matcher). Unmatched rows get NaN / empty defaults.
     """
     if len(meta_flags) != len(meta_df):
         msg = (
@@ -586,8 +590,7 @@ def attach_milliquas_to_metacatalog(
         hits = positions_col.iloc[i]
         if not isinstance(hits, (list, tuple)) or not hits:
             continue
-        meta_ra = float(pd.to_numeric(out.iloc[i].get("RA"), errors="coerce"))
-        meta_dec = float(pd.to_numeric(out.iloc[i].get("DEC"), errors="coerce"))
+        meta_ra, meta_dec = resolve_match_coordinates(out.iloc[i])
         if not (np.isfinite(meta_ra) and np.isfinite(meta_dec)):
             continue
         pos = _pick_milliquas_hit(

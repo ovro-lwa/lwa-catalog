@@ -10,6 +10,7 @@ from astropy.table import Table
 from lwa_catalog.analyze.crossmatch_radius import (
     LWA_CROSSMATCH_RADIUS_BEAM,
     MILLIQUAS_REFERENCE_RADIUS_FIXED,
+    CrossmatchRadiusSpec,
 )
 from lwa_catalog.analyze.milliquas import (
     MilliquasMatchConfig,
@@ -136,3 +137,55 @@ def test_match_and_attach_milliquas(tmp_path) -> None:
     assert attached.loc[0, "MilliQUAS_class_primary"] in {"Q", "A"}
     counts = milliquas_class_counts(attached.loc[attached["n_milliquas"] >= 1])
     assert counts.sum() >= 1
+
+
+def test_match_uses_match_ra_dec_over_native(tmp_path) -> None:
+    """MilliQUAS association should use cascaded match_* coords when present."""
+    path = tmp_path / "milliquas.dat"
+    _write_mini_milliquas_fits(path)
+    ref = load_milliquas_catalog(path)
+
+    # Native LWA far from the QSO; match_* on the MilliQUAS position.
+    meta = pd.DataFrame(
+        [
+            {
+                **_meta_row(meta_id=1, ra=179.0, dec=40.0, bmaj=0.01),
+                "match_RA": 180.0,
+                "match_DEC": 40.0,
+                "match_source": "VLASS",
+                "match_sigma_deg": 1.0 / 3600.0,
+            }
+        ]
+    )
+    tight = CrossmatchRadiusSpec(
+        mode="localization",
+        sigma_scale=3.0,
+        default_arcsec=0.036,
+    )
+    result = match_catalog_to_milliquas(
+        meta,
+        milliquas=ref,
+        config=MilliquasMatchConfig(
+            catalog_path=path,
+            lwa_radius=tight,
+            reference_radius=MILLIQUAS_REFERENCE_RADIUS_FIXED,
+        ),
+    )
+    assert int(result.meta_flags.loc[0, "n_milliquas"]) >= 1
+
+    attached = attach_milliquas_to_metacatalog(meta, result.milliquas_footprint, result.meta_flags)
+    assert float(attached.loc[0, "sep_arcsec_MilliQUAS"]) == pytest.approx(0.0, abs=1.0)
+
+    # Without match_*, native RA is 1° away — should miss with tiny sigma.
+    meta_native = pd.DataFrame([_meta_row(meta_id=1, ra=179.0, dec=40.0, bmaj=0.01)])
+    meta_native["match_sigma_deg"] = [1.0 / 3600.0]
+    miss = match_catalog_to_milliquas(
+        meta_native,
+        milliquas=ref,
+        config=MilliquasMatchConfig(
+            catalog_path=path,
+            lwa_radius=tight,
+            reference_radius=MILLIQUAS_REFERENCE_RADIUS_FIXED,
+        ),
+    )
+    assert int(miss.meta_flags.loc[0, "n_milliquas"]) == 0

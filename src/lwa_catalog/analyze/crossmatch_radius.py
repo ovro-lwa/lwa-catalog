@@ -238,23 +238,49 @@ def apply_match_radius(
     return out
 
 
+def resolve_match_coordinates(row: pd.Series) -> tuple[float, float]:
+    """Return ``(RA, DEC)`` degrees, preferring ``match_RA``/``match_DEC``.
+
+    Cascaded radio cross-match writes those columns when a bijective survey
+    position is available. Falls back to top-level ``RA``/``DEC``.
+    """
+    for ra_key, dec_key in (("match_RA", "match_DEC"), ("RA", "DEC")):
+        try:
+            ra = float(pd.to_numeric(row.get(ra_key), errors="coerce"))
+            dec = float(pd.to_numeric(row.get(dec_key), errors="coerce"))
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(ra) and np.isfinite(dec):
+            return ra, dec
+    return float("nan"), float("nan")
+
+
 def catalog_match_frame(
     catalog: pd.DataFrame,
     spec: CrossmatchRadiusSpec,
+    *,
+    prefer_match_coordinates: bool = False,
 ) -> pd.DataFrame:
     """Build an ``RA`` / ``DEC`` / ``BMAJ`` frame for :func:`~lwa_catalog.create.merge.associate_catalogs`.
 
     ``BMAJ`` holds the configured match radius. Rows with non-finite coordinates
     are omitted. The index matches *catalog*.
+
+    When *prefer_match_coordinates* is True, sky position comes from
+    :func:`resolve_match_coordinates` (``match_RA``/``match_DEC`` when finite);
+    the radius still uses the original row (beam / localization columns).
     """
     records: list[dict[str, float]] = []
     indices: list[object] = []
     for idx, row in catalog.iterrows():
-        try:
-            ra = float(row["RA"])
-            dec = float(row["DEC"])
-        except (KeyError, TypeError, ValueError):
-            continue
+        if prefer_match_coordinates:
+            ra, dec = resolve_match_coordinates(row)
+        else:
+            try:
+                ra = float(row["RA"])
+                dec = float(row["DEC"])
+            except (KeyError, TypeError, ValueError):
+                continue
         if not np.isfinite(ra) or not np.isfinite(dec):
             continue
         radius = match_radius_deg(row, spec)

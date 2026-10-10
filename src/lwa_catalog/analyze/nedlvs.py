@@ -20,6 +20,7 @@ from lwa_catalog.analyze.crossmatch_radius import (
     catalog_match_frame,
     describe_crossmatch_radius,
     resolve_localization_sigma_deg,
+    resolve_match_coordinates,
 )
 from lwa_catalog.analyze.vlssr import select_blue_associated_rows
 from lwa_catalog.constants import (
@@ -128,23 +129,6 @@ def resolve_centroid_sigma_deg(
     return resolve_localization_sigma_deg(
         row, default_deg=float(default_centroid_sigma_deg)
     )
-
-
-def resolve_match_coordinates(row: pd.Series) -> tuple[float, float]:
-    """Return ``(RA, DEC)`` degrees, preferring ``match_RA``/``match_DEC``.
-
-    Cascaded radio cross-match writes those columns when a bijective survey
-    position is available. Falls back to top-level ``RA``/``DEC``.
-    """
-    for ra_key, dec_key in (("match_RA", "match_DEC"), ("RA", "DEC")):
-        try:
-            ra = float(pd.to_numeric(row.get(ra_key), errors="coerce"))
-            dec = float(pd.to_numeric(row.get(dec_key), errors="coerce"))
-        except (TypeError, ValueError):
-            continue
-        if np.isfinite(ra) and np.isfinite(dec):
-            return ra, dec
-    return float("nan"), float("nan")
 
 
 def _positive_flux(row: pd.Series, *columns: str) -> float:
@@ -507,18 +491,7 @@ def _lwa_match_frame(
     spec: CrossmatchRadiusSpec,
 ) -> pd.DataFrame:
     """Build ``RA`` / ``DEC`` / ``BMAJ`` using cascaded ``match_*`` coords when present."""
-    if catalog.empty:
-        return pd.DataFrame(columns=["RA", "DEC", "BMAJ"])
-    work = catalog.copy()
-    ras: list[float] = []
-    decs: list[float] = []
-    for _, row in work.iterrows():
-        ra, dec = resolve_match_coordinates(row)
-        ras.append(ra)
-        decs.append(dec)
-    work["RA"] = ras
-    work["DEC"] = decs
-    return catalog_match_frame(work, spec)
+    return catalog_match_frame(catalog, spec, prefer_match_coordinates=True)
 
 
 def match_catalog_to_nedlvs(

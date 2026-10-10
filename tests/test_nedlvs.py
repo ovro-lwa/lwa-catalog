@@ -225,7 +225,7 @@ def test_match_single_hit() -> None:
 
 def test_match_uses_match_ra_dec_over_native() -> None:
     """NED-LVS association should use cascaded match_* coords when present."""
-    from lwa_catalog.analyze.nedlvs import resolve_match_coordinates
+    from lwa_catalog.analyze.crossmatch_radius import resolve_match_coordinates
 
     meta = _meta_rows([(10.0, 20.0)], jitter_deg=1e-5)
     # Native LWA far from NED; match_* on the NED galaxy.

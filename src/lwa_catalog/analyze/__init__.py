@@ -48,6 +48,7 @@ from lwa_catalog.analyze.crossmatch_radius import (
     describe_crossmatch_radius,
     match_radius_deg,
     resolve_localization_sigma_deg,
+    resolve_match_coordinates,
 )
 from lwa_catalog.analyze.erass3 import (
     CLASS_GAL_EXGAL_LABELS,
@@ -158,7 +159,6 @@ from lwa_catalog.analyze.nedlvs import (
     resolve_centroid_sigma_deg,
     resolve_highest_frequency_flux,
     resolve_highest_frequency_peak_flux,
-    resolve_match_coordinates,
     resolve_row_flux,
     select_bijective_nedlvs_flags,
     select_metacatalog,
