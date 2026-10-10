@@ -372,14 +372,19 @@ merged subbands, so a source seen once in two subbands has count 2.
 Unique-assoc default: **on for gold, off for cleaned**.
 
 HiPS maps: `metacatalog_to_healpix(profile="gaussian")` paints elliptical
-Gaussians (`Peak_flux`, `Maj`/`Min` FWHM deg, `PA` N→E). `profile="point"` is
-single-pixel deposits. **Map sum is not Σ Peak_flux.** Then
-`write_healpix_hips` / `metacatalog_to_hips`. There is no `write_healpix_fits`.
-For band-matched residual HiPS (observed `healpix_{band}` − model), do **not**
-paint fused subband rows with top-level shape from `astrometry_band`. Use
+Gaussians in **Jy/beam** (`Peak_flux` amplitude, `Maj`/`Min` FWHM deg, `PA`
+N→E). Reliability / residual writers set that amplitude from
+`Total_flux * (BMAJ * BMIN) / (Maj * Min)` via
+`catalog_with_peak_from_total_flux` (not raw catalog `Peak_flux`).
+`profile="point"` is single-pixel deposits. **Map sum is not Σ Peak_flux.**
+Then `write_healpix_hips` / `metacatalog_to_hips`. There is no
+`write_healpix_fits`. For band-matched residual HiPS (observed
+`healpix_{band}` − model), do **not** paint fused subband rows with top-level
+shape from `astrometry_band`. Use
 `lst_merged_catalog_for_healpix(core_clean, band=..., layout=...)` to rematch
 unique LST-merged Gaussians for that band (seeded `Peak_flux` pick; confused
-duplicates collapsed), then paint those rows.
+duplicates collapsed; Total→Jy/beam peak when `Total_flux` is present), then
+paint those rows.
 
 ---
 

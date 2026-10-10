@@ -151,6 +151,66 @@ def test_analyze_erass3_exports() -> None:
     assert hasattr(Erass3MatchResult, "__dataclass_fields__")
 
 
+def test_analyze_freund2022_exports() -> None:
+    from lwa_catalog.analyze import (
+        FREUND2022_REFERENCE_RADIUS_LOCALIZATION,
+        Freund2022MatchConfig,
+        Freund2022MatchResult,
+        filter_freund2022_science_sample,
+        load_freund2022_catalog,
+        match_catalog_to_freund2022,
+        summarize_freund2022_match,
+    )
+
+    assert callable(load_freund2022_catalog)
+    assert callable(match_catalog_to_freund2022)
+    assert callable(filter_freund2022_science_sample)
+    assert callable(summarize_freund2022_match)
+    assert Freund2022MatchConfig().target == "metacatalog"
+    assert hasattr(Freund2022MatchResult, "__dataclass_fields__")
+    assert FREUND2022_REFERENCE_RADIUS_LOCALIZATION.mode == "localization"
+
+
+def test_analyze_xu2022_exports() -> None:
+    from lwa_catalog.analyze import (
+        RXGCC_REFERENCE_RADIUS_BEAM,
+        Xu2022MatchConfig,
+        Xu2022MatchResult,
+        filter_xu2022_by_class,
+        load_xu2022_catalog,
+        match_catalog_to_xu2022,
+        summarize_xu2022_match,
+    )
+
+    assert callable(load_xu2022_catalog)
+    assert callable(match_catalog_to_xu2022)
+    assert callable(filter_xu2022_by_class)
+    assert callable(summarize_xu2022_match)
+    assert Xu2022MatchConfig().target == "metacatalog"
+    assert hasattr(Xu2022MatchResult, "__dataclass_fields__")
+    assert RXGCC_REFERENCE_RADIUS_BEAM.mode == "beam"
+
+
+def test_analyze_tworxs_exports() -> None:
+    from lwa_catalog.analyze import (
+        TWORXS_REFERENCE_RADIUS_LOCALIZATION,
+        TworxsMatchConfig,
+        TworxsMatchResult,
+        filter_tworxs_by_eximl,
+        load_tworxs_catalog,
+        match_catalog_to_tworxs,
+        summarize_tworxs_match,
+    )
+
+    assert callable(load_tworxs_catalog)
+    assert callable(match_catalog_to_tworxs)
+    assert callable(filter_tworxs_by_eximl)
+    assert callable(summarize_tworxs_match)
+    assert TworxsMatchConfig().target == "metacatalog"
+    assert hasattr(TworxsMatchResult, "__dataclass_fields__")
+    assert TWORXS_REFERENCE_RADIUS_LOCALIZATION.mode == "localization"
+
+
 def test_analyze_vlass_exports() -> None:
     from lwa_catalog.analyze import (
         VlassMatchConfig,

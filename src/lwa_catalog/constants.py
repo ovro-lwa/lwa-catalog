@@ -73,6 +73,30 @@ ERASS3_GLON_MAX_DEG: float = 360.0
 # Fallback 1σ when POS_ERR is missing (~median of Main catalog).
 ERASS3_POSITION_ERROR_DEFAULT_ARCSEC: float = 4.0
 
+# Freund et al. 2022 stellar counterparts to ROSAT/2RXS (VizieR J/A+A/664/A105 main).
+FREUND2022_DEFAULT_PATH: Path = Path("/fast/claw/freund2022.dat")
+# Fallback 1σ when ePos is missing (~catalog median).
+FREUND2022_POSITION_ERROR_DEFAULT_ARCSEC: float = 12.0
+# Paper science sample: p_stellar > 0.51, p_ij > 0.5, not subdwarf.
+FREUND2022_DEFAULT_PSTELLAR_MIN: float = 0.51
+FREUND2022_DEFAULT_PIJ_MIN: float = 0.5
+
+# Xu et al. 2022 RXGCC ROSAT extended galaxy clusters (VizieR J/A+A/658/A59 table3).
+# Operator file is FITS despite the ``.dat`` suffix.
+RXGCC_DEFAULT_PATH: Path = Path("/fast/claw/xu2022table3.dat")
+# Fallback angular extent when R500* / Ext are missing (~catalog R500* median).
+RXGCC_DEFAULT_EXTENT_ARCMIN: float = 9.0
+
+# Boller et al. 2016 2RXS compact source catalog (VizieR J/A+A/588/A103).
+# CDS ASCII is large; operator tree keeps the gzipped ``cat2rxs.dat.gz``.
+TWORXS_DEFAULT_PATH: Path = Path("/fast/claw/cat2rxs.dat.gz")
+# Fallback 1σ when XERR/YERR are missing (~median of 45″×hypot(XERR,YERR)).
+TWORXS_POSITION_ERROR_DEFAULT_ARCSEC: float = 15.0
+# Image pixel scale used for XERR/YERR → arcsec (ReadMe: 45 arcsec/pix).
+TWORXS_IMAGE_PIXEL_ARCSEC: float = 45.0
+# Paper recommendation: ExiML ≥ 9 ⇒ ~5% spurious (full catalog ~30%).
+TWORXS_DEFAULT_EXIML_MIN: float = 9.0
+
 # NED Local Volume Sample (Cook et al. 2023; latest FITS from NED-LVS page).
 NEDLVS_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "NEDLVS_current.fits"
 NEDLVS_DEFAULT_MAX_REDSHIFT: float = 0.2

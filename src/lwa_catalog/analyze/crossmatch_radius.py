@@ -11,10 +11,13 @@ import pandas as pd
 from lwa_catalog.analyze.reliability import resolve_bmaj
 from lwa_catalog.constants import (
     ERASS3_POSITION_ERROR_DEFAULT_ARCSEC,
+    FREUND2022_POSITION_ERROR_DEFAULT_ARCSEC,
     LODES_BMAJ_ARCSEC,
     LODES_POSITION_ERROR_DEFAULT_ARCSEC,
     NVSS_BMAJ_ARCSEC,
     NVSS_POSITION_ERROR_DEFAULT_ARCSEC,
+    RXGCC_DEFAULT_EXTENT_ARCMIN,
+    TWORXS_POSITION_ERROR_DEFAULT_ARCSEC,
     VLASS_BMAJ_ARCSEC,
     VLSSR_BMAJ_ARCSEC,
     VLSSR_POSITION_ERROR_ARCSEC,
@@ -97,6 +100,19 @@ LODES_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
 ERASS3_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
     mode="localization",
     default_arcsec=ERASS3_POSITION_ERROR_DEFAULT_ARCSEC,
+)
+FREUND2022_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
+    mode="localization",
+    default_arcsec=FREUND2022_POSITION_ERROR_DEFAULT_ARCSEC,
+)
+# RXGCC clusters: per-row BMAJ from R500* / Ext (arcmin → deg on load).
+RXGCC_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
+    mode="beam",
+    default_arcsec=RXGCC_DEFAULT_EXTENT_ARCMIN * 60.0,
+)
+TWORXS_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
+    mode="localization",
+    default_arcsec=TWORXS_POSITION_ERROR_DEFAULT_ARCSEC,
 )
 
 LWA_CROSSMATCH_RADIUS_BEAM = CrossmatchRadiusSpec(mode="beam")
