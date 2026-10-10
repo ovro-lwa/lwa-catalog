@@ -17,6 +17,7 @@ from lwa_catalog.analyze.associations import (
     flag_association_conflicts,
     harmonize_associations,
     harmonize_class_native,
+    metacatalog_with_erass3_association_columns,
     ra_dec_key,
     read_associations,
     replace_catalog_associations,
@@ -252,6 +253,29 @@ def test_xu_class_does_not_collide_with_milliquas_s() -> None:
     rows = association_rows_from_match(meta_flags, footprint, ASSOCIATION_SPEC_XU2022)
     assert rows.iloc[0]["class_native"] == "S"
     assert harmonize_class_native("Xu2022", "S") == "cluster"
+
+
+def test_metacatalog_with_erass3_association_columns() -> None:
+    meta = pd.DataFrame(
+        {"meta_id": [1, 2], "RA": [10.0, 11.0], "DEC": [20.0, 21.0]}
+    )
+    assoc = pd.DataFrame(
+        {
+            "meta_id": [1],
+            "catalog": ["eRASS3"],
+            "ref_id": ["42"],
+            "ref_ra": [10.01],
+            "ref_dec": [20.01],
+            "class_native": ["3"],
+            "sep_arcsec": [1.5],
+            "n_ref": [1],
+        }
+    )
+    out = metacatalog_with_erass3_association_columns(meta, assoc)
+    assert int(out.loc[0, "n_erass3"]) == 1
+    assert int(out.loc[1, "n_erass3"]) == 0
+    assert int(out.loc[0, "eRASS3_class_gal_exgal"]) == 3
+    assert str(out.loc[0, "eRASS3_LS10_OBJID"]) == "42"
 
 
 def test_meta_id_required() -> None:

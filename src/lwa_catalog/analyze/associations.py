@@ -534,6 +534,71 @@ def summarize_classifications(assoc_df: pd.DataFrame) -> dict[str, Any]:
     return summary
 
 
+def metacatalog_with_erass3_association_columns(
+    meta_df: pd.DataFrame,
+    assoc_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Left-join unique ``eRASS3`` association rows onto *meta_df* for Visual QA.
+
+    Synthesizes ``n_erass3``, ``sep_arcsec_eRASS3``, ``eRASS3_LS10_OBJID`` /
+    ``eRASS3_main_id_simbad``-style id, ``eRASS3_class_gal_exgal`` (when
+    ``class_native`` parses as int), and ``eRASS3_RA`` / ``eRASS3_DEC`` from
+    association ``ref_*``. Does not restore full attach columns (DET_LIKE, etc.).
+    """
+    if meta_df is None or meta_df.empty:
+        return meta_df.copy() if meta_df is not None else pd.DataFrame()
+    if "meta_id" not in meta_df.columns:
+        msg = "meta_df missing meta_id column"
+        raise ValueError(msg)
+
+    out = meta_df.reset_index(drop=True).copy()
+    out["n_erass3"] = 0
+    out["in_erass_footprint"] = False
+    out["sep_arcsec_eRASS3"] = np.nan
+    out["eRASS3_LS10_OBJID"] = pd.NA
+    out["eRASS3_class_gal_exgal"] = np.nan
+    out["eRASS3_RA"] = np.nan
+    out["eRASS3_DEC"] = np.nan
+    out["eRASS3_POS_ERR"] = np.nan
+
+    if assoc_df is None or assoc_df.empty or "catalog" not in assoc_df.columns:
+        return out
+
+    erass = assoc_df.loc[assoc_df["catalog"].astype(str) == "eRASS3"].copy()
+    if erass.empty:
+        return out
+    validate_associations(erass)
+    # One row per meta_id (unique-only writers).
+    erass = erass.drop_duplicates(subset=["meta_id"], keep="first")
+    by_id = erass.set_index("meta_id", drop=False)
+
+    for i, meta_id in enumerate(out["meta_id"].tolist()):
+        if meta_id not in by_id.index:
+            continue
+        hit = by_id.loc[meta_id]
+        if isinstance(hit, pd.DataFrame):
+            hit = hit.iloc[0]
+        out.at[i, "n_erass3"] = 1
+        out.at[i, "sep_arcsec_eRASS3"] = float(
+            pd.to_numeric(hit.get("sep_arcsec"), errors="coerce")
+        )
+        out.at[i, "eRASS3_RA"] = float(pd.to_numeric(hit.get("ref_ra"), errors="coerce"))
+        out.at[i, "eRASS3_DEC"] = float(pd.to_numeric(hit.get("ref_dec"), errors="coerce"))
+        ref_id = _as_str(hit.get("ref_id"))
+        out.at[i, "eRASS3_LS10_OBJID"] = ref_id if ref_id else pd.NA
+        native = _as_str(hit.get("class_native"))
+        if native == "blazar":
+            out.at[i, "eRASS3_is_blazar_in_simbad"] = True
+        else:
+            try:
+                out.at[i, "eRASS3_class_gal_exgal"] = int(native)
+            except (TypeError, ValueError):
+                pass
+    if "eRASS3_is_blazar_in_simbad" not in out.columns:
+        out["eRASS3_is_blazar_in_simbad"] = pd.NA
+    return out
+
+
 def summarize_classifications_text(assoc_df: pd.DataFrame) -> str:
     """Human-readable classification summary."""
     s = summarize_classifications(assoc_df)
