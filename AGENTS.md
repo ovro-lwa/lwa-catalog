@@ -304,11 +304,15 @@ External catalogs live under `REFERENCE_CATALOGS_DIR = Path("/fast/claw/catalogs
 jitter), `fixed`. NED-LVS defaults to Nσ localization × fixed NED catalog σ,
 then floors the reference `BMAJ` at `diam_scale * Diam_arcsec`
 (`NedlvsMatchConfig.diam_scale`; only NED-LVS keeps this floor). MilliQUAS
-defaults to LWA beam × fixed 1″. Do not reintroduce a separate hypot-σ matcher.
+library default remains LWA beam × fixed 1″; `optical_crossmatch.ipynb` sets
+both catalogs to the shared 3σ `LWA_MATCH_RADIUS`. NED-LVS and MilliQUAS both
+prefer `match_RA`/`match_DEC` via `resolve_match_coordinates`. Do not
+reintroduce a separate hypot-σ matcher.
 
 **LWA-centric astrometry.** Match on LWA `RA`/`DEC` + LWA `BMAJ`
 (`resolve_bmaj` / `BMAJ_match`). Surveys do not rewrite positions. Optical /
-cascade QA may prefer `match_RA`/`match_DEC` when present.
+cascade QA prefer `match_RA`/`match_DEC` when present
+(`catalog_match_frame(..., prefer_match_coordinates=True)`).
 
 Photometric attach (`attach_radio_surveys_to_metacatalog` in
 `analyze/survey_attach.py`):
