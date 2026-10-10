@@ -130,7 +130,7 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   `detect_sources_on_healpix_tiles` → `run_pybdsf_on_hdu` (not
   `detect_sources`). Defaults: `nside_map=2048`, `nside_tile=4`, TAN, nested,
   `align="diamond"` with `margin=0.05` (HEALPix-edge-aligned tiles; use
-  `align="celestial"` + `overlap` for legacy north-aligned squares). Band-median
+  `align="celestial"` + `overlap` for legacy north-aligned squares).   Band-median
   header `BMAJ`/`BMIN` are multiplied by `beam_scale` (library default
   **`DEFAULT_BEAM_SCALE = 1.0`**, unscaled median) before both tiers;
   catalog `BMAJ`/`BMIN`/`BPA` follow the scaled fit-time beam. Optional
@@ -138,7 +138,11 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   HEALPix coadd by minimizing mean map−GAUL `resid_rms` on fixed Dec-stratified
   probe tiles `(28, 102, 189)` under tier2fuse; notebook flag
   `ESTIMATE_BEAM_SCALE` calls it before full-sky detect (fallback α=1.0).
-  Do **not** use unconstrained Maj-median as the production estimator.
+  That estimator is **residual-only** — do not treat its α as photometry-optimal
+  (see Experiment conclusions). Do **not** use unconstrained Maj-median as the
+  production estimator. PyBDSF fits an **image-plane** Gaussian (not
+  deconvolved⊗beam); `Total_flux = Peak_flux × (Maj×Min)/(BMAJ×BMIN)`.
+  `Total < Peak` means fitted FWHM < attached beam (`fix_to_beam` is off).
   Optional **2-tier detect** (`tier2_bdsf_kw` not `None`): tier-1 deep catalog
   (notebook `thresh_isl=2` / `thresh_pix=3`) plus a high-threshold pass
   (defaults `thresh_isl=4` / `thresh_pix=7` via `DEFAULT_TIER2_BDSF_KW`);
@@ -291,9 +295,20 @@ External catalogs live under `REFERENCE_CATALOGS_DIR = Path("/fast/claw/catalogs
 | LoDeSS | 15–30 MHz (ν₀≈23 MHz) | ~45″ | `/fast/claw/LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits` |
 | eRASS:3 | X-ray | `POS_ERR` (~1–12″) | `eRASSc3_Main_LS10_Public_*.fits` |
 | NED-LVS | hosts | position+diameter | `NEDLVS_current.fits` |
+| MilliQUAS | optical AGN | fixed 1″ | `/fast/claw/milliquas.dat` (FITS) |
+
+**Match radii.** Radio, X-ray, and optical QA matchers share
+`CrossmatchRadiusSpec` (`lwa_radius` / `reference_radius`) and
+`associate_catalogs` (`sep ≤ max(r_i, r_j)`). Modes: `beam`, `localization`
+(prefers `match_sigma_deg` → `match_source` survey default → `E_RA`/`E_DEC` →
+jitter), `fixed`. NED-LVS defaults to Nσ localization × fixed NED catalog σ,
+then floors the reference `BMAJ` at `diam_scale * Diam_arcsec`
+(`NedlvsMatchConfig.diam_scale`; only NED-LVS keeps this floor). MilliQUAS
+defaults to LWA beam × fixed 1″. Do not reintroduce a separate hypot-σ matcher.
 
 **LWA-centric astrometry.** Match on LWA `RA`/`DEC` + LWA `BMAJ`
-(`resolve_bmaj` / `BMAJ_match`). Surveys do not rewrite positions.
+(`resolve_bmaj` / `BMAJ_match`). Surveys do not rewrite positions. Optical /
+cascade QA may prefer `match_RA`/`match_DEC` when present.
 
 Photometric attach (`attach_radio_surveys_to_metacatalog` in
 `analyze/survey_attach.py`):
@@ -554,7 +569,9 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 - `append_unmatched=True` or `astrometry_from_highest_frequency` for
   VLASS/NVSS/VLSSR attach.
 - BIC-only nested Taylor selection; surveys in default spectral `bands`.
-- A second sky matcher beside `associate_catalogs`.
+- A second sky matcher beside `associate_catalogs` (including NED-LVS
+  `_associate_by_centroid_sigma` / hypot-σ gates — use `CrossmatchRadiusSpec`
+  + `diam_scale` floor instead).
 - Auto-rerunning Mahalanobis when filters change; writing those flags into
   `quality_flag`.
 - Stacking NVSS+VLASS HiPS rasters via `overlay_survey`.
@@ -574,6 +591,14 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 - Using `bands_present` as the SED mask, or two-point `alpha_*` as a Taylor SED.
 - Persisting member ID lists into Parquet (rematch instead), unless a new plan
   explicitly replaces rematch.
+- Residual-optimal `estimate_beam_scale` α as the production photometry /
+  Total-flux SED default (59/78 MHz Total inflation).
+- Equal-weight mean of Dec-stratified probe `Maj/BMAJ` as a size-match α
+  (low-Dec tile overshoot → α≈1.7 while sky-wide median wants ~1.4).
+- Flat α=1.7 (or α≥2) solely to force `Total/Peak≈1` without checking sky-wide
+  `Maj/BMAJ` — overshoots the attached beam and under-resolves most sources.
+- Treating `bands_present` / residual HiPS quality as proof that Total fluxes
+  are SED-safe when `Maj/BMAJ` is far from 1.
 
 ---
 
@@ -592,6 +617,8 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
   becomes `code`, patch notebook JSON.
 - Units that keep biting: `BMAJ` in **degrees**; VLSSR 80″; jitter in degrees;
   residuals **Jy/beam**; fluxes **Jy**; frequencies **Hz**.
+  Catalog `BMAJ` is the **attached** restoring beam (α×header median), not a
+  fit. Check `Maj/BMAJ` and `Total/Peak` together before trusting Total SEDs.
 - **Panel `IntInput` (Bokeh Spinner) does not commit typed text until blur/Enter.**
   Spinner arrows update `value` immediately; type-then-click a nearby button often
   still sees the old Param and can overwrite the field. For `meta_id` in
@@ -619,17 +646,54 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
 
 - **LST coadd smear:** Hour-stack Maj widening vanishes under elliptical elev
   cuts (**22.76°/55°**); absolute `Maj/BMAJ≈1.29` even at N=1 (beam prior).
-  → `experiment-lst-average-psf-smearing.md`
-- **Restoring-beam α (shipped):** Best α is **band-dependent** (~1.0–2.0).
-  Fixed 1.1 is not universal (can worsen high-ν residual). Median
-  Δbest/resid_best ≈ +2%; α=1.1 often ~4–9% above floor. Residual-optimal α
-  **cuts** source/`M` counts (esp. single; muted under tier2fuse) — optimizes
-  map−model fit, not completeness. **Reject** Maj-median / per-tile size
-  estimators (low-Dec overshoot). **Keep 2-tier.**
-  - Default: `DEFAULT_BEAM_SCALE = 1.0`
-  - Estimate: `estimate_beam_scale` — mean resid on probes **28 / 102 / 189**,
-    tier2fuse, discrete α grid; notebook `ESTIMATE_BEAM_SCALE`
-  - Summaries: `experiment-beam-psf-overdecomp/{summary,all-subbands/summary}.*`
+  Elev-strict coadd is necessary but **does not** unlock α≈1 with
+  `Total/Peak≈1`. → `experiment-lst-average-psf-smearing.md`
+- **Restoring-beam α — three different losses:** Residual-optimal,
+  size/photometry (`Maj/BMAJ≈1`, `Total/Peak≈1`), and “min α under phot
+  gates” are **not interchangeable**. Residual-opt (shipped
+  `estimate_beam_scale`) can land at α=1.0 on 59/78 MHz and **inflate
+  Total/Peak** (~1.8) while map−GAUL residual looks best — Peak×Maj paint
+  optimizes the wrong loss for Total SEDs. Size/phot on the probe grid
+  preferred α≈1.5–1.7; α≤1.3 passed strict phot gates on **0/15** bands.
+  → `experiment-healpix-alpha-near-one.md`,
+  `experiment-beam-psf-overdecomp/all-subbands/`
+- **Probe equal-weight trap:** Size/phot α≈1.7 matched the **mean of three
+  Dec-stratified tile medians** of `Maj/BMAJ` (S, Peak≥1 Jy, |b|≥20°), not
+  the sky-wide catalog median. Tile 189 (Dec~−18°) sits at Maj/BMAJ~1.2 and
+  pulls α up; tiles 28/102 are ~0.74/0.87. Full-sky LST at fixed α=1.7 had
+  med `Maj/BMAJ≈0.83` and `Total/Peak≈0.63` (attached beam too large).
+  Implied sky-wide size-match α ≈ **1.4–1.5**. Same low-Dec overshoot that
+  killed unconstrained Maj-median estimators — do not reintroduce via
+  equal-weight probe averaging.
+- **Operator α≈1.2 (subband2):** Fixed `BEAM_SCALE=1.2` with elev 22.76/55 +
+  2-tier: med `Maj/BMAJ≈1.16–1.20`, `Total/Peak≈1.23–1.30` (mild Total
+  high, not the α=1.0 pathology). Residuals and band-merged spectra look
+  better than α=1.7 under-beam catalogs. Prefer this regime when balancing
+  resolution vs Total photometry until a sky-wide size/phot estimator lands.
+  Provisional fused product: `metacatalog_test.parquet` from available
+  `metacatalog_lst_*.parquet` (seed highest-MHz).
+- **PyBDSF size vs beam:** Image-plane fit; beam is an external prior from
+  `attach_beam_and_freq`. Identity
+  `Total/Peak ≈ (Maj×Min)/(BMAJ×BMIN)` holds tightly (|Δ|~0.01). Majority
+  `Total < Peak` ⇒ fitted size < attached beam (α too large), not a fusion
+  bug. `DC_Maj` empty/≤0 when unresolved vs that prior.
+- **Over-decomposition / 2-tier:** Residual-opt α cuts source/`M` counts
+  (esp. single-tier); muted under tier2fuse. **Keep 2-tier**
+  (`fuse_gaul_m_with_tier2_s`). Fake-source blank recovery ~99% — detect +
+  tile merge are faithful when the beam prior matches; real-sky
+  incompleteness is confusion-dominated.
+  → `experiment-fake-source-recovery-73mhz.md`
+- **Shipped defaults / tools:**
+  - Default: `DEFAULT_BEAM_SCALE = 1.0` (library); notebook often overrides
+    (`BEAM_SCALE`, or `ESTIMATE_BEAM_SCALE` → residual-opt).
+  - Estimate: `estimate_beam_scale` — mean **resid** on probes 28/102/189,
+    tier2fuse, discrete α grid. Not a Total-flux α picker.
+  - **Reject** Maj-median / per-tile size estimators and equal-weight probe
+    Maj means as production α. Validate any new α on **sky-wide** med
+    `Maj/BMAJ` and `Total/Peak`, plus a few band-merged SEDs — not probe
+    residual alone.
+  - Summaries: `experiment-beam-psf-overdecomp/{summary,all-subbands/summary}.*`,
+    `experiment-healpix-alpha-near-one/`
   - Plans: `plan-per-band-beam-alpha-estimate.md`,
     `implement-per-band-beam-alpha-estimate.md`
 
@@ -640,8 +704,12 @@ never signed off):
 
 - Mosaic WCS/beam for detection; whether `n_lst_contributions` means anything
   on a single coadd.
-- Auto-pick Dec-stratified probe tiles from map footprint (fixed 28/102/189
-  shipped); optional estimate-result cache per band in the notebook.
+- Sky-wide (or area-weighted) size/phot `estimate_beam_scale` objective;
+  avoid equal-weight Dec probes for Maj matching. Auto-pick probes from map
+  footprint (fixed 28/102/189 shipped); optional estimate-result cache per
+  band in the notebook.
+- Close the N=1 `Maj/BMAJ≈1.29` gap (header median vs effective HEALPix/regrid
+  PSF) so α≈1 can coexist with Total photometry — imaging/PSF, not only α.
 - VLSSR completeness denominator (all sources vs Dec cut vs LWA footprint /
   sensitivity). Seeding union-find from VLSSR was explicitly **out of scope**.
 - Peak+Total spectral fits in one pass; RGB as default spectral input; HiPS of
