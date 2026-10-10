@@ -9,11 +9,16 @@ import pandas as pd
 import pytest
 from astropy.table import Table
 
+from lwa_catalog.analyze.crossmatch_radius import (
+    CrossmatchRadiusSpec,
+    NEDLVS_LWA_RADIUS,
+    NEDLVS_REFERENCE_RADIUS_FIXED,
+)
 from lwa_catalog.analyze.nedlvs import (
     NedlvsMatchConfig,
-    _associate_by_centroid_sigma,
     _filter_nedlvs_redshift,
     _footprint_filter_nedlvs,
+    apply_diam_scale_floor,
     build_sfr_radio_luminosity_table,
     load_nedlvs_catalog,
     match_catalog_to_nedlvs,
@@ -30,7 +35,9 @@ from lwa_catalog.analyze.nedlvs import (
 from lwa_catalog.constants import (
     BAND_FREQ_HZ,
     NEDLVS_DEFAULT_CENTROID_SIGMA_DEG,
+    NEDLVS_DEFAULT_DIAM_SCALE,
     NEDLVS_DEFAULT_MAX_REDSHIFT,
+    NEDLVS_DEFAULT_POSITION_SIGMA_SCALE,
     band_frequency_hz,
 )
 
@@ -162,37 +169,49 @@ def test_filter_nedlvs_redshift() -> None:
     assert float(filtered.iloc[0]["z"]) == pytest.approx(0.01)
 
 
-def test_associate_by_centroid_sigma_single_hit() -> None:
-    base = pd.DataFrame({"RA": [10.0], "DEC": [20.0], "SIGMA": [0.001]})
-    ref = pd.DataFrame({"RA": [10.0001], "DEC": [20.0], "SIGMA": [0.0001]})
-    hits, matched = _associate_by_centroid_sigma(base, ref, position_sigma_scale=3.0)
-    assert hits == {0: [0]}
-    assert matched == {0}
-
-
-def test_associate_diam_floor_recovers_offset_host() -> None:
-    """Tight radio σ misses a large galaxy unless Diam floor is applied."""
-    # Separation ~30″; 3σ combined ≪ that; half of 120″ Diam covers it.
-    base = pd.DataFrame(
-        {"RA": [10.0], "DEC": [20.0], "SIGMA": [1e-5], "DIAM_ARCSEC": [0.0]}
-    )
-    ref = pd.DataFrame(
+def test_apply_diam_scale_floor() -> None:
+    cat = pd.DataFrame(
         {
-            "RA": [10.0 + 30.0 / 3600.0],
+            "RA": [10.0],
             "DEC": [20.0],
-            "SIGMA": [1e-5],
-            "DIAM_ARCSEC": [120.0],
+            "BMAJ": [1.0 / 3600.0],
+            "Diam_arcsec": [120.0],
         }
     )
-    miss, _ = _associate_by_centroid_sigma(
-        base, ref, position_sigma_scale=3.0, diam_scale=None
+    floored = apply_diam_scale_floor(cat, diam_scale=0.5)
+    assert float(floored.iloc[0]["BMAJ"]) == pytest.approx(60.0 / 3600.0)
+    unchanged = apply_diam_scale_floor(cat, diam_scale=None)
+    assert float(unchanged.iloc[0]["BMAJ"]) == pytest.approx(1.0 / 3600.0)
+
+
+def test_match_diam_floor_recovers_offset_host() -> None:
+    """Tight localization misses a large galaxy unless Diam floor is applied."""
+    meta = _meta_rows([(10.0, 20.0)], jitter_deg=1e-5)
+    nedlvs = _nedlvs_rows([(10.0 + 30.0 / 3600.0, 20.0, 0.01)])
+    nedlvs.loc[0, "Diam_arcsec"] = 120.0
+    tight = CrossmatchRadiusSpec(
+        mode="localization",
+        sigma_scale=3.0,
+        default_arcsec=0.01,
     )
-    assert miss == {}
-    hit, matched = _associate_by_centroid_sigma(
-        base, ref, position_sigma_scale=3.0, diam_scale=0.5
+    miss = match_catalog_to_nedlvs(
+        meta,
+        nedlvs=nedlvs,
+        config=NedlvsMatchConfig(
+            lwa_radius=tight,
+            diam_scale=None,
+        ),
     )
-    assert hit == {0: [0]}
-    assert matched == {0}
+    assert int(miss.meta_flags.iloc[0]["n_nedlvs"]) == 0
+    hit = match_catalog_to_nedlvs(
+        meta,
+        nedlvs=nedlvs,
+        config=NedlvsMatchConfig(
+            lwa_radius=tight,
+            diam_scale=0.5,
+        ),
+    )
+    assert int(hit.meta_flags.iloc[0]["n_nedlvs"]) == 1
 
 
 def test_match_single_hit() -> None:
@@ -218,10 +237,15 @@ def test_match_uses_match_ra_dec_over_native() -> None:
     assert dec == pytest.approx(20.0)
 
     nedlvs = _nedlvs_rows([(10.0001, 20.0, 0.01)])
+    tight = CrossmatchRadiusSpec(
+        mode="localization",
+        sigma_scale=3.0,
+        default_arcsec=0.036,  # ~0.036″
+    )
     result = match_catalog_to_nedlvs(
         meta,
         nedlvs=nedlvs,
-        config=NedlvsMatchConfig(position_sigma_scale=3.0, default_centroid_sigma_deg=1e-5),
+        config=NedlvsMatchConfig(lwa_radius=tight, diam_scale=None),
     )
     assert int(result.meta_flags.iloc[0]["n_nedlvs"]) == 1
     assert float(result.meta_flags.iloc[0]["match_RA"]) == pytest.approx(10.0001)
@@ -232,7 +256,7 @@ def test_match_uses_match_ra_dec_over_native() -> None:
     miss = match_catalog_to_nedlvs(
         meta_native,
         nedlvs=nedlvs,
-        config=NedlvsMatchConfig(position_sigma_scale=3.0, default_centroid_sigma_deg=1e-5),
+        config=NedlvsMatchConfig(lwa_radius=tight, diam_scale=None),
     )
     assert int(miss.meta_flags.iloc[0]["n_nedlvs"]) == 0
 
@@ -260,6 +284,7 @@ def test_summarize_nedlvs_match_includes_key_metrics() -> None:
     text = summarize_nedlvs_match(result)
     assert "Meta unique match" in text
     assert "NED-LVS recovery" in text
+    assert "radii: LWA=" in "\n".join(result.warnings)
 
 
 def test_match_lst_merged_blue_target() -> None:
@@ -390,9 +415,11 @@ def test_select_bijective_nedlvs_flags() -> None:
 
 
 def test_nedlvs_match_config_defaults() -> None:
-    from lwa_catalog.constants import NEDLVS_DEFAULT_DIAM_SCALE
-
     cfg = NedlvsMatchConfig()
     assert cfg.max_redshift == pytest.approx(NEDLVS_DEFAULT_MAX_REDSHIFT)
-    assert cfg.position_sigma_scale == pytest.approx(3.0)
     assert cfg.diam_scale == NEDLVS_DEFAULT_DIAM_SCALE
+    assert cfg.lwa_radius == NEDLVS_LWA_RADIUS
+    assert cfg.reference_radius == NEDLVS_REFERENCE_RADIUS_FIXED
+    assert cfg.lwa_radius.mode == "localization"
+    assert cfg.lwa_radius.sigma_scale == pytest.approx(NEDLVS_DEFAULT_POSITION_SIGMA_SCALE)
+    assert cfg.reference_radius.mode == "fixed"

@@ -15,6 +15,9 @@ from lwa_catalog.constants import (
     LODES_BMAJ_ARCSEC,
     LODES_POSITION_ERROR_DEFAULT_ARCSEC,
     MILLIQUAS_POSITION_ERROR_DEFAULT_ARCSEC,
+    NEDLVS_CATALOG_POSITION_SIGMA_ARCSEC,
+    NEDLVS_DEFAULT_CENTROID_SIGMA_ARCSEC,
+    NEDLVS_DEFAULT_POSITION_SIGMA_SCALE,
     NVSS_BMAJ_ARCSEC,
     NVSS_POSITION_ERROR_DEFAULT_ARCSEC,
     RXGCC_DEFAULT_EXTENT_ARCMIN,
@@ -23,6 +26,15 @@ from lwa_catalog.constants import (
     VLSSR_BMAJ_ARCSEC,
     VLSSR_POSITION_ERROR_ARCSEC,
 )
+
+# 1σ defaults (degrees) when ``match_source`` is a cascaded radio survey and
+# ``match_sigma_deg`` is absent (e.g. older metacatalog_spectral.parquet).
+MATCH_SOURCE_SIGMA_DEG: dict[str, float] = {
+    "VLSSR": VLSSR_POSITION_ERROR_ARCSEC / 3600.0,
+    "NVSS": NVSS_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
+    "VLASS": VLASS_BMAJ_ARCSEC / 3600.0,
+    "LoDeSS": LODES_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
+}
 
 CrossmatchRadiusMode = Literal["beam", "localization", "fixed"]
 
@@ -119,11 +131,23 @@ MILLIQUAS_REFERENCE_RADIUS_FIXED = CrossmatchRadiusSpec(
     mode="fixed",
     fixed_arcsec=MILLIQUAS_POSITION_ERROR_DEFAULT_ARCSEC,
 )
+# NED-LVS: LWA side uses Nσ localization (cascaded match_sigma / E_RA/E_DEC);
+# reference side is a fixed NED catalog position uncertainty. Galaxy size is
+# applied as a separate ``diam_scale`` floor on the reference ``BMAJ``.
+NEDLVS_LWA_RADIUS = CrossmatchRadiusSpec(
+    mode="localization",
+    sigma_scale=NEDLVS_DEFAULT_POSITION_SIGMA_SCALE,
+    default_arcsec=NEDLVS_DEFAULT_CENTROID_SIGMA_ARCSEC,
+)
+NEDLVS_REFERENCE_RADIUS_FIXED = CrossmatchRadiusSpec(
+    mode="fixed",
+    fixed_arcsec=NEDLVS_CATALOG_POSITION_SIGMA_ARCSEC,
+)
 
 LWA_CROSSMATCH_RADIUS_BEAM = CrossmatchRadiusSpec(mode="beam")
 LWA_CROSSMATCH_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
     mode="localization",
-    default_arcsec=5.0,
+    default_arcsec=NEDLVS_DEFAULT_CENTROID_SIGMA_ARCSEC,
 )
 
 
@@ -143,7 +167,26 @@ def _resolve_beam_deg(row: pd.Series) -> float:
     return float("nan")
 
 
-def _resolve_localization_sigma_deg(row: pd.Series, *, default_deg: float) -> float:
+def resolve_localization_sigma_deg(row: pd.Series, *, default_deg: float) -> float:
+    """Return a 1σ sky-position radius in degrees for localization matching.
+
+    Preference order:
+
+    1. ``match_sigma_deg`` from cascaded radio attach (bootstrap frame).
+    2. Survey default for ``match_source`` ``VLSSR`` / ``NVSS`` / ``VLASS`` /
+       ``LoDeSS``.
+    3. PyBDSF ``E_RA``/``E_DEC``.
+    4. Merge-time ``cluster_jitter_rms_deg``.
+    5. *default_deg*.
+    """
+    match_sigma = pd.to_numeric(row.get("match_sigma_deg"), errors="coerce")
+    if np.isfinite(match_sigma) and float(match_sigma) > 0.0:
+        return float(match_sigma)
+
+    source = str(row.get("match_source", "") or "").strip().upper()
+    if source in MATCH_SOURCE_SIGMA_DEG:
+        return float(MATCH_SOURCE_SIGMA_DEG[source])
+
     e_ra = pd.to_numeric(row.get("E_RA"), errors="coerce")
     e_dec = pd.to_numeric(row.get("E_DEC"), errors="coerce")
     if (
@@ -176,7 +219,7 @@ def match_radius_deg(row: pd.Series, spec: CrossmatchRadiusSpec) -> float:
             bmaj = fallback_deg
         return bmaj * scale
 
-    sigma = _resolve_localization_sigma_deg(
+    sigma = resolve_localization_sigma_deg(
         row,
         default_deg=fallback_deg if fallback_deg > 0.0 else 1.0 / 3600.0,
     )

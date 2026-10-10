@@ -9,12 +9,22 @@ import pytest
 from lwa_catalog.analyze.crossmatch_radius import (
     CrossmatchRadiusSpec,
     LWA_CROSSMATCH_RADIUS_BEAM,
+    NEDLVS_LWA_RADIUS,
+    NEDLVS_REFERENCE_RADIUS_FIXED,
     VLSSR_REFERENCE_RADIUS_FIXED,
     catalog_match_frame,
     describe_crossmatch_radius,
     match_radius_deg,
+    resolve_localization_sigma_deg,
 )
-from lwa_catalog.constants import NVSS_BMAJ_ARCSEC, VLSSR_BMAJ_ARCSEC, VLSSR_POSITION_ERROR_ARCSEC
+from lwa_catalog.constants import (
+    NEDLVS_CATALOG_POSITION_SIGMA_ARCSEC,
+    NEDLVS_DEFAULT_POSITION_SIGMA_SCALE,
+    NVSS_BMAJ_ARCSEC,
+    VLASS_BMAJ_ARCSEC,
+    VLSSR_BMAJ_ARCSEC,
+    VLSSR_POSITION_ERROR_ARCSEC,
+)
 
 
 def test_fixed_radius_requires_arcsec() -> None:
@@ -52,6 +62,36 @@ def test_match_radius_localization_from_errors() -> None:
     spec = CrossmatchRadiusSpec(mode="localization", default_arcsec=5.0)
     row = pd.Series({"E_RA": 0.001, "E_DEC": 0.0005})
     assert match_radius_deg(row, spec) == pytest.approx(float(np.hypot(0.001, 0.0005)))
+
+
+def test_localization_prefers_match_sigma_deg() -> None:
+    row = pd.Series(
+        {
+            "match_sigma_deg": 1e-4,
+            "match_source": "VLASS",
+            "E_RA": 0.01,
+            "E_DEC": 0.01,
+        }
+    )
+    assert resolve_localization_sigma_deg(row, default_deg=5.0 / 3600.0) == pytest.approx(1e-4)
+    spec = CrossmatchRadiusSpec(mode="localization", sigma_scale=3.0, default_arcsec=5.0)
+    assert match_radius_deg(row, spec) == pytest.approx(3.0 * 1e-4)
+
+
+def test_localization_uses_match_source_default() -> None:
+    row = pd.Series({"match_source": "VLASS", "E_RA": 0.01, "E_DEC": 0.01})
+    assert resolve_localization_sigma_deg(row, default_deg=5.0 / 3600.0) == pytest.approx(
+        VLASS_BMAJ_ARCSEC / 3600.0
+    )
+
+
+def test_nedlvs_radius_defaults() -> None:
+    assert NEDLVS_LWA_RADIUS.mode == "localization"
+    assert NEDLVS_LWA_RADIUS.sigma_scale == pytest.approx(NEDLVS_DEFAULT_POSITION_SIGMA_SCALE)
+    assert NEDLVS_REFERENCE_RADIUS_FIXED.mode == "fixed"
+    assert NEDLVS_REFERENCE_RADIUS_FIXED.fixed_arcsec == pytest.approx(
+        NEDLVS_CATALOG_POSITION_SIGMA_ARCSEC
+    )
 
 
 def test_catalog_match_frame_applies_spec() -> None:
