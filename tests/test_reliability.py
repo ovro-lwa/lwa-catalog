@@ -976,7 +976,6 @@ def test_core_clean_exclude_mask() -> None:
     assert CORE_CLEAN_EXCLUDE_FLAGS == (
         "HAS_NAN",
         "INVALID_ASTROMETRY",
-        "UNPHYSICAL_FLUX",
         "RESID_ABS_FAIL",
         "RESID_PCTL_RMS",
         "RESID_PCTL_MEAN",
@@ -989,7 +988,7 @@ def test_core_clean_exclude_mask() -> None:
     assert CORE_CLEAN_EXCLUDE_MASK == quality_flag_mask_from_names(
         CORE_CLEAN_EXCLUDE_FLAGS
     )
-    assert CORE_CLEAN_EXCLUDE_MASK == 495859
+    assert CORE_CLEAN_EXCLUDE_MASK == 495843
 
 
 def test_filter_or_hesl_or_and_combo() -> None:

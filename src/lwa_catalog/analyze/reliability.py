@@ -837,7 +837,6 @@ def filter_by_quality_flags(
 CORE_CLEAN_EXCLUDE_FLAGS: tuple[str, ...] = (
     "HAS_NAN",
     "INVALID_ASTROMETRY",
-    "UNPHYSICAL_FLUX",
     "RESID_ABS_FAIL",
     "RESID_PCTL_RMS",
     "RESID_PCTL_MEAN",
