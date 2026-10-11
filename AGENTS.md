@@ -52,7 +52,8 @@ Under `CatalogLayout(root)` / `OUTPUT_DIR` / `CATALOG_DIR`:
 | LST-merged band | `metacatalog_lst_{band}.parquet` | Same-source identity within one band |
 | Global fusion | `metacatalog.parquet` | One row per unique sky source (+ `quality_flag` after reliability) |
 | Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows; optional radio survey attach then `spec_*` fits |
-| X-ray sidecar | `metacatalog_xray.parquet` | LWA×eRASS:3 attach (not fused into spectral) |
+| Associations | `metacatalog_associations.parquet` | Long-form unique cross-match evidence (`meta_id`↔`ref_id`); replace-by-`catalog` |
+| Legacy X-ray sidecar | `metacatalog_xray.parquet` | Older trees only — **do not write**; use associations |
 | Quality bit table | `metacatalog_quality_flags.parquet` | Per-bit boolean diagnostics (optional) |
 | Reliability HiPS | `hips_*_nside64/` | Peak-flux-weighted maps, not FITS |
 | Sky PNGs | `sky_screenshots/` | `ipyaladin.save_view_as_image` |
@@ -73,9 +74,12 @@ CSV/FITS catalogs or HEALPix FITS maps.
 `radio_crossmatch.ipynb`
 quality-filters fusion and writes `metacatalog_spectral.parquet` with survey
 columns; spectral modeling then reads that file (or creates it from fusion)
-and adds `spec_*`. X-ray attach writes a separate
-`metacatalog_xray.parquet` sidecar — **never** fold eRASS columns into the
-spectral product.
+and adds `spec_*`. Crossmatch notebooks also write unique matches
+(`n_*` / `n_assoc_*` == 1) into shared `metacatalog_associations.parquet`
+(replace-by-`catalog`; `class_native` = survey class or catalog name). Do
+**not** write `metacatalog_xray.parquet` or fold eRASS / class columns into
+the spectral product. Harmonize + conflict viz:
+`metacatalog_classifications.ipynb` (`analyze/associations.py`).
 
 RGB color bands: `COLOR_BANDS = ("Full", "Blue", "Green", "Red")`.
 Association order: Full+Blue seed, then Green, then Red (`ASSOC_BANDS`).
@@ -334,7 +338,8 @@ Photometric attach (`attach_radio_surveys_to_metacatalog` in
 - eRASS:3 load/match lives in `analyze/erass3.py`; notebook
   `xray_crossmatch.ipynb`. Footprint cut is **Galactic**
   `l ∈ [180°, 360°)` (western Gal sky), not RA-west. Match radius uses
-  `POS_ERR` localization. Product is `metacatalog_xray.parquet` only.
+  `POS_ERR` localization. Unique matches go to
+  `metacatalog_associations.parquet` (in-memory attach remains for local QA).
 
 Match-direction diagnostics (VLSSR QA, reusable):
 
@@ -512,8 +517,7 @@ UI lives at the bottom of `metacatalog_query.ipynb` (and
 Thin cells over library APIs. Config cell sets `CATALOG_DIR` / `CatalogLayout`.
 Pandas filters in config (`RADIO_QA_FILTER`), not expression-eval UIs. List new
 notebooks in `notebooks/README.md` (that file currently lags: it omits
-`radio_crossmatch.ipynb`, `xray_crossmatch.ipynb`, `anomaly_detection.ipynb`,
-and `metacatalog_association_qc_summary.ipynb`).
+`anomaly_detection.ipynb` and `metacatalog_association_qc_summary.ipynb`).
 
 | Notebook | Role |
 | -------- | ---- |
@@ -525,9 +529,11 @@ and `metacatalog_association_qc_summary.ipynb`).
 | `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + **band-merge** source trace |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
 | `metacatalog_spectral_modeling.ipynb` | Prefer radio spectral product or create it; Taylor SED (LWA ± surveys) |
-| `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS → `metacatalog_spectral.parquet` |
-| `xray_crossmatch.ipynb` | eRASS:3 attach → `metacatalog_xray.parquet`; class pie; sky QA (eRASS HiPS + LWA/eRASS3 overlays) |
-| `metacatalog_nedlvs_crossmatch.ipynb` | Galaxy host association (later than this distillation) |
+| `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS → `metacatalog_spectral.parquet` + unique associations |
+| `optical_crossmatch.ipynb` | NED-LVS + MilliQUAS → unique rows in `metacatalog_associations.parquet` |
+| `xray_crossmatch.ipynb` | eRASS:3 / Freund / Xu / 2RXS → associations; in-memory class pie + sky QA |
+| `metacatalog_classifications.ipynb` | Harmonize associations, flag conflicts, class pies / stacked bars |
+| `metacatalog_nedlvs_crossmatch.ipynb` | Legacy NED-LVS notebook name; prefer `optical_crossmatch.ipynb` |
 | `target_samples.ipynb` | Class samples for the query browser |
 
 Trace UI lives in **`metacatalog_query.ipynb`** (`CatalogBrowser`) and the

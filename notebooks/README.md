@@ -12,9 +12,10 @@
 | `metacatalog_vlssr_qa.ipynb` | VLSSR cross-match QA — Blue completeness, over-split, multiplicity diagnostics |
 | `metacatalog_spectral_modeling.ipynb` | Post-hoc Taylor spectral fits — BIC model selection, SED diagnostics |
 | `metacatalog_nedlvs_crossmatch.ipynb` | NED-LVS cross-match — galaxy host association, recovery vs distance |
-| `optical_crossmatch.ipynb` | Optical cross-match — NED-LVS hosts + MilliQUAS AGN/quasar classes |
-| `radio_crossmatch.ipynb` | Radio survey attach (LoDeSS/VLSSR/NVSS/VLASS) → `metacatalog_spectral.parquet` |
-| `xray_crossmatch.ipynb` | eRASS:3 X-ray cross-match → `metacatalog_xray.parquet` + eRASS/LWA HiPS sky QA |
+| `optical_crossmatch.ipynb` | Optical cross-match — NED-LVS hosts + MilliQUAS → `metacatalog_associations.parquet` |
+| `radio_crossmatch.ipynb` | Radio survey attach (LoDeSS/VLSSR/NVSS/VLASS) → `metacatalog_spectral.parquet` + unique associations |
+| `xray_crossmatch.ipynb` | eRASS:3 / Freund / Xu / 2RXS → `metacatalog_associations.parquet`; in-memory pie + eRASS/LWA HiPS sky QA |
+| `metacatalog_classifications.ipynb` | Harmonize associations, flag conflicts, class pies / stacked bars |
 | `target_samples.ipynb` | Class samples (galaxies, clusters, giant radio sources, peaked-spectrum, SNRs, pulsars, PWNe, XRBs, X-ray/optical) for `metacatalog_query.ipynb` |
 
 ## Catalog storage
@@ -27,14 +28,18 @@ Catalogs are written and read as **Apache Parquet** through `lwa_catalog`:
 | LST-merged band | `metacatalog_lst_{band}.parquet` |
 | Global metacatalog (fusion + optional `quality_flag`) | `metacatalog.parquet` |
 | Analysis subset (`spec_*`, optional survey attach) | `metacatalog_spectral.parquet` |
+| Unique cross-match associations (classification bus) | `metacatalog_associations.parquet` |
 | Quality bit diagnostics | `metacatalog_quality_flags.parquet` |
 
 Pipeline: reliability stamps `quality_flag` on `metacatalog.parquet` → optional
 `radio_crossmatch.ipynb` quality-filters and writes `metacatalog_spectral.parquet`
 with survey columns → `metacatalog_spectral_modeling.ipynb` reads that file (or
-creates it from fusion) and adds `spec_*`. Analysis notebooks load fusion via
-`read_metacatalog(layout)` (or `prefer_spectral=True` for the subset product).
-Set `quality_mask=None` to skip the default fusion mask.
+creates it from fusion) and adds `spec_*`. Crossmatch notebooks also append
+unique matches into `metacatalog_associations.parquet` (replace-by-catalog);
+`metacatalog_classifications.ipynb` harmonizes labels and plots conflicts.
+Analysis notebooks load fusion via `read_metacatalog(layout)` (or
+`prefer_spectral=True` for the subset product). Set `quality_mask=None` to skip
+the default fusion mask.
 
 Image products remain FITS. Detection and merge live in `lwa_catalog.create`;
 notebooks keep configuration constants and call library APIs for I/O.
