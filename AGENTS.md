@@ -67,7 +67,7 @@ CSV/FITS catalogs or HEALPix FITS maps.
 `metacatalog_spectral.parquet` when `prefer_spectral=True`). Default
 `quality_mask` keeps rows with `(quality_flag & mask) == 0`. Library default
 `DEFAULT_QUALITY_FLAG_MASK = 247` (legacy); analysis notebooks use
-`CORE_CLEAN_EXCLUDE_MASK` (`HAS_NAN`, `INVALID_ASTROMETRY`, `UNPHYSICAL_FLUX`,
+`CORE_CLEAN_EXCLUDE_MASK` (`HAS_NAN`, `INVALID_ASTROMETRY`,
 `RESID_ABS_FAIL`, `RESID_PCTL_RMS`, `RESID_PCTL_MEAN`, `LOW_ELEVATION`,
 `LARGE_SINGLE`, `NEAR_BRIGHT_SIDELOBE`, `BAND_POSITION_INCONSISTENT`,
 `COMPLEX_RESID`). Set `quality_mask=None` to skip filtering. Optional
@@ -592,6 +592,10 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 - Ellipse-only catalog overlays (no always-on pixel crosses) — tiny
   `POS_ERR` / survey beams vanish at wide FOV.
 - Folding eRASS / X-ray columns into `metacatalog_spectral.parquet`.
+- Writing `metacatalog_xray.parquet` (or other per-survey wide class sidecars).
+  Classification evidence belongs in `metacatalog_associations.parquet`
+  (replace-by-`catalog`, unique-only); keep `metacatalog_spectral.parquet` as
+  the sole special wide crossmatch product for SED.
 - Silently switching healpix default back to point deposits.
 - Treating `display_columns` as the Mahalanobis feature selector.
 - Passing raw HEALPix maps or beamless coadds to PyBDSF (package via
