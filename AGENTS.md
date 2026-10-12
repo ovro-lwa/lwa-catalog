@@ -1,11 +1,12 @@
 # Agent memory — lwa-catalog
 
 Living design notes for agents working in this repository. Distilled from the
-2026-08 through 2026-09 research/plan/implement trail and checked against the
-code as of 2026-09-07. Those markdown sources have been removed; **this file is
-the memory.** When this file and the code disagree, **trust the code**, then
-update this file. Do not resurrect CSV dual-write, HEALPix FITS maps, or
-compatibility shims.
+2026-08 through 2026-10 research/plan/implement/experiment trail and checked
+against the code as of 2026-09-07 (PSF/α conclusions refreshed 2026-10-12).
+Older markdown sources for the 2026-08–09 trail were removed; **this file is
+the memory** (plus retained `.agents/experiment-*` / research summaries). When
+this file and the code disagree, **trust the code**, then update this file. Do
+not resurrect CSV dual-write, HEALPix FITS maps, or compatibility shims.
 
 ---
 
@@ -137,13 +138,17 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   `align="celestial"` + `overlap` for legacy north-aligned squares).   Band-median
   header `BMAJ`/`BMIN` are multiplied by `beam_scale` (library default
   **`DEFAULT_BEAM_SCALE = 1.0`**, unscaled median) before both tiers;
-  catalog `BMAJ`/`BMIN`/`BPA` follow the scaled fit-time beam. Optional
-  **`estimate_beam_scale`** (`create/beam_scale.py`) picks one α per band
-  HEALPix coadd by minimizing mean map−GAUL `resid_rms` on fixed Dec-stratified
-  probe tiles `(28, 102, 189)` under tier2fuse; notebook flag
-  `ESTIMATE_BEAM_SCALE` calls it before full-sky detect (fallback α=1.0).
-  That estimator is **residual-only** — do not treat its α as photometry-optimal
-  (see Experiment conclusions). Do **not** use unconstrained Maj-median as the
+  catalog `BMAJ`/`BMIN`/`BPA` follow the scaled fit-time beam. Header medians
+  understate the effective image-plane PSF after HEALPix/regrid smear, so
+  `beam_scale` (α) may differ by band; **α=1.2 is trusted at 73 MHz** from
+  VLSSR Total comparison (see Experiment conclusions). Optional
+  **`estimate_beam_scale`**
+  (`create/beam_scale.py`) picks one α per band HEALPix coadd by minimizing
+  mean map−GAUL `resid_rms` on fixed Dec-stratified probe tiles
+  `(28, 102, 189)` under tier2fuse; notebook flag `ESTIMATE_BEAM_SCALE` calls
+  it before full-sky detect (fallback α=1.0). That estimator is
+  **residual-only** — do not treat its α as photometry-optimal (see
+  Experiment conclusions). Do **not** use unconstrained Maj-median as the
   production estimator. PyBDSF fits an **image-plane** Gaussian (not
   deconvolved⊗beam); `Total_flux = Peak_flux × (Maj×Min)/(BMAJ×BMIN)`.
   `Total < Peak` means fitted FWHM < attached beam (`fix_to_beam` is off).
@@ -607,12 +612,21 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
   explicitly replaces rematch.
 - Residual-optimal `estimate_beam_scale` α as the production photometry /
   Total-flux SED default (59/78 MHz Total inflation).
+- Flat α=1.0 at **73 MHz** for Total-flux work when VLSSR is the reference —
+  Total_73/Peak_VLSSR ≈1.74 (α=1.0) vs ≈1.21 (α=1.2); Peak is fine either
+  way. Other bands may use other α; do not assume one global scale.
+- Treating a drop in `UNPHYSICAL_FLUX` under α=1.0 as evidence Totals improved
+  — that bit only flags Total ≪ Peak; α=1.0 Total inflation makes σ more
+  positive.
 - Equal-weight mean of Dec-stratified probe `Maj/BMAJ` as a size-match α
   (low-Dec tile overshoot → α≈1.7 while sky-wide median wants ~1.4).
 - Flat α=1.7 (or α≥2) solely to force `Total/Peak≈1` without checking sky-wide
   `Maj/BMAJ` — overshoots the attached beam and under-resolves most sources.
 - Treating `bands_present` / residual HiPS quality as proof that Total fluxes
   are SED-safe when `Maj/BMAJ` is far from 1.
+- Treating raw header-median `BMAJ`/`BMIN` as the true image-plane restoring
+  beam on HEALPix coadds without a smear correction (α or upstream header
+  update).
 
 ---
 
@@ -661,7 +675,10 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
 - **LST coadd smear:** Hour-stack Maj widening vanishes under elliptical elev
   cuts (**22.76°/55°**); absolute `Maj/BMAJ≈1.29` even at N=1 (beam prior).
   Elev-strict coadd is necessary but **does not** unlock α≈1 with
-  `Total/Peak≈1`. → `experiment-lst-average-psf-smearing.md`
+  `Total/Peak≈1`. The N=1 gap means **header `BMAJ`/`BMIN` understate the
+  effective image-plane PSF** (regrid / HEALPix / residual smear) — α is a
+  detect-time correction for that mismatch, not a free photometry knob alone.
+  → `experiment-lst-average-psf-smearing.md`
 - **Restoring-beam α — three different losses:** Residual-optimal,
   size/photometry (`Maj/BMAJ≈1`, `Total/Peak≈1`), and “min α under phot
   gates” are **not interchangeable**. Residual-opt (shipped
@@ -679,18 +696,36 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
   Implied sky-wide size-match α ≈ **1.4–1.5**. Same low-Dec overshoot that
   killed unconstrained Maj-median estimators — do not reintroduce via
   equal-weight probe averaging.
-- **Operator α≈1.2 (subband2):** Fixed `BEAM_SCALE=1.2` with elev 22.76/55 +
-  2-tier: med `Maj/BMAJ≈1.16–1.20`, `Total/Peak≈1.23–1.30` (mild Total
-  high, not the α=1.0 pathology). Residuals and band-merged spectra look
-  better than α=1.7 under-beam catalogs. Prefer this regime when balancing
-  resolution vs Total photometry until a sky-wide size/phot estimator lands.
-  Provisional fused product: `metacatalog_test.parquet` from available
-  `metacatalog_lst_*.parquet` (seed highest-MHz).
+- **Full-sky α=1.2 vs α=1.0 (subband2 vs subband3, 2026-10-12):** Trees
+  `/fast/claw/metacatalog_healpix_IdTR-0.75s_subband2` (`BEAM_SCALE=1.2`) and
+  `..._subband3` (`BEAM_SCALE=1.0`), same elev 22.76/55 + 2-tier. Catalog
+  `BMAJ` ratio = **1.200** on every band; fitted absolute `Maj` unchanged
+  (ratio ≈ 1.000). Peak is identical across trees (matched med ratio ≈ 1.000);
+  Total scales as **×1.44 = 1.2²** via `Total/Peak ≈ (Maj×Min)/(BMAJ×BMIN)`.
+  Completeness: α=1.0 adds ~2% fused rows; VLSSR **unique** assoc counts are
+  similar, but `NO_VLSSR`-clear fraction drops under the smaller
+  `BMAJ_match`. Size/phot: α=1.2 → med `Maj/BMAJ≈1.16–1.24`,
+  `Total/Peak≈1.23–1.33`; α=1.0 → `Maj/BMAJ≈1.39–1.49`, `Total/Peak≈1.76–1.91`.
+  Different α values remain possible per band and per loss (resid vs size/
+  phot vs survey). **We trust α=1.2 at 73 MHz** because unique VLSSR Peak
+  (74 MHz) vs LWA 73 MHz Total is closer to 1-to-1: Peak_73/VLSSR med ≈
+  **1.04** for both α; Total_73/VLSSR med **1.21 (α=1.2)** vs **1.74
+  (α=1.0)**. That VLSSR anchor does not by itself fix α on other subbands.
+  `UNPHYSICAL_FLUX` is slightly *lower* at α=1.0 (Total ≫ Peak pushes σ
+  positive) — do not read that bit alone as photometry-OK.
+  → `research-subband2-vs-subband3-metacatalog-comparison.md`
+- **Header beam needs image-plane smear correction:** Raw band-median header
+  `BMAJ`/`BMIN` (library α=1.0) are **not** the effective restoring beam in
+  the HEALPix-tile image plane. Detect-time α corrects that mismatch and
+  may vary by band; the one survey-anchored value so far is **α=1.2 at
+  73 MHz** (VLSSR Total). Longer-term fix belongs in imaging / header beam,
+  with per-band α as the catalog-side correction until headers carry the
+  smeared PSF.
 - **PyBDSF size vs beam:** Image-plane fit; beam is an external prior from
   `attach_beam_and_freq`. Identity
-  `Total/Peak ≈ (Maj×Min)/(BMAJ×BMIN)` holds tightly (|Δ|~0.01). Majority
-  `Total < Peak` ⇒ fitted size < attached beam (α too large), not a fusion
-  bug. `DC_Maj` empty/≤0 when unresolved vs that prior.
+  `Total/Peak ≈ (Maj×Min)/(BMAJ×BMIN)` holds tightly (|Δ|~0.01–0.04 on LST).
+  Majority `Total < Peak` ⇒ fitted size < attached beam (α too large), not a
+  fusion bug. `DC_Maj` empty/≤0 when unresolved vs that prior.
 - **Over-decomposition / 2-tier:** Residual-opt α cuts source/`M` counts
   (esp. single-tier); muted under tier2fuse. **Keep 2-tier**
   (`fuse_gaul_m_with_tier2_s`). Fake-source blank recovery ~99% — detect +
@@ -698,16 +733,19 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
   incompleteness is confusion-dominated.
   → `experiment-fake-source-recovery-73mhz.md`
 - **Shipped defaults / tools:**
-  - Default: `DEFAULT_BEAM_SCALE = 1.0` (library); notebook often overrides
-    (`BEAM_SCALE`, or `ESTIMATE_BEAM_SCALE` → residual-opt).
+  - Default: `DEFAULT_BEAM_SCALE = 1.0` (library; unscaled header median).
+    α may be set per band / run; **trusted value at 73 MHz is 1.2** (VLSSR
+    Total; subband2 tree). Other bands are not pinned by that comparison —
+    check `OUTPUT_DIR` / `BEAM_SCALE` before trusting Totals.
   - Estimate: `estimate_beam_scale` — mean **resid** on probes 28/102/189,
     tier2fuse, discrete α grid. Not a Total-flux α picker.
   - **Reject** Maj-median / per-tile size estimators and equal-weight probe
     Maj means as production α. Validate any new α on **sky-wide** med
-    `Maj/BMAJ` and `Total/Peak`, plus a few band-merged SEDs — not probe
-    residual alone.
+    `Maj/BMAJ` and `Total/Peak`, VLSSR Total/Peak where available, plus a
+    few band-merged SEDs — not probe residual alone.
   - Summaries: `experiment-beam-psf-overdecomp/{summary,all-subbands/summary}.*`,
-    `experiment-healpix-alpha-near-one/`
+    `experiment-healpix-alpha-near-one/`,
+    `research-subband2-vs-subband3-metacatalog-comparison.md`
   - Plans: `plan-per-band-beam-alpha-estimate.md`,
     `implement-per-band-beam-alpha-estimate.md`
 
@@ -722,8 +760,14 @@ never signed off):
   avoid equal-weight Dec probes for Maj matching. Auto-pick probes from map
   footprint (fixed 28/102/189 shipped); optional estimate-result cache per
   band in the notebook.
-- Close the N=1 `Maj/BMAJ≈1.29` gap (header median vs effective HEALPix/regrid
-  PSF) so α≈1 can coexist with Total photometry — imaging/PSF, not only α.
+- Put the smeared effective PSF into **imaging / FITS header** `BMAJ`/`BMIN`
+  (or a documented smear scale per band) so detect-time α→1.0 is photometry-
+  safe; until then α remains a per-band catalog-side correction (**1.2
+  trusted at 73 MHz via VLSSR**; other bands open). The N=1 `Maj/BMAJ≈1.29`
+  gap is this header vs image-plane mismatch.
+- Anchor α on more bands (size/phot and/or external catalogs); do not
+  extrapolate the 73 MHz VLSSR result as a global α. Library default remains
+  1.0.
 - VLSSR completeness denominator (all sources vs Dec cut vs LWA footprint /
   sensitivity). Seeding union-find from VLSSR was explicitly **out of scope**.
 - Peak+Total spectral fits in one pass; RGB as default spectral input; HiPS of
