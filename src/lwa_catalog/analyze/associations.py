@@ -7,6 +7,7 @@ labels and conflict flags are computed at aggregation time, not at write.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -499,6 +500,99 @@ def flag_association_conflicts(assoc_df: pd.DataFrame) -> pd.DataFrame:
             }
         )
     return pd.DataFrame.from_records(rows)
+
+
+def meta_ids_for_classes(
+    assoc_df: pd.DataFrame,
+    classes: str | Sequence[str],
+    *,
+    column: str = "class_harmonized",
+    exclusive: bool = False,
+    catalogs: Sequence[str] | None = None,
+    exclude_conflicts: bool = False,
+) -> np.ndarray:
+    """Return sorted unique ``meta_id`` values matching crossmatch class labels.
+
+    Parameters
+    ----------
+    assoc_df
+        Long-form associations (typically after :func:`harmonize_associations`).
+    classes
+        One label or a sequence of labels to match in *column*.
+    column
+        Class column to match: ``class_harmonized`` (default) or ``class_native``.
+    exclusive
+        If False (default), keep any ``meta_id`` with ≥1 matching association.
+        If True, keep only ``meta_id``s whose distinct *column* labels are a
+        non-empty subset of *classes*.
+    catalogs
+        Optional association ``catalog`` filter (e.g. ``(\"MilliQuas\",)``).
+    exclude_conflicts
+        If True, drop ``meta_id``s with ≥2 distinct harmonized labels
+        (:func:`flag_association_conflicts`).
+
+    Returns
+    -------
+    np.ndarray
+        Sorted unique integer ``meta_id`` values (empty if nothing matches).
+    """
+    if assoc_df is None or assoc_df.empty:
+        return np.array([], dtype=np.int64)
+    if "meta_id" not in assoc_df.columns:
+        msg = "assoc_df missing meta_id column"
+        raise ValueError(msg)
+    if column == "class_harmonized":
+        work = harmonize_associations(assoc_df)
+    elif column not in assoc_df.columns:
+        msg = f"assoc_df missing class column {column!r}"
+        raise ValueError(msg)
+    else:
+        work = assoc_df
+
+    if isinstance(classes, str):
+        wanted = {classes}
+    else:
+        wanted = {str(c) for c in classes}
+    if not wanted:
+        return np.array([], dtype=np.int64)
+
+    if catalogs is not None:
+        cat_wanted = {str(c) for c in catalogs}
+        work = work.loc[work["catalog"].astype(str).isin(cat_wanted)]
+        if work.empty:
+            return np.array([], dtype=np.int64)
+
+    labels = work[column].map(lambda x: str(x) if pd.notna(x) else "")
+    matched = work.loc[labels.isin(wanted)]
+    if matched.empty:
+        return np.array([], dtype=np.int64)
+
+    if exclusive:
+        # Distinct labels on *column* for each meta_id must be ⊆ wanted.
+        keep: list[int] = []
+        for meta_id, group in work.groupby("meta_id", sort=True):
+            group_labels = {str(x) for x in group[column].tolist() if pd.notna(x) and str(x)}
+            if group_labels and group_labels <= wanted:
+                keep.append(int(meta_id))
+        ids = np.array(keep, dtype=np.int64)
+    else:
+        ids = (
+            matched["meta_id"]
+            .dropna()
+            .astype(np.int64)
+            .drop_duplicates()
+            .sort_values()
+            .to_numpy(dtype=np.int64)
+        )
+
+    if exclude_conflicts and ids.size:
+        conflicts = flag_association_conflicts(assoc_df)
+        conflict_ids = set(
+            conflicts.loc[conflicts["conflict"], "meta_id"].astype(int).tolist()
+        )
+        ids = np.array([i for i in ids if i not in conflict_ids], dtype=np.int64)
+
+    return ids
 
 
 def summarize_classifications(assoc_df: pd.DataFrame) -> dict[str, Any]:

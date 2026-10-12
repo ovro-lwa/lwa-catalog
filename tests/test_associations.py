@@ -17,6 +17,7 @@ from lwa_catalog.analyze.associations import (
     flag_association_conflicts,
     harmonize_associations,
     harmonize_class_native,
+    meta_ids_for_classes,
     metacatalog_with_erass3_association_columns,
     ra_dec_key,
     read_associations,
@@ -235,6 +236,36 @@ def test_harmonize_and_conflicts() -> None:
     summary = summarize_classifications(assoc)
     assert summary["n_conflict_meta_ids"] == 1
     assert summary["n_associations"] == 4
+
+
+def test_meta_ids_for_classes() -> None:
+    assoc = pd.DataFrame(
+        {
+            "meta_id": [1, 1, 2, 2, 3],
+            "catalog": ["Freund2022", "MilliQuas", "VLSSR", "NVSS", "MilliQuas"],
+            "ref_id": ["r", "m", "v1", "v2", "q"],
+            "ref_ra": [0.0, 0.0, 1.0, 1.0, 2.0],
+            "ref_dec": [0.0, 0.0, 1.0, 1.0, 2.0],
+            "class_native": ["Freund2022", "Q", "VLSSR", "NVSS", "S"],
+            "sep_arcsec": [0.1, 0.2, 0.3, 0.4, 0.5],
+            "n_ref": [1, 1, 1, 1, 1],
+        }
+    )
+    harm = harmonize_associations(assoc)
+
+    # meta_id 1 has star+agn; 2 is radio-only; 3 is star-only.
+    assert list(meta_ids_for_classes(harm, "star")) == [1, 3]
+    assert list(meta_ids_for_classes(harm, "star", exclusive=True)) == [3]
+    assert list(meta_ids_for_classes(harm, "star", exclude_conflicts=True)) == [3]
+    assert list(meta_ids_for_classes(harm, ["radio"], exclusive=True)) == [2]
+    assert list(
+        meta_ids_for_classes(harm, "star", catalogs=("MilliQuas",))
+    ) == [3]
+    assert list(
+        meta_ids_for_classes(harm, "S", column="class_native", catalogs=("MilliQuas",))
+    ) == [3]
+    assert meta_ids_for_classes(harm, "cluster").size == 0
+    assert meta_ids_for_classes(pd.DataFrame(), "star").size == 0
 
 
 def test_xu_class_does_not_collide_with_milliquas_s() -> None:
