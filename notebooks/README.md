@@ -5,7 +5,8 @@
 | `ovro_lwa_metacatalog.ipynb` | Discover FITS → PyBDSF → LST merge → global metacatalog (Parquet) |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same pipeline on 15 frequency subbands (18–82 MHz) |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd hourly Full-band FITS to one SIN mosaic → PyBDSF → compare to LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | Coadd hourly FITS to HEALPix (`nside=2048`) → nested TAN tiles (`nside_tile=4`) → PyBDSF |
+| `ovro_lwa_healpix_tile_detect.ipynb` | Coadd hourly FITS to HEALPix (`nside=2048`) → nested TAN tiles (`nside_tile=4`) → PyBDSF; `BEAM_SCALE` scalar or per-band α map |
+| `beam_alpha_bootstrap.ipynb` | VLSSR-anchored + neighbor Total/Peak α → `beam_alpha_by_band.parquet` for re-detect |
 | `metacatalog_sky_view.ipynb` | Load quality metacatalog and explore on the sky |
 | `metacatalog_query.ipynb` | Browse all Parquet catalogs, sortable table, nearest-source coordinate query |
 | `metacatalog_reliability.ipynb` | Build cleaned/gold reliability tiers from metacatalog + LST tree |
@@ -30,6 +31,7 @@ Catalogs are written and read as **Apache Parquet** through `lwa_catalog`:
 | Analysis subset (`spec_*`, optional survey attach) | `metacatalog_spectral.parquet` |
 | Unique cross-match associations (classification bus) | `metacatalog_associations.parquet` |
 | Quality bit diagnostics | `metacatalog_quality_flags.parquet` |
+| Per-band beam α (re-detect input) | `beam_alpha_by_band.parquet` |
 
 Pipeline: reliability stamps `quality_flag` on `metacatalog.parquet` → optional
 `radio_crossmatch.ipynb` quality-filters and writes `metacatalog_spectral.parquet`

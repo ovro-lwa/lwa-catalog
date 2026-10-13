@@ -54,6 +54,7 @@ Under `CatalogLayout(root)` / `OUTPUT_DIR` / `CATALOG_DIR`:
 | Global fusion | `metacatalog.parquet` | One row per unique sky source (+ `quality_flag` after reliability) |
 | Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows; optional radio survey attach then `spec_*` fits |
 | Associations | `metacatalog_associations.parquet` | Long-form unique cross-match evidence (`meta_id`↔`ref_id`); replace-by-`catalog` |
+| Per-band beam α | `beam_alpha_by_band.parquet` | VLSSR+neighbor bootstrap; input to healpix re-detect `BEAM_SCALE` |
 | Legacy X-ray sidecar | `metacatalog_xray.parquet` | Older trees only — **do not write**; use associations |
 | Quality bit table | `metacatalog_quality_flags.parquet` | Per-bit boolean diagnostics (optional) |
 | Reliability HiPS | `hips_*_nside64/` | Peak-flux-weighted maps, not FITS |
@@ -141,15 +142,19 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   catalog `BMAJ`/`BMIN`/`BPA` follow the scaled fit-time beam. Header medians
   understate the effective image-plane PSF after HEALPix/regrid smear, so
   `beam_scale` (α) may differ by band; **α=1.2 is trusted at 73 MHz** from
-  VLSSR Total comparison (see Experiment conclusions). Optional
+  VLSSR Total comparison (see Experiment conclusions). Detect notebooks accept
+  a scalar or `{band: α}` mapping via `resolve_beam_scale` (`healpix_detect.py`);
+  load mappings from `beam_alpha_by_band.parquet`
+  (`analyze/beam_alpha_bootstrap.py`, notebook `beam_alpha_bootstrap.ipynb` —
+  VLSSR Total anchor + Peak-normalized neighbor Total ratios). Optional
   **`estimate_beam_scale`**
   (`create/beam_scale.py`) picks one α per band HEALPix coadd by minimizing
   mean map−GAUL `resid_rms` on fixed Dec-stratified probe tiles
   `(28, 102, 189)` under tier2fuse; notebook flag `ESTIMATE_BEAM_SCALE` calls
   it before full-sky detect (fallback α=1.0). That estimator is
   **residual-only** — do not treat its α as photometry-optimal (see
-  Experiment conclusions). Do **not** use unconstrained Maj-median as the
-  production estimator. PyBDSF fits an **image-plane** Gaussian (not
+  Experiment conclusions). Prefer the VLSSR bootstrap mapping for Total-flux
+  work. Do **not** use unconstrained Maj-median as the production estimator. PyBDSF fits an **image-plane** Gaussian (not
   deconvolved⊗beam); `Total_flux = Peak_flux × (Maj×Min)/(BMAJ×BMIN)`.
   `Total < Peak` means fitted FWHM < attached beam (`fix_to_beam` is off).
   Optional **2-tier detect** (`tier2_bdsf_kw` not `None`): tier-1 deep catalog
@@ -529,7 +534,8 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `ovro_lwa_metacatalog.ipynb` | RGB detect → LST merge → fusion; Fit quality section |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same on 15 MHz subbands |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd experiment vs LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix coadd → nested TAN tiles → PyBDSF; `merge_tile_metacatalog` → band fusion (Option 2) |
+| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix coadd → nested TAN tiles → PyBDSF; `BEAM_SCALE` scalar or per-band α; `merge_tile_metacatalog` → band fusion (Option 2) |
+| `beam_alpha_bootstrap.ipynb` | Post-metacatalog VLSSR + neighbor Total/Peak α → `beam_alpha_by_band.parquet` for re-detect |
 | `metacatalog_query.ipynb` | Browse, sky overlay, **band-merge source trace**, Mahalanobis |
 | `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + **band-merge** source trace |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
@@ -737,8 +743,12 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
     α may be set per band / run; **trusted value at 73 MHz is 1.2** (VLSSR
     Total; subband2 tree). Other bands are not pinned by that comparison —
     check `OUTPUT_DIR` / `BEAM_SCALE` before trusting Totals.
-  - Estimate: `estimate_beam_scale` — mean **resid** on probes 28/102/189,
-    tier2fuse, discrete α grid. Not a Total-flux α picker.
+  - Estimate (resid): `estimate_beam_scale` — mean **resid** on probes
+    28/102/189, tier2fuse, discrete α grid. Not a Total-flux α picker.
+  - Estimate (Total photometry): `bootstrap_beam_alpha` /
+    `beam_alpha_bootstrap.ipynb` — α_73 from unique VLSSR Total/Peak, then
+    Peak-normalized neighbor Total ratios; writes `beam_alpha_by_band.parquet`
+    for `BEAM_SCALE` / `BEAM_SCALE_TABLE` on re-detect.
   - **Reject** Maj-median / per-tile size estimators and equal-weight probe
     Maj means as production α. Validate any new α on **sky-wide** med
     `Maj/BMAJ` and `Total/Peak`, VLSSR Total/Peak where available, plus a

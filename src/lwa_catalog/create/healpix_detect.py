@@ -36,6 +36,7 @@ __all__ = [
     "fuse_gaul_m_with_tier2_s",
     "median_beam_from_paths",
     "merge_tier2_bdsf_kw",
+    "resolve_beam_scale",
     "restfreq_hz_from_header",
     "scale_beam",
 ]
@@ -91,6 +92,33 @@ def scale_beam(
         msg = f"beam scale must be finite and > 0, got {scale!r}"
         raise ValueError(msg)
     return float(s * float(bmaj)), float(s * float(bmin)), float(bpa)
+
+
+def resolve_beam_scale(
+    band: str,
+    beam_scale: float | Mapping[str, float],
+    *,
+    default: float | None = None,
+) -> float:
+    """Return a finite ``> 0`` beam α for *band*.
+
+    *beam_scale* may be a scalar (same α for every band) or a ``{band: α}``
+    mapping from :func:`~lwa_catalog.analyze.bootstrap_beam_alpha`. When the
+    mapping omits *band*, *default* is used (or :data:`DEFAULT_BEAM_SCALE`
+    when *default* is ``None``).
+    """
+    if isinstance(beam_scale, Mapping):
+        if band in beam_scale:
+            raw = beam_scale[band]
+        else:
+            raw = DEFAULT_BEAM_SCALE if default is None else default
+    else:
+        raw = beam_scale
+    s = float(raw)
+    if not np.isfinite(s) or s <= 0.0:
+        msg = f"beam scale for {band!r} must be finite and > 0, got {raw!r}"
+        raise ValueError(msg)
+    return s
 
 
 def restfreq_hz_from_header(header: fits.Header) -> float:

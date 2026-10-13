@@ -363,6 +363,24 @@ def test_analyze_band_merge_trace_exports() -> None:
     assert HealpixMapCache is not None
 
 
+def test_analyze_beam_alpha_bootstrap_exports() -> None:
+    from lwa_catalog.analyze import (
+        BeamAlphaBootstrapConfig,
+        BeamAlphaBootstrapResult,
+        bootstrap_beam_alpha,
+        load_beam_alpha_mapping,
+        summarize_beam_alpha_bootstrap,
+        write_beam_alpha_table,
+    )
+
+    assert callable(bootstrap_beam_alpha)
+    assert callable(load_beam_alpha_mapping)
+    assert callable(write_beam_alpha_table)
+    assert callable(summarize_beam_alpha_bootstrap)
+    assert BeamAlphaBootstrapConfig is not None
+    assert BeamAlphaBootstrapResult is not None
+
+
 def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
         DEFAULT_BEAM_SCALE,
@@ -382,6 +400,7 @@ def test_create_apis_importable() -> None:
         filter_detections_near_transit,
         merge_lst_metacatalog,
         merge_tier2_bdsf_kw,
+        resolve_beam_scale,
         restfreq_hz_from_header,
     )
 
@@ -398,6 +417,7 @@ def test_create_apis_importable() -> None:
     assert callable(fuse_gaul_m_with_tier2_s)
     assert callable(merge_tier2_bdsf_kw)
     assert callable(estimate_beam_scale)
+    assert callable(resolve_beam_scale)
     assert isinstance(DEFAULT_TIER2_BDSF_KW, dict)
     assert DEFAULT_BEAM_SCALE == 1.0
     assert DEFAULT_BEAM_SCALE_PROBE_TILES == (28, 102, 189)

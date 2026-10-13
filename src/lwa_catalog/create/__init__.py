@@ -32,6 +32,7 @@ from lwa_catalog.create.healpix_detect import (
     attach_beam_and_freq,
     detect_sources_on_healpix_tiles,
     median_beam_from_paths,
+    resolve_beam_scale,
     restfreq_hz_from_header,
     scale_beam,
 )
@@ -88,6 +89,7 @@ __all__ = [
     "parse_fits_metadata",
     "pick_best_alpha",
     "pick_highest_elevation_row",
+    "resolve_beam_scale",
     "resolve_fits_slot",
     "restfreq_hz_from_header",
     "scale_beam",

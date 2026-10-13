@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lwa_catalog.constants import (
+    BEAM_ALPHA_BY_BAND_FILENAME,
     METACATALOG_ASSOCIATIONS_FILENAME,
     METACATALOG_QUALITY_FLAGS_FILENAME,
     METACATALOG_RADIO_FILENAME,
@@ -71,6 +72,10 @@ class CatalogLayout:
     def metacatalog_associations(self) -> Path:
         """Long-form unique cross-match associations table."""
         return self.root / METACATALOG_ASSOCIATIONS_FILENAME
+
+    def beam_alpha_by_band(self) -> Path:
+        """Per-band beam α table from ``beam_alpha_bootstrap.ipynb``."""
+        return self.root / BEAM_ALPHA_BY_BAND_FILENAME
 
     def with_metacatalog(self, metacatalog_file: str | Path) -> CatalogLayout:
         """Return a copy of this layout pointing at a different metacatalog file."""
