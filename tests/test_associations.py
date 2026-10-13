@@ -18,6 +18,7 @@ from lwa_catalog.analyze.associations import (
     harmonize_associations,
     harmonize_class_native,
     meta_ids_for_classes,
+    meta_ids_for_class_and_spectral,
     metacatalog_with_erass3_association_columns,
     ra_dec_key,
     read_associations,
@@ -266,6 +267,51 @@ def test_meta_ids_for_classes() -> None:
     ) == [3]
     assert meta_ids_for_classes(harm, "cluster").size == 0
     assert meta_ids_for_classes(pd.DataFrame(), "star").size == 0
+
+
+def test_meta_ids_for_class_and_spectral() -> None:
+    assoc = pd.DataFrame(
+        {
+            "meta_id": [1, 2, 3, 4],
+            "catalog": ["MilliQuas", "MilliQuas", "VLSSR", "MilliQuas"],
+            "ref_id": ["a", "b", "c", "d"],
+            "ref_ra": [0.0, 1.0, 2.0, 3.0],
+            "ref_dec": [0.0, 1.0, 2.0, 3.0],
+            "class_native": ["S", "S", "VLSSR", "Q"],
+            "sep_arcsec": [0.1, 0.2, 0.3, 0.4],
+            "n_ref": [1, 1, 1, 1],
+        }
+    )
+    meta = pd.DataFrame(
+        {
+            "meta_id": [1, 2, 3, 4],
+            "spec_model_n_terms": [2, 2, 2, 3],
+            "spec_model_a1": [-0.7, -1.5, -0.8, -0.5],
+            "spec_model_a2": [np.nan, np.nan, np.nan, 0.2],
+            "spec_model_a3": [np.nan, np.nan, np.nan, -0.1],
+            "spec_model_n_flux": [5, 4, 6, 8],
+        }
+    )
+    harm = harmonize_associations(assoc)
+    # Stars with 2-term fits and a1 in [-1, 0].
+    ids = meta_ids_for_class_and_spectral(
+        harm,
+        meta,
+        "star",
+        exclusive=True,
+        n_terms=2,
+        a1=(-1.0, 0.0),
+    )
+    assert list(ids) == [1]
+    ids4 = meta_ids_for_class_and_spectral(
+        harm,
+        meta,
+        "agn",
+        exclusive=True,
+        n_terms=3,
+        a3_sign="neg",
+    )
+    assert list(ids4) == [4]
 
 
 def test_xu_class_does_not_collide_with_milliquas_s() -> None:

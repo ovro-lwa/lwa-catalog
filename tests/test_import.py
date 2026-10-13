@@ -219,6 +219,7 @@ def test_analyze_associations_exports() -> None:
         flag_association_conflicts,
         harmonize_class_native,
         meta_ids_for_classes,
+        meta_ids_for_class_and_spectral,
         read_associations,
         replace_catalog_associations,
         summarize_classifications,
@@ -230,6 +231,7 @@ def test_analyze_associations_exports() -> None:
     assert callable(read_associations)
     assert callable(flag_association_conflicts)
     assert callable(meta_ids_for_classes)
+    assert callable(meta_ids_for_class_and_spectral)
     assert callable(summarize_classifications)
     assert ASSOCIATION_SPEC_MILLIQUAS.catalog == "MilliQuas"
     assert hasattr(CatalogAssociationSpec, "__dataclass_fields__")

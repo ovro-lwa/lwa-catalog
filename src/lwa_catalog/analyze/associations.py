@@ -595,6 +595,127 @@ def meta_ids_for_classes(
     return ids
 
 
+def _in_closed_range(values: pd.Series, bounds: tuple[float | None, float | None]) -> pd.Series:
+    """Boolean mask for *values* inside inclusive ``(lo, hi)`` (``None`` = open)."""
+    lo, hi = bounds
+    out = pd.Series(True, index=values.index)
+    if lo is not None:
+        out &= values >= float(lo)
+    if hi is not None:
+        out &= values <= float(hi)
+    return out
+
+
+def meta_ids_for_class_and_spectral(
+    assoc_df: pd.DataFrame,
+    metacatalog: pd.DataFrame,
+    classes: str | Sequence[str],
+    *,
+    column: str = "class_harmonized",
+    exclusive: bool = False,
+    catalogs: Sequence[str] | None = None,
+    exclude_conflicts: bool = False,
+    n_terms: int | Sequence[int] | None = None,
+    a1: tuple[float | None, float | None] | None = None,
+    a2: tuple[float | None, float | None] | None = None,
+    a3: tuple[float | None, float | None] | None = None,
+    a3_sign: str | None = None,
+    min_n_flux: int | None = None,
+    prefix: str = "spec_",
+) -> np.ndarray:
+    """Select ``meta_id``s by crossmatch class and spectral-fit cuts.
+
+    Starts from :func:`meta_ids_for_classes`, then keeps only ids whose
+    ``metacatalog`` row satisfies the optional ``spec_model_*`` filters.
+
+    Parameters
+    ----------
+    n_terms
+        Required ``{prefix}model_n_terms`` value(s), or ``None`` to skip.
+    a1, a2, a3
+        Inclusive ``(lo, hi)`` ranges on the corresponding coefficient
+        (``None`` endpoint = open).
+    a3_sign
+        ``\">\"`` / ``\"pos\"`` keeps ``a3 > 0``; ``\"<\"`` / ``\"neg\"`` keeps
+        ``a3 < 0``; ``None`` skips.
+    min_n_flux
+        Minimum ``{prefix}model_n_flux`` when that column exists.
+    """
+    ids = meta_ids_for_classes(
+        assoc_df,
+        classes,
+        column=column,
+        exclusive=exclusive,
+        catalogs=catalogs,
+        exclude_conflicts=exclude_conflicts,
+    )
+    if ids.size == 0:
+        return ids
+    if metacatalog is None or metacatalog.empty or "meta_id" not in metacatalog.columns:
+        msg = "metacatalog must be a non-empty frame with meta_id"
+        raise ValueError(msg)
+
+    n_col = f"{prefix}model_n_terms"
+    a1_col = f"{prefix}model_a1"
+    a2_col = f"{prefix}model_a2"
+    a3_col = f"{prefix}model_a3"
+    n_flux_col = f"{prefix}model_n_flux"
+
+    sub = metacatalog.loc[metacatalog["meta_id"].isin(set(ids.tolist()))].copy()
+    sub = sub.drop_duplicates(subset=["meta_id"], keep="first")
+    if sub.empty:
+        return np.array([], dtype=np.int64)
+
+    mask = pd.Series(True, index=sub.index)
+
+    if n_terms is not None:
+        if n_col not in sub.columns:
+            msg = f"metacatalog missing {n_col}"
+            raise ValueError(msg)
+        wanted_n = {int(n_terms)} if isinstance(n_terms, (int, np.integer)) else {int(x) for x in n_terms}
+        n_vals = pd.to_numeric(sub[n_col], errors="coerce")
+        mask &= n_vals.isin(wanted_n)
+
+    for bounds, col in ((a1, a1_col), (a2, a2_col), (a3, a3_col)):
+        if bounds is None:
+            continue
+        if col not in sub.columns:
+            msg = f"metacatalog missing {col}"
+            raise ValueError(msg)
+        vals = pd.to_numeric(sub[col], errors="coerce")
+        mask &= np.isfinite(vals.to_numpy()) & _in_closed_range(vals, bounds)
+
+    if a3_sign is not None:
+        if a3_col not in sub.columns:
+            msg = f"metacatalog missing {a3_col}"
+            raise ValueError(msg)
+        sign = str(a3_sign).strip().lower()
+        a3_vals = pd.to_numeric(sub[a3_col], errors="coerce")
+        if sign in {">", "pos", "positive", "+"}:
+            mask &= a3_vals > 0
+        elif sign in {"<", "neg", "negative", "-"}:
+            mask &= a3_vals < 0
+        else:
+            msg = f"a3_sign must be '>'/'pos' or '<'/'neg', got {a3_sign!r}"
+            raise ValueError(msg)
+
+    if min_n_flux is not None:
+        if n_flux_col not in sub.columns:
+            msg = f"metacatalog missing {n_flux_col}"
+            raise ValueError(msg)
+        n_flux = pd.to_numeric(sub[n_flux_col], errors="coerce")
+        mask &= n_flux >= int(min_n_flux)
+
+    kept = (
+        sub.loc[mask, "meta_id"]
+        .dropna()
+        .astype(np.int64)
+        .sort_values()
+        .to_numpy(dtype=np.int64)
+    )
+    return kept
+
+
 def summarize_classifications(assoc_df: pd.DataFrame) -> dict[str, Any]:
     """Return counts suitable for logging / notebook display."""
     work = harmonize_associations(assoc_df)

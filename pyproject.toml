@@ -48,6 +48,7 @@ viz = [
 analyze = [
     "healpy>=1.16",
     "lwa-healpix",
+    "dustmaps>=1.0",
 ]
 dev = [
     "pytest>=7",
