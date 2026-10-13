@@ -369,13 +369,17 @@ def test_analyze_beam_alpha_bootstrap_exports() -> None:
         BeamAlphaBootstrapResult,
         bootstrap_beam_alpha,
         load_beam_alpha_mapping,
+        load_beam_scale,
         summarize_beam_alpha_bootstrap,
         write_beam_alpha_table,
+        write_beam_scale_json,
     )
 
     assert callable(bootstrap_beam_alpha)
     assert callable(load_beam_alpha_mapping)
+    assert callable(load_beam_scale)
     assert callable(write_beam_alpha_table)
+    assert callable(write_beam_scale_json)
     assert callable(summarize_beam_alpha_bootstrap)
     assert BeamAlphaBootstrapConfig is not None
     assert BeamAlphaBootstrapResult is not None

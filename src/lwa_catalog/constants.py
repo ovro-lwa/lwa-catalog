@@ -158,6 +158,8 @@ METACATALOG_RADIO_FILENAME: str = "metacatalog_radio.parquet"
 METACATALOG_ASSOCIATIONS_FILENAME: str = "metacatalog_associations.parquet"
 # Per-band restoring-beam α from ``beam_alpha_bootstrap.ipynb`` (feeds re-detect).
 BEAM_ALPHA_BY_BAND_FILENAME: str = "beam_alpha_by_band.parquet"
+# Detect-time / bootstrapped BEAM_SCALE sidecar (JSON next to catalog Parquets).
+BEAM_SCALE_JSON_FILENAME: str = "beam_scale.json"
 
 # Default analysis mask for ``(quality_flag & mask) == 0`` row selection.
 # Requires clear: HAS_NAN, INVALID_ASTROMETRY, SINGLE_LST, UNPHYSICAL_FLUX,

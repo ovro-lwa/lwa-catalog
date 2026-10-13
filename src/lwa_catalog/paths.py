@@ -7,6 +7,7 @@ from pathlib import Path
 
 from lwa_catalog.constants import (
     BEAM_ALPHA_BY_BAND_FILENAME,
+    BEAM_SCALE_JSON_FILENAME,
     METACATALOG_ASSOCIATIONS_FILENAME,
     METACATALOG_QUALITY_FLAGS_FILENAME,
     METACATALOG_RADIO_FILENAME,
@@ -76,6 +77,10 @@ class CatalogLayout:
     def beam_alpha_by_band(self) -> Path:
         """Per-band beam α table from ``beam_alpha_bootstrap.ipynb``."""
         return self.root / BEAM_ALPHA_BY_BAND_FILENAME
+
+    def beam_scale_json(self) -> Path:
+        """``BEAM_SCALE`` JSON sidecar next to catalog Parquets."""
+        return self.root / BEAM_SCALE_JSON_FILENAME
 
     def with_metacatalog(self, metacatalog_file: str | Path) -> CatalogLayout:
         """Return a copy of this layout pointing at a different metacatalog file."""

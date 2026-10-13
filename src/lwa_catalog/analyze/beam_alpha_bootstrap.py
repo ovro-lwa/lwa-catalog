@@ -1,16 +1,23 @@
 """Bootstrap per-band restoring-beam α from VLSSR + neighbor Total/Peak.
 
-Anchor ``α`` at a VLSSR-matched LWA band (default 73 MHz) so that
-``Total_flux ≈ Peak_VLSSR``, then walk neighboring subbands using
+``Total_flux_*`` already embeds the detect-time beam scale used to build the
+metacatalog. The VLSSR anchor therefore estimates a **correction** relative to
+that scale, and the absolute α is the product:
 
-``(T_hi/T_lo) / (P_hi/P_lo) ≈ (α_lo/α_hi)²``
+``α_true = beam_scale_used × √(median Total_anchor / Peak_VLSSR)``
 
-so spectral slope is not absorbed into Δα. Output tables feed a re-detect
-with per-band ``beam_scale`` (see ``resolve_beam_scale``).
+Operators must pass ``beam_scale_used`` (``1.0`` if the tree was detected
+unscaled). Omitting it is an error — a wrong prior silently biases every band.
+
+After anchoring at a VLSSR-matched LWA band (default 73 MHz), walk neighbors
+with ``(T_hi/T_lo) / (P_hi/P_lo) ≈ (α_lo/α_hi)²`` so spectral slope is not
+absorbed into Δα. Output tables feed a re-detect with per-band ``beam_scale``
+(see ``resolve_beam_scale``).
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,7 +30,6 @@ from lwa_catalog.constants import (
     SUBBAND_BANDS_MHZ,
     band_frequency_hz,
 )
-from lwa_catalog.create.healpix_detect import DEFAULT_BEAM_SCALE
 from lwa_catalog.io import read_table, write_table
 from lwa_catalog.paths import CatalogLayout
 
@@ -37,9 +43,11 @@ __all__ = [
     "load_beam_alpha_mapping",
     "median_neighbor_flux_ratio",
     "read_beam_alpha_table",
+    "read_beam_scale_json",
     "summarize_beam_alpha_bootstrap",
     "unconfused_unique_mask",
     "write_beam_alpha_table",
+    "write_beam_scale_json",
 ]
 
 
@@ -65,21 +73,30 @@ BEAM_ALPHA_STEP_COLUMNS: tuple[str, ...] = (
 
 @dataclass(frozen=True, slots=True)
 class BeamAlphaBootstrapConfig:
-    """Configuration for :func:`bootstrap_beam_alpha`."""
+    """Configuration for :func:`bootstrap_beam_alpha`.
 
+    ``beam_scale_used`` is required: the scalar detect-time α that produced
+    ``Total_flux_*`` on this tree (``1.0`` if unscaled / library default).
+    """
+
+    beam_scale_used: float
     anchor_band: str = "73MHz"
-    beam_scale_used: float = DEFAULT_BEAM_SCALE
     bands: tuple[str, ...] | None = None
     require_unconfused_unique: bool = True
 
 
 @dataclass(frozen=True, slots=True)
 class BeamAlphaBootstrapResult:
-    """Outcome of :func:`bootstrap_beam_alpha`."""
+    """Outcome of :func:`bootstrap_beam_alpha`.
+
+    ``alpha_correction`` is ``√(median Total/VLSSR)``; absolute anchor α is
+    ``beam_scale_used × alpha_correction``.
+    """
 
     by_band: pd.DataFrame
     steps: pd.DataFrame
     alpha_anchor: float
+    alpha_correction: float
     median_total_over_vlssr: float
     n_vlssr_unique: int
     anchor_band: str
@@ -152,13 +169,32 @@ def median_neighbor_flux_ratio(
     return float(np.median((y / x).loc[ok])), n
 
 
+def _require_beam_scale_used(beam_scale_used: float) -> float:
+    """Validate detect-time α; Totals already embed this scale."""
+    scale = float(beam_scale_used)
+    if not np.isfinite(scale) or scale <= 0.0:
+        msg = (
+            "beam_scale_used must be finite and > 0 "
+            f"(detect-time α that built Total_flux_*); got {beam_scale_used!r}. "
+            "Use 1.0 if the metacatalog was detected unscaled. "
+            "True α = beam_scale_used × √(med Total/VLSSR Peak)."
+        )
+        raise ValueError(msg)
+    return scale
+
+
 def _alpha_anchor_from_vlssr(
     meta: pd.DataFrame,
     *,
     anchor_band: str,
     beam_scale_used: float,
-) -> tuple[float, float, int]:
-    """Return ``(alpha_anchor, median Total/VLSSR Peak, n)``."""
+) -> tuple[float, float, float, int]:
+    """Return ``(alpha_anchor, alpha_correction, median Total/VLSSR Peak, n)``.
+
+    ``alpha_correction = √(med Total/VLSSR)``;
+    ``alpha_anchor = beam_scale_used × alpha_correction``.
+    """
+    scale = _require_beam_scale_used(beam_scale_used)
     total_col = f"Total_flux_{anchor_band}"
     if total_col not in meta.columns:
         msg = f"metacatalog missing {total_col}"
@@ -188,18 +224,14 @@ def _alpha_anchor_from_vlssr(
         msg = f"median Total/VLSSR Peak must be finite and > 0, got {med!r}"
         raise ValueError(msg)
 
-    scale = float(beam_scale_used)
-    if not np.isfinite(scale) or scale <= 0.0:
-        msg = f"beam_scale_used must be finite and > 0, got {beam_scale_used!r}"
-        raise ValueError(msg)
-
-    return scale * float(np.sqrt(med)), med, n
+    correction = float(np.sqrt(med))
+    return scale * correction, correction, med, n
 
 
 def bootstrap_beam_alpha(
     metacatalog: pd.DataFrame,
     *,
-    config: BeamAlphaBootstrapConfig | None = None,
+    config: BeamAlphaBootstrapConfig,
 ) -> BeamAlphaBootstrapResult:
     """Estimate per-band beam α from VLSSR anchor + neighbor Total/Peak ratios.
 
@@ -209,11 +241,15 @@ def bootstrap_beam_alpha(
         Quality-filtered (or spectral) rows with ``Total_flux_*``,
         ``Peak_flux_*``, ``n_assoc_*`` / ``n_confused_*``, and unique VLSSR
         columns ``Peak_flux_VLSSR`` (+ ``n_assoc_VLSSR`` when present).
+        Totals must come from a known detect-time α (see
+        ``config.beam_scale_used``).
     config
-        Anchor band, detect-time ``beam_scale_used``, optional band list.
+        Required ``beam_scale_used`` (detect-time α; ``1.0`` if unscaled),
+        anchor band, optional band list.
     """
-    cfg = config if config is not None else BeamAlphaBootstrapConfig()
+    cfg = config
     warnings: list[str] = []
+    _require_beam_scale_used(cfg.beam_scale_used)
 
     if cfg.bands is not None:
         bands = [b for b in cfg.bands if f"Total_flux_{b}" in metacatalog.columns]
@@ -224,7 +260,7 @@ def bootstrap_beam_alpha(
         msg = f"anchor_band {cfg.anchor_band!r} not among bands with Total_flux: {bands}"
         raise ValueError(msg)
 
-    alpha_anchor, med_vlssr, n_vlssr = _alpha_anchor_from_vlssr(
+    alpha_anchor, alpha_correction, med_vlssr, n_vlssr = _alpha_anchor_from_vlssr(
         metacatalog,
         anchor_band=cfg.anchor_band,
         beam_scale_used=cfg.beam_scale_used,
@@ -296,6 +332,7 @@ def bootstrap_beam_alpha(
         by_band=by_band,
         steps=steps,
         alpha_anchor=float(alpha_anchor),
+        alpha_correction=float(alpha_correction),
         median_total_over_vlssr=float(med_vlssr),
         n_vlssr_unique=int(n_vlssr),
         anchor_band=str(cfg.anchor_band),
@@ -309,9 +346,10 @@ def summarize_beam_alpha_bootstrap(result: BeamAlphaBootstrapResult) -> str:
     alphas = pd.to_numeric(result.by_band["alpha"], errors="coerce").to_numpy(dtype=float)
     finite = alphas[np.isfinite(alphas) & (alphas > 0)]
     lines = [
-        f"anchor {result.anchor_band}: α={result.alpha_anchor:.4f}  "
-        f"(BEAM_SCALE_USED={result.beam_scale_used:g} × "
-        f"√(med Total/VLSSR={result.median_total_over_vlssr:.4f}), "
+        f"anchor {result.anchor_band}: α_true={result.alpha_anchor:.4f}  "
+        f"= beam_scale_used={result.beam_scale_used:g} "
+        f"× correction={result.alpha_correction:.4f}  "
+        f"(√(med Total/VLSSR={result.median_total_over_vlssr:.4f}), "
         f"n_unique={result.n_vlssr_unique:,})",
     ]
     if finite.size:
@@ -325,19 +363,101 @@ def summarize_beam_alpha_bootstrap(result: BeamAlphaBootstrapResult) -> str:
     return "\n".join(lines)
 
 
+def _beam_scale_payload_from_result(result: BeamAlphaBootstrapResult) -> dict:
+    """JSON-serializable document for ``beam_scale.json``."""
+    mapping = result.as_mapping()
+    return {
+        "BEAM_SCALE": mapping,
+        "beam_scale_used": float(result.beam_scale_used),
+        "anchor_band": str(result.anchor_band),
+        "alpha_anchor": float(result.alpha_anchor),
+        "alpha_correction": float(result.alpha_correction),
+        "median_total_over_vlssr": float(result.median_total_over_vlssr),
+        "n_vlssr_unique": int(result.n_vlssr_unique),
+        "source": "beam_alpha_bootstrap",
+    }
+
+
+def write_beam_scale_json(
+    beam_scale: float | Mapping[str, float] | BeamAlphaBootstrapResult,
+    path: Path | str | CatalogLayout,
+    *,
+    extra: Mapping[str, object] | None = None,
+) -> Path:
+    """Write ``beam_scale.json`` next to catalog Parquets.
+
+    *beam_scale* may be a scalar, ``{band: α}`` mapping, or a bootstrap
+    :class:`BeamAlphaBootstrapResult` (includes VLSSR anchor metadata).
+    """
+    if isinstance(path, CatalogLayout):
+        out = path.beam_scale_json()
+    else:
+        out = Path(path)
+        if out.suffix.lower() != ".json":
+            out = out / "beam_scale.json"
+
+    if isinstance(beam_scale, BeamAlphaBootstrapResult):
+        payload: dict = _beam_scale_payload_from_result(beam_scale)
+    elif isinstance(beam_scale, Mapping):
+        mapping = load_beam_alpha_mapping(beam_scale)
+        payload = {"BEAM_SCALE": mapping, "source": "mapping"}
+    else:
+        scale = float(beam_scale)
+        if not np.isfinite(scale) or scale <= 0.0:
+            msg = f"BEAM_SCALE must be finite and > 0, got {beam_scale!r}"
+            raise ValueError(msg)
+        payload = {"BEAM_SCALE": scale, "source": "scalar"}
+
+    if extra:
+        for key, value in extra.items():
+            if key == "BEAM_SCALE":
+                continue
+            payload[str(key)] = value
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    return out
+
+
+def read_beam_scale_json(path: Path | str | CatalogLayout) -> dict:
+    """Read a ``beam_scale.json`` document (full payload, not only the mapping)."""
+    if isinstance(path, CatalogLayout):
+        p = path.beam_scale_json()
+    else:
+        p = Path(path)
+    if not p.is_file():
+        msg = f"beam_scale.json not found: {p}"
+        raise FileNotFoundError(msg)
+    payload = json.loads(p.read_text())
+    if not isinstance(payload, dict):
+        msg = f"beam_scale.json root must be an object: {p}"
+        raise ValueError(msg)
+    return payload
+
+
 def write_beam_alpha_table(
     result: BeamAlphaBootstrapResult,
     path: Path | str | CatalogLayout,
 ) -> Path:
-    """Write ``beam_alpha_by_band.parquet`` (and optional steps sidecar)."""
+    """Write ``beam_alpha_by_band.parquet``, steps sidecar, and ``beam_scale.json``."""
     if isinstance(path, CatalogLayout):
-        out = path.beam_alpha_by_band()
+        layout = path
+        out = layout.beam_alpha_by_band()
+        json_path: Path | CatalogLayout = layout
     else:
+        layout = None
         out = Path(path)
+        json_path = out.parent
+
     write_table(result.by_band.loc[:, list(BEAM_ALPHA_BY_BAND_COLUMNS)], out)
     steps_path = out.with_name(out.stem + "_steps.parquet")
     if len(result.steps):
         write_table(result.steps.loc[:, list(BEAM_ALPHA_STEP_COLUMNS)], steps_path)
+
+    if layout is not None:
+        write_beam_scale_json(result, layout)
+    else:
+        write_beam_scale_json(result, Path(json_path) / "beam_scale.json")
     return out
 
 
@@ -354,25 +474,87 @@ def read_beam_alpha_table(path: Path | str | CatalogLayout) -> pd.DataFrame:
     return df
 
 
+def _mapping_from_band_alphas(raw: Mapping[str, object]) -> dict[str, float]:
+    """Validate a plain ``{band: α}`` mapping."""
+    out: dict[str, float] = {}
+    for k, v in raw.items():
+        a = float(v)  # type: ignore[arg-type]
+        if not np.isfinite(a) or a <= 0.0:
+            msg = f"beam alpha for {k!r} must be finite and > 0, got {v!r}"
+            raise ValueError(msg)
+        out[str(k)] = a
+    if not out:
+        msg = "no finite positive alpha values in mapping"
+        raise ValueError(msg)
+    return out
+
+
+def load_beam_scale(
+    path: Path | str | CatalogLayout,
+) -> float | dict[str, float]:
+    """Load ``BEAM_SCALE`` from ``beam_scale.json`` (scalar or per-band mapping)."""
+    payload = read_beam_scale_json(path)
+    if "BEAM_SCALE" not in payload:
+        msg = f"beam_scale.json missing BEAM_SCALE key: {path}"
+        raise ValueError(msg)
+    raw = payload["BEAM_SCALE"]
+    if isinstance(raw, Mapping):
+        return _mapping_from_band_alphas(raw)
+    scale = float(raw)
+    if not np.isfinite(scale) or scale <= 0.0:
+        msg = f"BEAM_SCALE must be finite and > 0, got {raw!r}"
+        raise ValueError(msg)
+    return scale
+
+
 def load_beam_alpha_mapping(
     path: Path | str | CatalogLayout | pd.DataFrame | Mapping[str, float],
 ) -> dict[str, float]:
-    """Load ``{band: alpha}`` from a path, layout, DataFrame, or mapping."""
-    if isinstance(path, Mapping) and not isinstance(path, (pd.DataFrame,)):
-        # plain dict-like of band -> alpha
-        out: dict[str, float] = {}
-        for k, v in path.items():
-            a = float(v)
-            if not np.isfinite(a) or a <= 0.0:
-                msg = f"beam alpha for {k!r} must be finite and > 0, got {v!r}"
-                raise ValueError(msg)
-            out[str(k)] = a
-        return out
+    """Load ``{band: α}`` from JSON, parquet, layout, DataFrame, or mapping.
+
+    For a :class:`CatalogLayout`, prefers ``beam_scale.json`` when present
+    (and ``BEAM_SCALE`` is a mapping), else ``beam_alpha_by_band.parquet``.
+    """
+    if isinstance(path, Mapping) and not isinstance(path, pd.DataFrame):
+        if "BEAM_SCALE" in path:
+            raw = path["BEAM_SCALE"]
+            if isinstance(raw, Mapping):
+                return _mapping_from_band_alphas(raw)
+            msg = (
+                "BEAM_SCALE in payload is scalar; use load_beam_scale() "
+                "or pass a per-band mapping"
+            )
+            raise TypeError(msg)
+        return _mapping_from_band_alphas(path)
+
     if isinstance(path, pd.DataFrame):
         df = path
-    else:
+    elif isinstance(path, CatalogLayout):
+        json_path = path.beam_scale_json()
+        if json_path.is_file():
+            loaded = load_beam_scale(path)
+            if isinstance(loaded, Mapping):
+                return dict(loaded)
+            msg = (
+                f"{json_path} has scalar BEAM_SCALE={loaded!r}; "
+                "need a per-band mapping (or use load_beam_scale)"
+            )
+            raise TypeError(msg)
         df = read_beam_alpha_table(path)
-    out = {}
+    else:
+        p = Path(path)
+        if p.suffix.lower() == ".json" or p.name == "beam_scale.json":
+            loaded = load_beam_scale(p)
+            if isinstance(loaded, Mapping):
+                return dict(loaded)
+            msg = (
+                f"{p} has scalar BEAM_SCALE={loaded!r}; "
+                "need a per-band mapping (or use load_beam_scale)"
+            )
+            raise TypeError(msg)
+        df = read_beam_alpha_table(p)
+
+    out: dict[str, float] = {}
     for _, row in df.iterrows():
         a = float(pd.to_numeric(row["alpha"], errors="coerce"))
         if not np.isfinite(a) or a <= 0.0:

@@ -10,8 +10,11 @@ from lwa_catalog.analyze.beam_alpha_bootstrap import (
     BeamAlphaBootstrapConfig,
     bootstrap_beam_alpha,
     load_beam_alpha_mapping,
+    load_beam_scale,
+    read_beam_scale_json,
     summarize_beam_alpha_bootstrap,
     write_beam_alpha_table,
+    write_beam_scale_json,
 )
 from lwa_catalog.create.healpix_detect import DEFAULT_BEAM_SCALE, resolve_beam_scale
 from lwa_catalog.paths import CatalogLayout
@@ -84,18 +87,61 @@ def test_bootstrap_anchor_and_neighbor_step(tmp_path) -> None:
         ),
     )
     assert result.alpha_anchor == pytest.approx(1.2)
+    assert result.alpha_correction == pytest.approx(np.sqrt(1.44))
     assert result.median_total_over_vlssr == pytest.approx(1.44)
     mapping = result.as_mapping()
     assert mapping["73MHz"] == pytest.approx(1.2)
     assert mapping["78MHz"] == pytest.approx(1.2 * 0.9)
 
-    out = write_beam_alpha_table(result, CatalogLayout(tmp_path))
+    layout = CatalogLayout(tmp_path)
+    out = write_beam_alpha_table(result, layout)
     assert out.is_file()
-    loaded = load_beam_alpha_mapping(CatalogLayout(tmp_path))
+    loaded = load_beam_alpha_mapping(layout)
     assert loaded["73MHz"] == pytest.approx(1.2)
     assert loaded["78MHz"] == pytest.approx(1.08)
+    json_path = layout.beam_scale_json()
+    assert json_path.is_file()
+    payload = read_beam_scale_json(layout)
+    assert payload["beam_scale_used"] == pytest.approx(1.0)
+    assert payload["BEAM_SCALE"]["73MHz"] == pytest.approx(1.2)
+    assert load_beam_scale(layout)["73MHz"] == pytest.approx(1.2)
     text = summarize_beam_alpha_bootstrap(result)
-    assert "α=" in text
+    assert "α_true=" in text
+    assert "correction=" in text
+
+
+def test_write_beam_scale_json_scalar(tmp_path) -> None:
+    layout = CatalogLayout(tmp_path)
+    path = write_beam_scale_json(1.2, layout, extra={"estimate_beam_scale": False})
+    assert path == layout.beam_scale_json()
+    assert load_beam_scale(layout) == pytest.approx(1.2)
+    payload = read_beam_scale_json(layout)
+    assert payload["estimate_beam_scale"] is False
+
+
+def test_bootstrap_alpha_is_used_times_correction() -> None:
+    # Same Totals as if catalog were built at α=1.2 with med T/VLSSR=1.0
+    # → correction=1, α_true = 1.2. Inflated Totals at α_used=1.0 with
+    # med=1.44 → correction=1.2, α_true=1.2. Product form must hold.
+    df = pd.DataFrame(
+        [
+            _row(
+                meta_id=1,
+                bands={"73MHz": (1.44, 1.0), "78MHz": (1.44, 1.0)},
+                vlssr_peak=1.0,
+            )
+        ]
+    )
+    at_1 = bootstrap_beam_alpha(
+        df, config=BeamAlphaBootstrapConfig(beam_scale_used=1.0)
+    )
+    at_12 = bootstrap_beam_alpha(
+        df, config=BeamAlphaBootstrapConfig(beam_scale_used=1.2)
+    )
+    assert at_1.alpha_correction == pytest.approx(np.sqrt(1.44))
+    assert at_1.alpha_anchor == pytest.approx(1.0 * at_1.alpha_correction)
+    assert at_12.alpha_correction == pytest.approx(np.sqrt(1.44))
+    assert at_12.alpha_anchor == pytest.approx(1.2 * at_12.alpha_correction)
 
 
 def test_bootstrap_requires_vlssr() -> None:
@@ -108,7 +154,25 @@ def test_bootstrap_requires_vlssr() -> None:
         ]
     )
     with pytest.raises(ValueError, match="Peak_flux_VLSSR"):
-        bootstrap_beam_alpha(df)
+        bootstrap_beam_alpha(
+            df, config=BeamAlphaBootstrapConfig(beam_scale_used=1.0)
+        )
+
+
+def test_bootstrap_rejects_bad_beam_scale_used() -> None:
+    df = pd.DataFrame(
+        [
+            _row(
+                meta_id=1,
+                bands={"73MHz": (1.0, 1.0)},
+                vlssr_peak=1.0,
+            )
+        ]
+    )
+    with pytest.raises(ValueError, match="beam_scale_used"):
+        bootstrap_beam_alpha(
+            df, config=BeamAlphaBootstrapConfig(beam_scale_used=0.0)
+        )
 
 
 def test_confused_rows_excluded() -> None:

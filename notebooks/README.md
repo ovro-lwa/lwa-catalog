@@ -32,6 +32,7 @@ Catalogs are written and read as **Apache Parquet** through `lwa_catalog`:
 | Unique cross-match associations (classification bus) | `metacatalog_associations.parquet` |
 | Quality bit diagnostics | `metacatalog_quality_flags.parquet` |
 | Per-band beam α (re-detect input) | `beam_alpha_by_band.parquet` |
+| BEAM_SCALE documentation | `beam_scale.json` |
 
 Pipeline: reliability stamps `quality_flag` on `metacatalog.parquet` → optional
 `radio_crossmatch.ipynb` quality-filters and writes `metacatalog_spectral.parquet`
