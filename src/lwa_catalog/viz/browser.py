@@ -437,6 +437,7 @@ def _spectrum_figure_for_row(
     bands: tuple[str, ...] | None = None,
     prefix: str = "spec_",
     ref_freq_mhz: float = SUBBAND_REF_FREQ_MHZ,
+    show_model: bool = True,
     fig=None,
 ):
     """Plot per-band flux measurements and optional Taylor model for one catalog row.
@@ -448,6 +449,8 @@ def _spectrum_figure_for_row(
     Y-limits follow the data (± errors), not the Taylor curve.
     Title ``n_flux`` is the fit's channel count (stored ``spec_model_n_flux``,
     or the live unconfused count when no model columns are present).
+    Set *show_model* False to omit the Taylor fit curve (title still reports
+    fit metadata when ``spec_model_*`` columns exist).
     """
     _mpl_configure()
 
@@ -514,7 +517,7 @@ def _spectrum_figure_for_row(
     _errorbar((~is_lwa) & ~is_fit, fmt="x", label="survey (confused)", markersize=7)
 
     fit = _row_to_spectrum_fit(row, prefix=prefix)
-    if fit is not None:
+    if show_model and fit is not None:
         nu_curve = np.geomspace(nu_mhz.min(), nu_mhz.max(), 100)
         flux_curve = evaluate_taylor_spectrum(nu_curve * 1e6, fit)
         ax.plot(nu_curve, flux_curve, "-", label=f"{fit.n_terms}-term Taylor fit")
@@ -596,6 +599,11 @@ class CatalogBrowser(pn.viewable.Viewer):
     radio_qa_filter = param.String(
         default="",
         doc="Optional pandas query string to subset the loaded catalog (Apply filter)",
+    )
+    show_spec_model = param.Selector(
+        default="Show fit",
+        objects=["Show fit", "Hide fit"],
+        doc="Whether Plot spectrum draws the stored spec_model Taylor curve",
     )
 
     def __init__(
@@ -752,6 +760,10 @@ class CatalogBrowser(pn.viewable.Viewer):
                 sizing_mode="fixed",
             )
             self._spectrum_btn.on_click(self._on_plot_spectrum)
+            self._spec_model_w = pn.widgets.RadioButtonGroup.from_param(
+                self.param.show_spec_model,
+                name="spec_model fit",
+            )
             self._find_btn = pn.widgets.Button(
                 name="Load nearest",
                 button_type="primary",
@@ -912,13 +924,14 @@ class CatalogBrowser(pn.viewable.Viewer):
                     "### Spectral flux (SED)\n"
                     "After centering with **Load sky view**, click **Plot spectrum**. "
                     "Per-band `Total_flux_{band}` measurements are shown (LWA circles; "
-                    "LoDeSS/VLSSR/NVSS/VLASS squares when present) with the stored Taylor model "
-                    "when `spec_model_*` columns exist (e.g. `metacatalog_spectral.parquet`). "
+                    "LoDeSS/VLSSR/NVSS/VLASS squares when present). Use the radio next to "
+                    "the button to include or omit the stored Taylor `spec_model` curve "
+                    "(needs `spec_model_*` columns, e.g. `metacatalog_spectral.parquet`). "
                     "Survey points sit far to the right on the log-frequency axis "
                     "(74 MHz / 1.4 GHz / ~3 GHz).",
                     disable_anchors=True,
                 ),
-                pn.Row(self._spectrum_btn),
+                pn.Row(self._spectrum_btn, self._spec_model_w, align="end"),
                 self._spectrum_status,
                 self._spectrum_plot,
                 pn.pane.Markdown(
@@ -1608,21 +1621,27 @@ class CatalogBrowser(pn.viewable.Viewer):
             )
             return
 
+        show_model = self.show_spec_model == "Show fit"
         fig = _spectrum_figure_for_row(
             row,
             bands=sed_bands,
             fig=self._spectrum_plot.object,
             prefix=self._cfg.spec_column_prefix,
             ref_freq_mhz=self._cfg.spec_ref_freq_mhz,
+            show_model=show_model,
         )
         _set_mpl_pane(self._spectrum_plot, fig)
         if "meta_id" in row.index and pd.notna(row.get("meta_id")):
             label = f"meta_id={int(row['meta_id'])}"
         else:
             label = "selected source"
-        model_note = ""
-        if _row_to_spectrum_fit(row, prefix=self._cfg.spec_column_prefix) is None:
+        has_fit = _row_to_spectrum_fit(row, prefix=self._cfg.spec_column_prefix) is not None
+        if not has_fit:
             model_note = " (flux only; no `spec_model_*` fit on this row)"
+        elif show_model:
+            model_note = " (with `spec_model` fit line)"
+        else:
+            model_note = " (flux only; `spec_model` fit line hidden)"
         n_survey = sum(1 for b in sed_bands if b not in SUBBAND_BANDS_MHZ)
         survey_note = f", including {n_survey} survey band(s)" if n_survey else ""
         self._spectrum_status.object = (
