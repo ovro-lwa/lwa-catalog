@@ -355,3 +355,126 @@ def test_load_sky_view_centers_on_meta_id_field(
     row = br._catalog_row_for_selection()
     assert row is not None
     assert int(row["meta_id"]) == 20
+
+
+def _make_browser_for_selection_tests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, meta_ids: list[int]
+):
+    """CatalogBrowser with FakeAladin; returns browser loaded on metacatalog."""
+    pytest.importorskip("ipyaladin")
+    import panel as pn
+    from lwa_catalog.viz import browser as browser_mod
+    from lwa_catalog.viz.browser import CatalogBrowser, CatalogBrowserConfig
+
+    class _FakeAladin:
+        def __init__(self, **kwargs):
+            self.target = kwargs.get("target")
+            self.fov = kwargs.get("fov")
+            self.survey = kwargs.get("survey")
+            self._listeners: dict = {}
+
+        def set_listener(self, event: str, callback) -> None:
+            self._listeners[event] = callback
+
+        def save_view_as_image(self, *args, **kwargs) -> None:
+            return None
+
+    monkeypatch.setattr("ipyaladin.Aladin", _FakeAladin)
+    monkeypatch.setattr(
+        pn.pane,
+        "IPyWidget",
+        lambda object, **kwargs: type("W", (), {"object": object})(),
+    )
+    monkeypatch.setattr(
+        browser_mod,
+        "fetch_catalog_hips_surveys",
+        lambda *a, **k: ["CDS/P/DSS2/color"],
+    )
+    monkeypatch.setattr(
+        browser_mod,
+        "preferred_hips_survey",
+        lambda *a, **k: "CDS/P/DSS2/color",
+    )
+    monkeypatch.setattr(browser_mod, "hips_survey_url", lambda name, base="": f"mock://{name}")
+    monkeypatch.setattr(
+        browser_mod,
+        "DebouncedAladinViewRefresh",
+        lambda *a, **k: type("R", (), {"cancel_pending": lambda self: None})(),
+    )
+    monkeypatch.setattr(
+        browser_mod,
+        "overlay_catalog_by_band",
+        lambda *a, **k: type("O", (), {"drawn": 0, "in_fov": 0, "truncated": False})(),
+    )
+    monkeypatch.setattr(browser_mod, "clear_trace_overlays", lambda *a, **k: None)
+    monkeypatch.setattr(browser_mod, "clear_catalog_overlays", lambda *a, **k: None)
+    monkeypatch.setattr(browser_mod, "cancel_aladin_view_timers", lambda *a, **k: None)
+    monkeypatch.setattr(browser_mod, "aladin_view_center_fov", lambda *a, **k: (None, 10.0))
+
+    catalog_dir = tmp_path / "cat_sel"
+    catalog_dir.mkdir(exist_ok=True)
+    n = len(meta_ids)
+    df = pd.DataFrame(
+        {
+            "meta_id": meta_ids,
+            "RA": [10.0 * (i + 1) for i in range(n)],
+            "DEC": [float(i) for i in range(n)],
+            "Peak_flux": [float(n - i) for i in range(n)],
+            "bands_present": ["Full"] * n,
+            "origin_band": ["Full"] * n,
+        }
+    )
+    path = catalog_dir / "metacatalog.parquet"
+    df.to_parquet(path, index=False)
+    index = pd.DataFrame(
+        [
+            {
+                "file": "metacatalog.parquet",
+                "kind": "metacatalog",
+                "lst_hour": None,
+                "band": None,
+                "n_rows": n,
+                "size_mb": 0.01,
+                "path": str(path),
+            }
+        ]
+    )
+    cfg = CatalogBrowserConfig(
+        catalog_dirs=(str(catalog_dir),),
+        default_catalog_dir=str(catalog_dir),
+        quality_flag_mask=None,
+        display_column_prefs_path=tmp_path / "display_cols_sel.json",
+    )
+    return CatalogBrowser(index, config=cfg)
+
+
+def test_table_select_uses_processed_order_after_sort(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After a column sort, selection iloc must read ``_processed``, not value."""
+    br = _make_browser_for_selection_tests(tmp_path, monkeypatch, meta_ids=[10, 20, 30])
+    assert br._selected_meta_id == 10
+
+    view = br._table.value
+    assert view is not None
+    # Simulate Tabulator remote sort: reverse row order, keep original index labels.
+    processed = view.iloc[::-1].copy()
+    br._table._processed = processed
+
+    # Click the first *visible* row → meta_id 30 (was last in unsorted value).
+    br._table.selection = [0]
+    br._on_table_select()
+
+    assert br._selected_meta_id == 30
+    assert int(br.meta_id) == 30
+    assert str(br._meta_id_w.value) == "30"
+    selected = br._selected_table_row()
+    assert selected is not None
+    assert int(selected["meta_id"]) == 30
+
+    # Reveal by meta_id must page/select within the sorted frame, not value order.
+    assert br._table_selection_index_for_meta_id(30) == 0
+    assert br._table_selection_index_for_meta_id(10) == 2
+    br._reveal_table_row(0)
+    assert br._table.selection == [0]
+    assert br._table.page == 1
