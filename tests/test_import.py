@@ -369,22 +369,32 @@ def test_analyze_beam_alpha_bootstrap_exports() -> None:
     from lwa_catalog.analyze import (
         BeamAlphaBootstrapConfig,
         BeamAlphaBootstrapResult,
+        BeamAlphaKappaEstimateConfig,
+        BeamAlphaKappaEstimateResult,
         bootstrap_beam_alpha,
+        estimate_beam_alpha_kappa,
         load_beam_alpha_mapping,
         load_beam_scale,
         summarize_beam_alpha_bootstrap,
+        summarize_beam_alpha_kappa_estimate,
+        write_beam_alpha_kappa_result,
         write_beam_alpha_table,
         write_beam_scale_json,
     )
 
     assert callable(bootstrap_beam_alpha)
+    assert callable(estimate_beam_alpha_kappa)
     assert callable(load_beam_alpha_mapping)
     assert callable(load_beam_scale)
     assert callable(write_beam_alpha_table)
+    assert callable(write_beam_alpha_kappa_result)
     assert callable(write_beam_scale_json)
     assert callable(summarize_beam_alpha_bootstrap)
+    assert callable(summarize_beam_alpha_kappa_estimate)
     assert BeamAlphaBootstrapConfig is not None
     assert BeamAlphaBootstrapResult is not None
+    assert BeamAlphaKappaEstimateConfig is not None
+    assert BeamAlphaKappaEstimateResult is not None
 
 
 def test_create_apis_importable() -> None:
@@ -392,14 +402,22 @@ def test_create_apis_importable() -> None:
         DEFAULT_BEAM_SCALE,
         DEFAULT_BEAM_SCALE_PROBE_TILES,
         DEFAULT_TIER2_BDSF_KW,
+        HEALPIX_ATTACH_BPA_DEG,
         BeamScaleEstimateConfig,
+        BeamScaleModel,
+        CrossbandForcedFillConfig,
+        CrossbandForcedFillResult,
         attach_beam_and_freq,
         blank_below_elevation,
+        classify_crossband_actions,
         detect_sources,
         detect_sources_many,
         detect_sources_on_healpix_tiles,
         discover_fits_files,
         estimate_beam_scale,
+        fill_band_crossband_forced,
+        fill_interior_subbands_crossband_forced,
+        forced_fit_on_healpix_band,
         fuse_gaul_m_with_tier2_s,
         iter_detect_sources,
         median_beam_from_paths,
@@ -407,7 +425,9 @@ def test_create_apis_importable() -> None:
         merge_lst_metacatalog,
         merge_tier2_bdsf_kw,
         resolve_beam_scale,
+        resolve_beam_scale_model,
         restfreq_hz_from_header,
+        summarize_crossband_forced_fill,
     )
 
     assert callable(blank_below_elevation)
@@ -424,6 +444,16 @@ def test_create_apis_importable() -> None:
     assert callable(merge_tier2_bdsf_kw)
     assert callable(estimate_beam_scale)
     assert callable(resolve_beam_scale)
+    assert callable(resolve_beam_scale_model)
+    assert BeamScaleModel.isotropic(1.0).kappa == 0.0
+    assert HEALPIX_ATTACH_BPA_DEG == 90.0
+    assert callable(classify_crossband_actions)
+    assert callable(fill_band_crossband_forced)
+    assert callable(fill_interior_subbands_crossband_forced)
+    assert callable(forced_fit_on_healpix_band)
+    assert callable(summarize_crossband_forced_fill)
+    assert CrossbandForcedFillConfig().enable_phot_dip is True
+    assert hasattr(CrossbandForcedFillResult, "__dataclass_fields__")
     assert isinstance(DEFAULT_TIER2_BDSF_KW, dict)
     assert DEFAULT_BEAM_SCALE == 1.0
     assert DEFAULT_BEAM_SCALE_PROBE_TILES == (28, 102, 189)

@@ -104,7 +104,8 @@ def test_bootstrap_anchor_and_neighbor_step(tmp_path) -> None:
     payload = read_beam_scale_json(layout)
     assert payload["beam_scale_used"] == pytest.approx(1.0)
     assert payload["BEAM_SCALE"]["73MHz"] == pytest.approx(1.2)
-    assert load_beam_scale(layout)["73MHz"] == pytest.approx(1.2)
+    assert load_beam_scale(layout)["73MHz"].alpha == pytest.approx(1.2)
+    assert load_beam_scale(layout)["73MHz"].kappa == pytest.approx(0.0)
     text = summarize_beam_alpha_bootstrap(result)
     assert "α_true=" in text
     assert "correction=" in text
@@ -117,6 +118,27 @@ def test_write_beam_scale_json_scalar(tmp_path) -> None:
     assert load_beam_scale(layout) == pytest.approx(1.2)
     payload = read_beam_scale_json(layout)
     assert payload["estimate_beam_scale"] is False
+
+
+def test_beam_scale_json_alpha_kappa_roundtrip(tmp_path) -> None:
+    from lwa_catalog.create.beam_scale_model import BeamScaleModel
+
+    layout = CatalogLayout(tmp_path)
+    models = {
+        "55MHz": BeamScaleModel(alpha=1.1, kappa=0.012),
+        "73MHz": BeamScaleModel(alpha=1.2, kappa=0.012),
+    }
+    path = write_beam_scale_json(models, layout)
+    payload = read_beam_scale_json(path)
+    assert payload["source"] == "alpha_kappa_zenith_south"
+    assert payload["kappa"] == pytest.approx(0.012)
+    assert payload["BEAM_SCALE"]["73MHz"]["alpha"] == pytest.approx(1.2)
+    assert payload["BEAM_SCALE"]["73MHz"]["kappa"] == pytest.approx(0.012)
+    loaded = load_beam_scale(layout)
+    assert isinstance(loaded, dict)
+    assert loaded["73MHz"].alpha == pytest.approx(1.2)
+    assert loaded["55MHz"].kappa == pytest.approx(0.012)
+    assert load_beam_alpha_mapping(layout)["73MHz"] == pytest.approx(1.2)
 
 
 def test_bootstrap_alpha_is_used_times_correction() -> None:

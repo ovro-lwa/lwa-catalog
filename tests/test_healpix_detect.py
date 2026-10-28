@@ -11,6 +11,13 @@ from astropy.table import Table
 
 pytest.importorskip("lwa_healpix")
 
+from lwa_catalog.constants import OVRO_LATITUDE_DEG  # noqa: E402
+from lwa_catalog.create.beam_scale_model import (  # noqa: E402
+    HEALPIX_ATTACH_BPA_DEG,
+    BeamScaleModel,
+    resolve_beam_scale_model,
+    zenith_south_elongation,
+)
 from lwa_catalog.create.healpix_detect import (  # noqa: E402
     DEFAULT_BEAM_SCALE,
     attach_beam_and_freq,
@@ -69,6 +76,43 @@ def test_scale_beam_identity_and_invalid() -> None:
         scale_beam(0.1, 0.1, scale=-1.0)
     with pytest.raises(ValueError, match="beam scale"):
         scale_beam(0.1, 0.1, scale=float("nan"))
+
+
+def test_beam_scale_model_zenith_south() -> None:
+    model = BeamScaleModel(alpha=1.2, kappa=0.01, phi_deg=OVRO_LATITUDE_DEG)
+    assert model.elongation(OVRO_LATITUDE_DEG) == pytest.approx(1.0)
+    assert model.elongation(OVRO_LATITUDE_DEG + 10.0) == pytest.approx(1.0)
+    assert model.elongation(OVRO_LATITUDE_DEG - 50.0) == pytest.approx(1.5)
+    s_maj, s_min = model.axis_scales(OVRO_LATITUDE_DEG - 50.0)
+    assert s_min == pytest.approx(1.2)
+    assert s_maj == pytest.approx(1.2 * 1.5)
+    bmaj, bmin, bpa = model.effective_beam(0.2, 0.1, 3.0, dec_deg=OVRO_LATITUDE_DEG)
+    assert bmaj == pytest.approx(0.24)
+    assert bmin == pytest.approx(0.12)
+    assert bpa == pytest.approx(HEALPIX_ATTACH_BPA_DEG)
+    iso = BeamScaleModel.isotropic(1.1)
+    assert iso.effective_beam(0.2, 0.1, dec_deg=0.0)[:2] == pytest.approx(
+        scale_beam(0.2, 0.1, scale=1.1)[:2]
+    )
+    with pytest.raises(ValueError, match="kappa"):
+        BeamScaleModel(alpha=1.0, kappa=-0.1)
+    with pytest.raises(ValueError, match="alpha"):
+        BeamScaleModel(alpha=0.0, kappa=0.0)
+
+
+def test_resolve_beam_scale_model() -> None:
+    assert resolve_beam_scale_model("73MHz", 1.2).alpha == pytest.approx(1.2)
+    assert resolve_beam_scale_model("73MHz", 1.2).kappa == pytest.approx(0.0)
+    m = resolve_beam_scale_model(
+        "73MHz",
+        {"73MHz": {"alpha": 1.1, "kappa": 0.02}},
+    )
+    assert m.alpha == pytest.approx(1.1)
+    assert m.kappa == pytest.approx(0.02)
+    assert resolve_beam_scale_model("18MHz", {"73MHz": 1.3}).alpha == pytest.approx(
+        DEFAULT_BEAM_SCALE
+    )
+    assert zenith_south_elongation(0.0, 0.01, phi_deg=37.0) == pytest.approx(1.37)
 
 
 def test_attach_beam_and_freq() -> None:
@@ -206,13 +250,29 @@ def test_detect_sources_on_healpix_tiles_beam_scale(
     df_default = detect_sources_on_healpix_tiles(**common)
     assert df_default.iloc[0]["BMAJ"] == pytest.approx(0.2)
     assert df_default.iloc[0]["BMIN"] == pytest.approx(0.1)
-    assert df_default.iloc[0]["BPA"] == pytest.approx(3.0)
-    assert attached[-1] == pytest.approx((0.2, 0.1, 3.0))
+    assert df_default.iloc[0]["BPA"] == pytest.approx(HEALPIX_ATTACH_BPA_DEG)
+    assert attached[-1] == pytest.approx((0.2, 0.1, HEALPIX_ATTACH_BPA_DEG))
 
     df_scaled = detect_sources_on_healpix_tiles(**common, beam_scale=1.1)
     assert df_scaled.iloc[0]["BMAJ"] == pytest.approx(0.22)
     assert df_scaled.iloc[0]["BMIN"] == pytest.approx(0.11)
-    assert attached[-1] == pytest.approx((0.22, 0.11, 3.0))
+    assert attached[-1] == pytest.approx((0.22, 0.11, HEALPIX_ATTACH_BPA_DEG))
+
+    # κ>0: southern tile gets larger BMAJ than a northern one at same α
+    weight2 = np.zeros(npix, dtype=np.float64)
+    weight2[0:ratio] = 1.0
+    # nested parent 16 at nside_tile=2 has Dec ~ -19.5°
+    weight2[16 * ratio : (16 + 1) * ratio] = 1.0
+    model = BeamScaleModel(alpha=1.0, kappa=0.01, phi_deg=OVRO_LATITUDE_DEG)
+    df_k = detect_sources_on_healpix_tiles(
+        **{**common, "weight": weight2, "beam_scale": model, "bpa": 0.0}
+    )
+    assert set(df_k["tile_ipix"].astype(int)) == {0, 16}
+    bmaj_by_ipix = {
+        int(r.tile_ipix): float(r.BMAJ) for r in df_k.itertuples(index=False)
+    }
+    assert bmaj_by_ipix[16] > bmaj_by_ipix[0]
+    assert df_k["BPA"].eq(HEALPIX_ATTACH_BPA_DEG).all()
 
 
 def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPatch) -> None:

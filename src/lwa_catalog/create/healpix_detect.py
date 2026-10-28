@@ -18,6 +18,12 @@ from astropy.table import Table
 
 from lwa_catalog.constants import GAUL_DETECTION_COLUMNS
 from lwa_catalog.coords import normalize_ra_columns
+from lwa_catalog.create.beam_scale_model import (
+    HEALPIX_ATTACH_BPA_DEG,
+    BeamScaleModel,
+    beam_scale_model_from_value,
+    resolve_beam_scale_model,
+)
 from lwa_catalog.create.detect import run_pybdsf_on_hdu
 from lwa_catalog.create.tiered_detect import (
     fuse_gaul_m_with_tier2_s,
@@ -27,16 +33,21 @@ from lwa_catalog.gaul import cast_gaul_string_columns
 
 # Global scale on band-median BMAJ/BMIN for HEALPix-tile PyBDSF (both tiers).
 # Default 1.0 (unscaled median); use estimate_beam_scale for per-band residual-optimal α.
+# Prefer BeamScaleModel (α, κ) for Dec-dependent Maj elongation; see beam_scale_model.
 DEFAULT_BEAM_SCALE: float = 1.0
 
 __all__ = [
     "DEFAULT_BEAM_SCALE",
+    "HEALPIX_ATTACH_BPA_DEG",
+    "BeamScaleModel",
     "attach_beam_and_freq",
+    "beam_scale_model_from_value",
     "detect_sources_on_healpix_tiles",
     "fuse_gaul_m_with_tier2_s",
     "median_beam_from_paths",
     "merge_tier2_bdsf_kw",
     "resolve_beam_scale",
+    "resolve_beam_scale_model",
     "restfreq_hz_from_header",
     "scale_beam",
 ]
@@ -167,7 +178,7 @@ def detect_sources_on_healpix_tiles(
     bmaj: float,
     bmin: float,
     bpa: float = 0.0,
-    beam_scale: float = DEFAULT_BEAM_SCALE,
+    beam_scale: float | BeamScaleModel = DEFAULT_BEAM_SCALE,
     restfreq_hz: float | None = None,
     band: str = "Full",
     bdsf_kw: Mapping[str, Any] | None = None,
@@ -194,12 +205,15 @@ def detect_sources_on_healpix_tiles(
         ``\"galactic\"``, ``\"c\"``, ``\"g\"``).
     bmaj, bmin, bpa, restfreq_hz, bunit
         Band-median restoring beam and frequency. Axes are scaled by
-        *beam_scale* before attach (not stored in lwa-healpix).
+        *beam_scale* before attach (not stored in lwa-healpix). Catalog /
+        attach ``BPA`` is always :data:`HEALPIX_ATTACH_BPA_DEG` (90°);
+        the *bpa* argument is ignored on this path.
     beam_scale
-        Multiplier applied to ``BMAJ``/``BMIN`` for both tiers (default
-        :data:`DEFAULT_BEAM_SCALE` ``1.0``). Catalog ``BMAJ``/``BMIN``
-        columns use the scaled beam. For a residual-optimal per-band scale,
-        see :func:`lwa_catalog.create.estimate_beam_scale`.
+        Isotropic α (float) or :class:`BeamScaleModel` ``(α, κ)`` evaluated
+        at each tile center Dec (default isotropic
+        :data:`DEFAULT_BEAM_SCALE` ``1.0``). Catalog ``BMAJ``/``BMIN`` use
+        the tile-effective beam. Residual-optimal scalar α:
+        :func:`lwa_catalog.create.estimate_beam_scale`.
     band
         Catalog ``band`` column value.
     bdsf_kw
@@ -222,7 +236,8 @@ def detect_sources_on_healpix_tiles(
     lwa_healpix = _import_lwa_healpix()
     weight_arr = np.asarray(weight)
     map_arr = np.asarray(healpix_map)
-    bmaj_s, bmin_s, bpa_s = scale_beam(bmaj, bmin, bpa, scale=beam_scale)
+    model = beam_scale_model_from_value(beam_scale)
+    _ = bpa  # ignored: HEALPix-tile attach always uses HEALPIX_ATTACH_BPA_DEG
     run_tier2 = tier2_bdsf_kw is not None
     tier2_kw = merge_tier2_bdsf_kw(bdsf_kw, tier2_bdsf_kw) if run_tier2 else None
 
@@ -240,6 +255,10 @@ def detect_sources_on_healpix_tiles(
 
     frames: list[pd.DataFrame] = []
     for ipix, target_header in tiles:
+        dec_deg = float(target_header["CRVAL2"])
+        bmaj_s, bmin_s, bpa_s = model.effective_beam(
+            bmaj, bmin, dec_deg=dec_deg
+        )
         hdu = lwa_healpix.healpix_to_hdu(
             map_arr,
             target_header,

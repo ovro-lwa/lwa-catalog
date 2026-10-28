@@ -2,6 +2,26 @@
 
 from __future__ import annotations
 
+from lwa_catalog.create.beam_scale import (
+    DEFAULT_BEAM_SCALE_ALPHA_GRID,
+    DEFAULT_BEAM_SCALE_PROBE_TILES,
+    BeamScaleEstimateConfig,
+    BeamScaleEstimateResult,
+    estimate_beam_scale,
+    gaul_model_residual,
+    pick_best_alpha,
+    summarize_beam_scale_estimate,
+    tile_pixel_mask,
+)
+from lwa_catalog.create.crossband_forced_fill import (
+    CrossbandForcedFillConfig,
+    CrossbandForcedFillResult,
+    classify_crossband_actions,
+    fill_band_crossband_forced,
+    fill_interior_subbands_crossband_forced,
+    forced_fit_on_healpix_band,
+    summarize_crossband_forced_fill,
+)
 from lwa_catalog.create.detect import (
     blank_below_elevation,
     detect_sources,
@@ -16,30 +36,18 @@ from lwa_catalog.create.discover import (
     parse_fits_metadata,
     resolve_fits_slot,
 )
-from lwa_catalog.create.beam_scale import (
-    DEFAULT_BEAM_SCALE_ALPHA_GRID,
-    DEFAULT_BEAM_SCALE_PROBE_TILES,
-    BeamScaleEstimateConfig,
-    BeamScaleEstimateResult,
-    estimate_beam_scale,
-    gaul_model_residual,
-    pick_best_alpha,
-    summarize_beam_scale_estimate,
-    tile_pixel_mask,
-)
 from lwa_catalog.create.healpix_detect import (
     DEFAULT_BEAM_SCALE,
+    HEALPIX_ATTACH_BPA_DEG,
+    BeamScaleModel,
     attach_beam_and_freq,
+    beam_scale_model_from_value,
     detect_sources_on_healpix_tiles,
     median_beam_from_paths,
     resolve_beam_scale,
+    resolve_beam_scale_model,
     restfreq_hz_from_header,
     scale_beam,
-)
-from lwa_catalog.create.tiered_detect import (
-    DEFAULT_TIER2_BDSF_KW,
-    fuse_gaul_m_with_tier2_s,
-    merge_tier2_bdsf_kw,
 )
 from lwa_catalog.create.merge import (
     add_spectral_indices,
@@ -54,6 +62,11 @@ from lwa_catalog.create.merge import (
     pick_highest_elevation_row,
     source_elevation_deg,
 )
+from lwa_catalog.create.tiered_detect import (
+    DEFAULT_TIER2_BDSF_KW,
+    fuse_gaul_m_with_tier2_s,
+    merge_tier2_bdsf_kw,
+)
 
 __all__ = [
     "FitsMetadata",
@@ -63,9 +76,12 @@ __all__ = [
     "DEFAULT_BEAM_SCALE",
     "DEFAULT_BEAM_SCALE_ALPHA_GRID",
     "DEFAULT_BEAM_SCALE_PROBE_TILES",
+    "HEALPIX_ATTACH_BPA_DEG",
     "BeamScaleEstimateConfig",
     "BeamScaleEstimateResult",
+    "BeamScaleModel",
     "attach_beam_and_freq",
+    "beam_scale_model_from_value",
     "blank_below_elevation",
     "build_global_metacatalog",
     "build_subband_metacatalog",
@@ -90,10 +106,18 @@ __all__ = [
     "pick_best_alpha",
     "pick_highest_elevation_row",
     "resolve_beam_scale",
+    "resolve_beam_scale_model",
     "resolve_fits_slot",
     "restfreq_hz_from_header",
     "scale_beam",
     "source_elevation_deg",
     "summarize_beam_scale_estimate",
     "tile_pixel_mask",
+    "CrossbandForcedFillConfig",
+    "CrossbandForcedFillResult",
+    "classify_crossband_actions",
+    "fill_band_crossband_forced",
+    "fill_interior_subbands_crossband_forced",
+    "forced_fit_on_healpix_band",
+    "summarize_crossband_forced_fill",
 ]

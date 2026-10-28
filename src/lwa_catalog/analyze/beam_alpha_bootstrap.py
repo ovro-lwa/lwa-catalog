@@ -30,6 +30,10 @@ from lwa_catalog.constants import (
     SUBBAND_BANDS_MHZ,
     band_frequency_hz,
 )
+from lwa_catalog.create.beam_scale_model import (
+    BeamScaleModel,
+    beam_scale_model_from_value,
+)
 from lwa_catalog.io import read_table, write_table
 from lwa_catalog.paths import CatalogLayout
 
@@ -41,6 +45,7 @@ __all__ = [
     "bootstrap_beam_alpha",
     "lwa_bands_with_total_flux",
     "load_beam_alpha_mapping",
+    "load_beam_scale",
     "median_neighbor_flux_ratio",
     "read_beam_alpha_table",
     "read_beam_scale_json",
@@ -378,15 +383,34 @@ def _beam_scale_payload_from_result(result: BeamAlphaBootstrapResult) -> dict:
     }
 
 
+def _beam_scale_json_value(raw: object) -> float | dict[str, float | str]:
+    """Serialize one band entry as a JSON number or ``{alpha, kappa, ...}``."""
+    if isinstance(raw, BeamScaleModel):
+        return raw.as_mapping()
+    if isinstance(raw, Mapping):
+        model = beam_scale_model_from_value(raw)  # type: ignore[arg-type]
+        if model.kappa == 0.0 and "kappa" not in raw and "model" not in raw:
+            return float(model.alpha)
+        return model.as_mapping()
+    scale = float(raw)  # type: ignore[arg-type]
+    if not np.isfinite(scale) or scale <= 0.0:
+        msg = f"BEAM_SCALE entry must be finite and > 0, got {raw!r}"
+        raise ValueError(msg)
+    return scale
+
+
 def write_beam_scale_json(
-    beam_scale: float | Mapping[str, float] | BeamAlphaBootstrapResult,
+    beam_scale: float
+    | Mapping[str, float | BeamScaleModel | Mapping[str, object]]
+    | BeamAlphaBootstrapResult,
     path: Path | str | CatalogLayout,
     *,
     extra: Mapping[str, object] | None = None,
 ) -> Path:
     """Write ``beam_scale.json`` next to catalog Parquets.
 
-    *beam_scale* may be a scalar, ``{band: α}`` mapping, or a bootstrap
+    *beam_scale* may be a scalar, ``{band: α}``, ``{band: {alpha, kappa}}``,
+    ``{band: BeamScaleModel}``, or a bootstrap
     :class:`BeamAlphaBootstrapResult` (includes VLSSR anchor metadata).
     """
     if isinstance(path, CatalogLayout):
@@ -399,8 +423,23 @@ def write_beam_scale_json(
     if isinstance(beam_scale, BeamAlphaBootstrapResult):
         payload: dict = _beam_scale_payload_from_result(beam_scale)
     elif isinstance(beam_scale, Mapping):
-        mapping = load_beam_alpha_mapping(beam_scale)
-        payload = {"BEAM_SCALE": mapping, "source": "mapping"}
+        mapping: dict[str, float | dict[str, float | str]] = {}
+        any_kappa = False
+        for band, value in beam_scale.items():
+            serialized = _beam_scale_json_value(value)
+            mapping[str(band)] = serialized
+            if isinstance(serialized, Mapping) and float(serialized.get("kappa", 0.0)) != 0.0:
+                any_kappa = True
+        source = "alpha_kappa_zenith_south" if any_kappa else "mapping"
+        payload = {"BEAM_SCALE": mapping, "source": source}
+        if any_kappa:
+            kappas = [
+                float(v["kappa"])
+                for v in mapping.values()
+                if isinstance(v, Mapping) and "kappa" in v
+            ]
+            if kappas and len(set(np.round(kappas, 12))) == 1:
+                payload["kappa"] = float(kappas[0])
     else:
         scale = float(beam_scale)
         if not np.isfinite(scale) or scale <= 0.0:
@@ -474,32 +513,41 @@ def read_beam_alpha_table(path: Path | str | CatalogLayout) -> pd.DataFrame:
     return df
 
 
-def _mapping_from_band_alphas(raw: Mapping[str, object]) -> dict[str, float]:
-    """Validate a plain ``{band: α}`` mapping."""
-    out: dict[str, float] = {}
+def _mapping_from_band_models(
+    raw: Mapping[str, object],
+) -> dict[str, BeamScaleModel]:
+    """Validate ``{band: α | {alpha, kappa, ...}}`` → models."""
+    out: dict[str, BeamScaleModel] = {}
     for k, v in raw.items():
-        a = float(v)  # type: ignore[arg-type]
-        if not np.isfinite(a) or a <= 0.0:
-            msg = f"beam alpha for {k!r} must be finite and > 0, got {v!r}"
-            raise ValueError(msg)
-        out[str(k)] = a
+        out[str(k)] = beam_scale_model_from_value(v)  # type: ignore[arg-type]
     if not out:
         msg = "no finite positive alpha values in mapping"
         raise ValueError(msg)
     return out
 
 
+def _mapping_from_band_alphas(raw: Mapping[str, object]) -> dict[str, float]:
+    """Validate a plain ``{band: α}`` mapping (α only; strips κ)."""
+    models = _mapping_from_band_models(raw)
+    return {band: float(m.alpha) for band, m in models.items()}
+
+
 def load_beam_scale(
     path: Path | str | CatalogLayout,
-) -> float | dict[str, float]:
-    """Load ``BEAM_SCALE`` from ``beam_scale.json`` (scalar or per-band mapping)."""
+) -> float | dict[str, BeamScaleModel]:
+    """Load ``BEAM_SCALE`` from ``beam_scale.json``.
+
+    Scalar documents return a bare ``float`` (isotropic α, ``κ=0`` implied).
+    Per-band mappings return ``dict[str, BeamScaleModel]`` (float entries
+    promote to ``κ=0``).
+    """
     payload = read_beam_scale_json(path)
     if "BEAM_SCALE" not in payload:
         msg = f"beam_scale.json missing BEAM_SCALE key: {path}"
         raise ValueError(msg)
     raw = payload["BEAM_SCALE"]
     if isinstance(raw, Mapping):
-        return _mapping_from_band_alphas(raw)
+        return _mapping_from_band_models(raw)
     scale = float(raw)
     if not np.isfinite(scale) or scale <= 0.0:
         msg = f"BEAM_SCALE must be finite and > 0, got {raw!r}"
@@ -514,6 +562,7 @@ def load_beam_alpha_mapping(
 
     For a :class:`CatalogLayout`, prefers ``beam_scale.json`` when present
     (and ``BEAM_SCALE`` is a mapping), else ``beam_alpha_by_band.parquet``.
+    ``{alpha, kappa}`` JSON entries contribute their ``alpha`` only.
     """
     if isinstance(path, Mapping) and not isinstance(path, pd.DataFrame):
         if "BEAM_SCALE" in path:
@@ -534,7 +583,7 @@ def load_beam_alpha_mapping(
         if json_path.is_file():
             loaded = load_beam_scale(path)
             if isinstance(loaded, Mapping):
-                return dict(loaded)
+                return {band: float(m.alpha) for band, m in loaded.items()}
             msg = (
                 f"{json_path} has scalar BEAM_SCALE={loaded!r}; "
                 "need a per-band mapping (or use load_beam_scale)"
@@ -546,7 +595,7 @@ def load_beam_alpha_mapping(
         if p.suffix.lower() == ".json" or p.name == "beam_scale.json":
             loaded = load_beam_scale(p)
             if isinstance(loaded, Mapping):
-                return dict(loaded)
+                return {band: float(m.alpha) for band, m in loaded.items()}
             msg = (
                 f"{p} has scalar BEAM_SCALE={loaded!r}; "
                 "need a per-band mapping (or use load_beam_scale)"
