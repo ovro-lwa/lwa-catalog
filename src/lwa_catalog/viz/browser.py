@@ -784,7 +784,10 @@ class CatalogBrowser(pn.viewable.Viewer):
                 disabled=True,
                 sortable=True,
                 selectable=1,
-                configuration={"filterMode": "remote"},
+                # Remote sort+filter so header clicks update Python ``sorters`` /
+                # ``_processed``; local JS sort only reorders the page and makes
+                # click→selection map to the wrong ``value`` row (meta_id desync).
+                configuration={"filterMode": "remote", "sortMode": "remote"},
             )
             self._table.param.watch(self._on_table_select, "selection")
 
@@ -1134,31 +1137,46 @@ class CatalogBrowser(pn.viewable.Viewer):
         # and leaves the browse table blank when display columns change.
         table.value = safe
 
-    def _browse_selection_frame(self) -> pd.DataFrame | None:
-        """DataFrame that Tabulator ``selection`` indices address.
+    def _browse_value_frame(self) -> pd.DataFrame | None:
+        """``table.value`` — the frame Panel ``selection`` ilocs address.
 
-        With remote pagination, header filters / column sorts live in
-        ``_processed``. Selection ilocs must use that frame when present;
-        ``table.value`` is the unsorted catalog order and diverges after a sort.
+        Remote pagination maps click indices through ``_processed`` into these
+        value ilocs (:meth:`panel.widgets.Tabulator._map_indexes`). Do not treat
+        ``selection`` as an iloc into ``_processed``.
         """
-        table = self._table
-        processed = getattr(table, "_processed", None)
-        if isinstance(processed, pd.DataFrame) and not processed.empty:
-            return processed
-        value = table.value
+        value = self._table.value
         if isinstance(value, pd.DataFrame) and not value.empty:
             return value
         return None
 
-    def _reveal_table_row(self, row_idx: int) -> None:
-        """Select a browse-table iloc into the filtered/sorted view; page to it."""
+    def _browse_processed_frame(self) -> pd.DataFrame | None:
+        """Filtered/sorted view used for paging (falls back to ``value``)."""
         table = self._table
-        frame = self._browse_selection_frame()
-        if frame is None or row_idx < 0 or row_idx >= len(frame):
+        processed = getattr(table, "_processed", None)
+        if isinstance(processed, pd.DataFrame) and not processed.empty:
+            return processed
+        return self._browse_value_frame()
+
+    def _reveal_table_row(self, row_idx: int) -> None:
+        """Select a browse-table *value* iloc, paging via the sorted view."""
+        table = self._table
+        value = self._browse_value_frame()
+        if value is None or row_idx < 0 or row_idx >= len(value):
             return
         page_size = int(table.page_size or self._cfg.table_page_size)
         if table.pagination == "remote":
-            table.page = int(row_idx) // page_size + 1
+            processed = self._browse_processed_frame()
+            if processed is not None:
+                try:
+                    label = value.index[row_idx]
+                    pos = processed.index.get_loc(label)
+                    if not isinstance(pos, (int, np.integer)):
+                        pos = int(np.asarray(pos).flat[0])
+                    table.page = int(pos) // page_size + 1
+                except (KeyError, IndexError, TypeError):
+                    table.page = int(row_idx) // page_size + 1
+            else:
+                table.page = int(row_idx) // page_size + 1
         table.selection = [int(row_idx)]
 
     def _selected_columns(self) -> list[str]:
@@ -1556,16 +1574,16 @@ class CatalogBrowser(pn.viewable.Viewer):
         self._update_sky_view(row)
 
     def _selected_table_row(self) -> pd.Series | None:
-        """Row selected in the browse table (filtered/sorted Tabulator frame)."""
+        """Row selected in the browse table (``table.value`` iloc)."""
         if not self._table.selection or self._df is None:
             return None
-        frame = self._browse_selection_frame()
-        if frame is None or frame.empty:
+        value = self._browse_value_frame()
+        if value is None or value.empty:
             return None
         idx = int(self._table.selection[0])
-        if idx < 0 or idx >= len(frame):
+        if idx < 0 or idx >= len(value):
             return None
-        return frame.iloc[idx]
+        return value.iloc[idx]
 
     def _catalog_row_for_selection(self) -> pd.Series | None:
         """Full catalog row for the active selection (not display-truncated).
@@ -1679,18 +1697,13 @@ class CatalogBrowser(pn.viewable.Viewer):
             if len(match):
                 loc = self._df.index.get_loc(match[0])
                 return int(loc) if isinstance(loc, (int, np.integer)) else int(loc[0])
-        # Selection iloc is into the filtered/sorted frame; map via its index
-        # label (``reset_index`` display rows share labels with ``_df`` order).
+        # ``selection`` is a value iloc; display was built as
+        # ``_df.loc[:, cols].reset_index(drop=True)`` so row order matches
+        # even when RADIO_QA_FILTER left a non-contiguous ``_df`` index.
         if self._table.selection:
-            frame = self._browse_selection_frame()
             idx = int(self._table.selection[0])
-            if frame is not None and 0 <= idx < len(frame):
-                label = frame.index[idx]
-                try:
-                    loc = self._df.index.get_loc(label)
-                    return int(loc) if isinstance(loc, (int, np.integer)) else int(loc[0])
-                except (KeyError, TypeError, IndexError):
-                    pass
+            if 0 <= idx < len(self._df):
+                return idx
         return None
 
     def _set_selection_status(self, text: str) -> None:
@@ -1871,15 +1884,15 @@ class CatalogBrowser(pn.viewable.Viewer):
             pass
 
     def _table_selection_index_for_meta_id(self, meta_id: int) -> int | None:
-        """Return Tabulator selection index for *meta_id*, or None if filtered out.
+        """Return Tabulator *value* iloc for *meta_id*, or None if not shown.
 
-        Index is an iloc into :meth:`_browse_selection_frame` (filtered/sorted
-        ``_processed`` when present) so it matches what Tabulator expects.
+        Panel stores ``selection`` as ilocs into ``table.value`` (clicks are
+        mapped from the sorted ``_processed`` page via ``_map_indexes``).
         """
-        frame = self._browse_selection_frame()
-        if frame is None or frame.empty or "meta_id" not in frame.columns:
+        value = self._browse_value_frame()
+        if value is None or value.empty or "meta_id" not in value.columns:
             return None
-        hits = np.flatnonzero(frame["meta_id"].to_numpy() == meta_id)
+        hits = np.flatnonzero(value["meta_id"].to_numpy() == meta_id)
         if hits.size == 0:
             return None
         return int(hits[0])

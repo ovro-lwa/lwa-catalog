@@ -448,21 +448,34 @@ def _make_browser_for_selection_tests(
     return CatalogBrowser(index, config=cfg)
 
 
-def test_table_select_uses_processed_order_after_sort(
+def test_browse_table_uses_remote_sort_mode(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """After a column sort, selection iloc must read ``_processed``, not value."""
+    """Header sorts must be remote so click→selection stays mapped to value ilocs."""
+    br = _make_browser_for_selection_tests(tmp_path, monkeypatch, meta_ids=[10, 20, 30])
+    cfg = dict(getattr(br._table, "_configuration", None) or {})
+    assert cfg.get("sortMode") == "remote"
+    assert cfg.get("filterMode") == "remote"
+
+
+def test_table_select_after_remote_sort_maps_to_value_iloc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After remote sort, Panel selection is a value iloc (via ``_map_indexes``)."""
     br = _make_browser_for_selection_tests(tmp_path, monkeypatch, meta_ids=[10, 20, 30])
     assert br._selected_meta_id == 10
+    assert "Peak_flux" in br._table.value.columns
 
-    view = br._table.value
-    assert view is not None
-    # Simulate Tabulator remote sort: reverse row order, keep original index labels.
-    processed = view.iloc[::-1].copy()
-    br._table._processed = processed
+    # Remote sort: Peak_flux ascending → visible order 30, 20, 10 (flux 1,2,3).
+    br._table.sorters = [{"field": "Peak_flux", "dir": "asc"}]
+    processed = br._table._processed
+    assert processed is not None
+    assert list(processed["meta_id"]) == [30, 20, 10]
 
-    # Click the first *visible* row → meta_id 30 (was last in unsorted value).
-    br._table.selection = [0]
+    # Frontend click on first visible row → page-local index 0 → value iloc of 30.
+    mapped = br._table._map_indexes([0], [], add=True)
+    assert mapped == [2]  # value row with meta_id 30
+    br._table.selection = mapped
     br._on_table_select()
 
     assert br._selected_meta_id == 30
@@ -472,9 +485,38 @@ def test_table_select_uses_processed_order_after_sort(
     assert selected is not None
     assert int(selected["meta_id"]) == 30
 
-    # Reveal by meta_id must page/select within the sorted frame, not value order.
-    assert br._table_selection_index_for_meta_id(30) == 0
-    assert br._table_selection_index_for_meta_id(10) == 2
-    br._reveal_table_row(0)
-    assert br._table.selection == [0]
+    # Reveal uses value ilocs; paging follows sorted ``_processed`` position.
+    assert br._table_selection_index_for_meta_id(30) == 2
+    assert br._table_selection_index_for_meta_id(10) == 0
+    br._reveal_table_row(2)
+    assert br._table.selection == [2]
     assert br._table.page == 1
+
+
+def test_table_select_after_radio_qa_filter_and_sort(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """RADIO_QA_FILTER leaves a non-contiguous ``_df`` index; sort must still sync."""
+    br = _make_browser_for_selection_tests(
+        tmp_path, monkeypatch, meta_ids=[10, 20, 30, 40]
+    )
+    br.radio_qa_filter = "meta_id >= 20"
+    br._on_apply_radio_qa_filter()
+    assert list(br._df["meta_id"]) == [20, 30, 40]
+    # Filtered frame keeps original labels; display table is reset_index'd.
+    assert list(br._df.index) != list(br._table.value.index)
+
+    br._table.sorters = [{"field": "Peak_flux", "dir": "asc"}]
+    # Fluxes were 4,3,2,1 for ids 10..40 → filtered 20,30,40 have 3,2,1 → asc 40,30,20
+    assert list(br._table._processed["meta_id"]) == [40, 30, 20]
+
+    mapped = br._table._map_indexes([0], [], add=True)
+    br._table.selection = mapped
+    br._on_table_select()
+    assert br._selected_meta_id == 40
+    assert str(br._meta_id_w.value) == "40"
+
+    monkeypatch.setattr(br, "_run_after_input_sync", lambda fn: fn())
+    br._on_load_sky()
+    assert br._selected_meta_id == 40
+    assert br._aladin.target.ra.deg == pytest.approx(40.0)  # RA = 10*(i+1); id40 → i=3 → 40
