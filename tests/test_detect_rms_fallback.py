@@ -10,6 +10,7 @@ from astropy.table import Table
 
 from lwa_catalog.create.detect import (
     _is_recoverable_rms_error,
+    _is_skippable_pybdsf_island_error,
     _with_constant_rms_fallback,
     run_pybdsf_on_hdu,
 )
@@ -30,6 +31,30 @@ def test_is_recoverable_rms_error_matches_known_failures() -> None:
     )
     assert not _is_recoverable_rms_error(RuntimeError("unrelated failure"))
     assert not _is_recoverable_rms_error(ValueError("divide by zero encountered in divide"))
+
+
+def test_is_skippable_pybdsf_island_error() -> None:
+    assert _is_skippable_pybdsf_island_error(ValueError("math domain error"))
+    assert not _is_skippable_pybdsf_island_error(ValueError("other"))
+    assert not _is_skippable_pybdsf_island_error(RuntimeError("math domain error"))
+
+
+def test_run_pybdsf_skips_math_domain_island_error() -> None:
+    hdu = fits.PrimaryHDU(
+        data=[[1.0, 2.0], [3.0, 4.0]],
+        header=fits.Header({"BMAJ": 0.1, "BMIN": 0.1, "BPA": 0.0}),
+    )
+    bdsf = MagicMock()
+    bdsf.process_image.side_effect = ValueError("math domain error")
+
+    with (
+        patch("lwa_catalog.create.detect._import_pybdsf_safely", return_value=bdsf),
+        pytest.warns(UserWarning, match="island moment failed"),
+    ):
+        out = run_pybdsf_on_hdu(hdu)
+
+    assert out is None
+    assert bdsf.process_image.call_count == 1
 
 
 def test_with_constant_rms_fallback_overrides_adaptive_boxes() -> None:

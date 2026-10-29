@@ -287,6 +287,19 @@ def _is_recoverable_rms_error(exc: BaseException) -> bool:
     return False
 
 
+def _is_skippable_pybdsf_island_error(exc: BaseException) -> bool:
+    """True for PyBDSF island-moment failures that should skip the image/tile.
+
+    ``bdsf.functions.momanalmask_gaus`` can raise ``ValueError: math domain
+    error`` when a pathological island yields a negative argument to ``sqrt``
+    (second-moment axis). Constant-rms retry does not help; callers should
+    treat the catalog as empty for this HDU.
+    """
+    if not isinstance(exc, ValueError):
+        return False
+    return "math domain" in str(exc).lower()
+
+
 def _with_constant_rms_fallback(kw: Mapping[str, Any]) -> dict[str, Any]:
     """Return process_image kwargs that skip 2-D mean/rms map calculation."""
     out = dict(kw)
@@ -357,7 +370,27 @@ def run_pybdsf_on_hdu(
             UserWarning,
             stacklevel=2,
         )
-        img = bdsf.process_image(hdu, **fallback_kw)
+        try:
+            img = bdsf.process_image(hdu, **fallback_kw)
+        except ValueError as retry_exc:
+            if not _is_skippable_pybdsf_island_error(retry_exc):
+                raise
+            warnings.warn(
+                f"PyBDSF island moment failed after RMS fallback ({retry_exc}); "
+                "skipping catalog for this image",
+                UserWarning,
+                stacklevel=2,
+            )
+            return None
+    except ValueError as exc:
+        if not _is_skippable_pybdsf_island_error(exc):
+            raise
+        warnings.warn(
+            f"PyBDSF island moment failed ({exc}); skipping catalog for this image",
+            UserWarning,
+            stacklevel=2,
+        )
+        return None
 
     with tempfile.NamedTemporaryFile(suffix=".gaul.fits", delete=False) as tmp:
         cat_path = tmp.name

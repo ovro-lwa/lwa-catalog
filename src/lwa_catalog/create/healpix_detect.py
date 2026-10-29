@@ -7,6 +7,7 @@ Requires ``lwa-catalog[analyze]`` (``lwa-healpix``, ``healpy``) and
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -278,7 +279,15 @@ def detect_sources_on_healpix_tiles(
         if not np.isfinite(hdu.data).any():
             continue
 
-        table = run_pybdsf_on_hdu(hdu, bdsf_kw=bdsf_kw)
+        try:
+            table = run_pybdsf_on_hdu(hdu, bdsf_kw=bdsf_kw)
+        except Exception as exc:  # noqa: BLE001 — skip bad tiles; continue band
+            warnings.warn(
+                f"PyBDSF failed on tile_ipix={ipix} band={band!r} ({exc}); skipping tile",
+                UserWarning,
+                stacklevel=2,
+            )
+            continue
         if table is None or len(table) == 0:
             continue
         df = _table_to_tile_dataframe(
@@ -292,7 +301,16 @@ def detect_sources_on_healpix_tiles(
             bpa=bpa_s,
         )
         if run_tier2:
-            table2 = run_pybdsf_on_hdu(hdu, bdsf_kw=tier2_kw)
+            try:
+                table2 = run_pybdsf_on_hdu(hdu, bdsf_kw=tier2_kw)
+            except Exception as exc:  # noqa: BLE001
+                warnings.warn(
+                    f"PyBDSF tier-2 failed on tile_ipix={ipix} band={band!r} ({exc}); "
+                    "keeping tier-1 only",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                table2 = None
             if table2 is not None and len(table2) > 0:
                 df2 = _table_to_tile_dataframe(
                     table2,

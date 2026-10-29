@@ -106,11 +106,12 @@ class BeamScaleModel:
         """Scaled ``(BMAJ, BMIN, BPA)``; *bpa* ignored (HEALPix attach uses *attach_bpa_deg*)."""
         del bpa  # header / caller BPA is not used on the HEALPix-tile path
         s_maj, s_min = self.axis_scales(dec_deg)
-        return (
-            float(s_maj * float(bmaj)),
-            float(s_min * float(bmin)),
-            float(attach_bpa_deg),
-        )
+        out_maj = float(s_maj * float(bmaj))
+        out_min = float(s_min * float(bmin))
+        # PyBDSF expects BMAJ >= BMIN; swap if a pathological header inverts them.
+        if out_min > out_maj:
+            out_maj, out_min = out_min, out_maj
+        return (out_maj, out_min, float(attach_bpa_deg))
 
     def as_mapping(self) -> dict[str, float | str]:
         """JSON-friendly band value (plus model metadata)."""
