@@ -20,6 +20,7 @@ __all__ = [
     "HealpixMapCache",
     "cutout_grid_shape",
     "healpix_coadd_path",
+    "healpix_residual_path",
     "healpix_cutout",
     "plot_band_cutouts",
     "tan_cutout_header",
@@ -41,6 +42,11 @@ def _import_lwa_healpix():
 def healpix_coadd_path(root: Path | str, band: str, *, nside: int) -> Path:
     """Path convention matching ``ovro_lwa_healpix_tile_detect.ipynb``."""
     return Path(root) / f"healpix_{band}_nside{int(nside)}.fits"
+
+
+def healpix_residual_path(root: Path | str, band: str, *, nside: int) -> Path:
+    """Residual MAP FITS path (``obs − GAUL``) for stage-3 re-detect."""
+    return Path(root) / f"healpix_residual_{band}_nside{int(nside)}.fits"
 
 
 def tan_cutout_header(

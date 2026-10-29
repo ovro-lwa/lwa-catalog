@@ -243,6 +243,49 @@ def read_lst_merged(
     return read_table(path, as_pandas=as_pandas)
 
 
+def write_residual_matched(
+    data: pd.DataFrame | pa.Table,
+    layout: CatalogLayout,
+    band: str,
+    **kwargs: Any,
+) -> Path:
+    """Write stage-3 matched leftover sidecar ``residual_matched_{band}.parquet``."""
+    return write_table(data, layout.residual_matched(band), include_extras=True, **kwargs)
+
+
+def read_residual_matched(
+    layout: CatalogLayout,
+    band: str,
+    *,
+    as_pandas: bool = True,
+) -> pd.DataFrame | pa.Table:
+    """Read one stage-3 matched leftover sidecar."""
+    path = layout.residual_matched(band)
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing residual-matched sidecar: {path}")
+    return read_table(path, as_pandas=as_pandas)
+
+
+def read_all_residual_matched(
+    layout: CatalogLayout,
+    bands: Sequence[str] | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Load residual-matched sidecars for *bands* (skip missing files)."""
+    if bands is None:
+        bands = [
+            p.name[len("residual_matched_") : -len(".parquet")]
+            for p in sorted(layout.root.glob("residual_matched_*.parquet"))
+        ]
+    out: dict[str, pd.DataFrame] = {}
+    for band in bands:
+        path = layout.residual_matched(band)
+        if path.is_file():
+            df = read_table(path, as_pandas=True)
+            assert isinstance(df, pd.DataFrame)
+            out[str(band)] = df
+    return out
+
+
 def _sort_discovered_bands(bands: list[str]) -> list[str]:
     """Order RGB/Full catalogs canonically; frequency subbands low→high."""
     if bands and all(_FREQ_BAND_RE.match(b) for b in bands):

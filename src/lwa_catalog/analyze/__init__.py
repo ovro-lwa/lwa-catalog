@@ -189,6 +189,7 @@ from lwa_catalog.analyze.healpix_cutout import (
     cutout_grid_shape,
     healpix_coadd_path,
     healpix_cutout,
+    healpix_residual_path,
     plot_band_cutouts,
     tan_cutout_header,
 )
@@ -482,6 +483,7 @@ __all__ = [
     "filter_or_hesl",
     "catalog_with_peak_from_total_flux",
     "healpix_coadd_path",
+    "healpix_residual_path",
     "healpix_cutout",
     "lst_merged_catalog_for_healpix",
     "metacatalog_to_healpix",

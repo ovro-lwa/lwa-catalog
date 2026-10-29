@@ -5,7 +5,8 @@
 | `ovro_lwa_metacatalog.ipynb` | Discover FITS → PyBDSF → LST merge → global metacatalog (Parquet) |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same pipeline on 15 frequency subbands (18–82 MHz) |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd hourly Full-band FITS to one SIN mosaic → PyBDSF → compare to LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | Coadd hourly FITS to HEALPix (`nside=2048`) → nested TAN tiles → PyBDSF; `(α,κ)` from `beam_scale.json`; attach BPA=90° |
+| `ovro_lwa_healpix_tile_detect.ipynb` | Coadd hourly FITS to HEALPix (`nside=2048`) → nested TAN tiles → PyBDSF; `(α,κ)` from `beam_scale.json`; attach BPA=90°; optional Stage 3 residual re-detect (`ENABLE_RESIDUAL_STAGE3`) |
+| `ovro_lwa_healpix_36mhz_map_compare.ipynb` | 36 MHz only: tile-detect xhall Galactic-masked HEALPix vs current coadd; toggle HiPS + catalogs (no fusion) |
 | `beam_alpha_kappa_estimate.ipynb` | Size α + shared Dec κ (+ optional zenith VLSSR hybrid) → `beam_scale.json` |
 | `beam_alpha_bootstrap.ipynb` | Scalar VLSSR-anchored + neighbor Total/Peak α → `beam_alpha_by_band.parquet` |
 | `metacatalog_sky_view.ipynb` | Load quality metacatalog and explore on the sky |
@@ -34,6 +35,8 @@ Catalogs are written and read as **Apache Parquet** through `lwa_catalog`:
 | Quality bit diagnostics | `metacatalog_quality_flags.parquet` |
 | Per-band beam α (re-detect input) | `beam_alpha_by_band.parquet` |
 | BEAM_SCALE documentation | `beam_scale.json` |
+| Residual HEALPix MAP (Stage 3) | `healpix_residual_{band}_nside*.fits` |
+| Stage-3 matched leftovers | `residual_matched_{band}.parquet` |
 
 Pipeline: reliability stamps `quality_flag` on `metacatalog.parquet` → optional
 `radio_crossmatch.ipynb` quality-filters and writes `metacatalog_spectral.parquet`

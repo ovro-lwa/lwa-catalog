@@ -160,6 +160,8 @@ METACATALOG_ASSOCIATIONS_FILENAME: str = "metacatalog_associations.parquet"
 BEAM_ALPHA_BY_BAND_FILENAME: str = "beam_alpha_by_band.parquet"
 # Detect-time / bootstrapped BEAM_SCALE sidecar (JSON next to catalog Parquets).
 BEAM_SCALE_JSON_FILENAME: str = "beam_scale.json"
+# Stage-3 residual leftover hits (matched to stage-2; not science catalog rows).
+RESIDUAL_MATCHED_FILENAME_TEMPLATE: str = "residual_matched_{band}.parquet"
 
 # Default analysis mask for ``(quality_flag & mask) == 0`` row selection.
 # Requires clear: HAS_NAN, INVALID_ASTROMETRY, SINGLE_LST, UNPHYSICAL_FLUX,

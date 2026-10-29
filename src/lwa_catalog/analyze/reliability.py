@@ -138,7 +138,7 @@ class SourceQualityFlag(IntFlag):
 
     A bit is **0 when that check is good/reliable** and **1 when the property
     is a quality concern**. ``quality_flag == 0`` means every implemented check
-    passed. Bits 19–31 are reserved (stay 0).
+    passed. Bits 20–31 are reserved (stay 0).
 
     ====== ===================== =================================================
     Bit    Name                  Set (1) when
@@ -168,6 +168,8 @@ class SourceQualityFlag(IntFlag):
                                  (skips bands with ``n_confused_* > 1``)
     18     COMPLEX_RESID         SCODE_COMPLEX and Resid_Isl_rms above
                                  ``complex_resid_rms_thresh_jy`` (default 0.3)
+    19     RESID_LEFTOVER        stage-3 residual re-detect found leftover flux
+                                 under this source (``resid_leftover`` column)
     ====== ===================== =================================================
     """
 
@@ -190,6 +192,7 @@ class SourceQualityFlag(IntFlag):
     NEAR_BRIGHT_SIDELOBE = 1 << 16
     BAND_POSITION_INCONSISTENT = 1 << 17
     COMPLEX_RESID = 1 << 18
+    RESID_LEFTOVER = 1 << 19
 
 
 _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
@@ -212,6 +215,7 @@ _QUALITY_FLAG_COLUMNS: tuple[tuple[str, SourceQualityFlag], ...] = (
     ("near_bright_sidelobe", SourceQualityFlag.NEAR_BRIGHT_SIDELOBE),
     ("band_position_inconsistent", SourceQualityFlag.BAND_POSITION_INCONSISTENT),
     ("complex_resid", SourceQualityFlag.COMPLEX_RESID),
+    ("resid_leftover", SourceQualityFlag.RESID_LEFTOVER),
 )
 
 _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
@@ -244,6 +248,9 @@ _QUALITY_FLAG_HELP: dict[SourceQualityFlag, str] = {
     ),
     SourceQualityFlag.COMPLEX_RESID: (
         "S_Code is C/M and Resid_Isl_rms > complex_resid_rms_thresh_jy"
+    ),
+    SourceQualityFlag.RESID_LEFTOVER: (
+        "stage-3 residual re-detect found leftover flux under this source"
     ),
 }
 
@@ -545,6 +552,22 @@ def flag_complex_resid(
         raise ValueError(msg)
     flagged = complex_ & np.isfinite(rms) & (rms > float(rms_thresh_jy))
     return pd.Series(flagged, dtype=bool, name=name)
+
+
+def flag_resid_leftover(df: pd.DataFrame) -> pd.Series:
+    """True when fusion / stage-3 marked ``resid_leftover`` on the row.
+
+    Soft: missing column leaves the bit clear (no stage-3 evidence).
+    """
+    name = "resid_leftover"
+    if df is None or df.empty or "resid_leftover" not in df.columns:
+        n = 0 if df is None else len(df)
+        return pd.Series(np.zeros(n, dtype=bool), dtype=bool, name=name)
+    return pd.Series(
+        df["resid_leftover"].fillna(False).astype(bool).to_numpy(),
+        dtype=bool,
+        name=name,
+    )
 
 
 def flag_low_elevation(
@@ -1864,6 +1887,7 @@ def assign_source_quality_flags(
         flags["resid_rms"],
         rms_thresh_jy=cfg.complex_resid_rms_thresh_jy,
     ).to_numpy()
+    flags["resid_leftover"] = flag_resid_leftover(meta).to_numpy()
 
     pctl = flag_residual_percentile(
         flags["resid_rms"].to_numpy(dtype=float),

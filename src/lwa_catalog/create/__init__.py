@@ -62,6 +62,18 @@ from lwa_catalog.create.merge import (
     pick_highest_elevation_row,
     source_elevation_deg,
 )
+from lwa_catalog.create.residual_redetect import (
+    DETECT_STAGE_COL,
+    RESID_LEFTOVER_COL,
+    ResidualStage3Config,
+    ResidualStage3Result,
+    build_residual_healpix_map,
+    healpix_residual_path,
+    mark_resid_leftover_on_metacatalog,
+    merge_residual_into_stage2,
+    summarize_residual_stage3,
+    write_residual_healpix_fits,
+)
 from lwa_catalog.create.tiered_detect import (
     DEFAULT_TIER2_BDSF_KW,
     fuse_gaul_m_with_tier2_s,
@@ -120,4 +132,14 @@ __all__ = [
     "fill_interior_subbands_crossband_forced",
     "forced_fit_on_healpix_band",
     "summarize_crossband_forced_fill",
+    "DETECT_STAGE_COL",
+    "RESID_LEFTOVER_COL",
+    "ResidualStage3Config",
+    "ResidualStage3Result",
+    "build_residual_healpix_map",
+    "healpix_residual_path",
+    "mark_resid_leftover_on_metacatalog",
+    "merge_residual_into_stage2",
+    "summarize_residual_stage3",
+    "write_residual_healpix_fits",
 ]

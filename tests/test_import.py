@@ -423,11 +423,17 @@ def test_create_apis_importable() -> None:
         median_beam_from_paths,
         filter_detections_near_transit,
         merge_lst_metacatalog,
+        merge_residual_into_stage2,
         merge_tier2_bdsf_kw,
+        mark_resid_leftover_on_metacatalog,
         resolve_beam_scale,
         resolve_beam_scale_model,
         restfreq_hz_from_header,
         summarize_crossband_forced_fill,
+        summarize_residual_stage3,
+        write_residual_healpix_fits,
+        ResidualStage3Config,
+        ResidualStage3Result,
     )
 
     assert callable(blank_below_elevation)
@@ -454,6 +460,12 @@ def test_create_apis_importable() -> None:
     assert callable(summarize_crossband_forced_fill)
     assert CrossbandForcedFillConfig().enable_phot_dip is True
     assert hasattr(CrossbandForcedFillResult, "__dataclass_fields__")
+    assert callable(merge_residual_into_stage2)
+    assert callable(mark_resid_leftover_on_metacatalog)
+    assert callable(write_residual_healpix_fits)
+    assert callable(summarize_residual_stage3)
+    assert ResidualStage3Config().clip_negative is True
+    assert hasattr(ResidualStage3Result, "__dataclass_fields__")
     assert isinstance(DEFAULT_TIER2_BDSF_KW, dict)
     assert DEFAULT_BEAM_SCALE == 1.0
     assert DEFAULT_BEAM_SCALE_PROBE_TILES == (28, 102, 189)

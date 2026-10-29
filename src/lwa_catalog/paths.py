@@ -13,6 +13,7 @@ from lwa_catalog.constants import (
     METACATALOG_RADIO_FILENAME,
     METACATALOG_SPECTRAL_FILENAME,
     METACATALOG_XRAY_FILENAME,
+    RESIDUAL_MATCHED_FILENAME_TEMPLATE,
 )
 
 
@@ -81,6 +82,10 @@ class CatalogLayout:
     def beam_scale_json(self) -> Path:
         """``BEAM_SCALE`` JSON sidecar next to catalog Parquets."""
         return self.root / BEAM_SCALE_JSON_FILENAME
+
+    def residual_matched(self, band: str) -> Path:
+        """Stage-3 matched leftover sidecar: ``residual_matched_{band}.parquet``."""
+        return self.root / RESIDUAL_MATCHED_FILENAME_TEMPLATE.format(band=band)
 
     def with_metacatalog(self, metacatalog_file: str | Path) -> CatalogLayout:
         """Return a copy of this layout pointing at a different metacatalog file."""
