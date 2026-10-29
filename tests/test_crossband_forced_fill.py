@@ -214,3 +214,25 @@ def test_fill_near_bright_unchanged_with_phot_dip() -> None:
     assert result.summary["n_insert"] == 0
     assert float(result.target.iloc[0]["Peak_flux"]) == pytest.approx(17.0)
     assert bool(result.target.iloc[0]["forced"]) is False
+
+
+def test_classify_gap_insert_can_be_disabled() -> None:
+    target = pd.DataFrame([_row(ra=10.0, dec=20.0, peak=1.0, source_id=1)])
+    seed = pd.DataFrame([_row(ra=11.0, dec=20.0, peak=18.0, band="55MHz", source_id=2)])
+    actions = classify_crossband_actions(
+        target,
+        {"55MHz": seed},
+        config=CrossbandForcedFillConfig(enable_gap_insert=False, enable_phot_dip=True),
+    )
+    assert (actions["action"] == "insert").sum() == 0
+
+
+def test_classify_min_seed_peak_filters_faint() -> None:
+    target = pd.DataFrame([_row(ra=10.0, dec=20.0, peak=1.0, source_id=1)])
+    seed = pd.DataFrame([_row(ra=11.0, dec=20.0, peak=2.0, band="55MHz", source_id=2)])
+    actions = classify_crossband_actions(
+        target,
+        {"55MHz": seed},
+        config=CrossbandForcedFillConfig(min_seed_peak_jy=5.0, enable_gap_insert=True),
+    )
+    assert actions.empty

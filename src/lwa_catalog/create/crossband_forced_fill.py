@@ -53,6 +53,8 @@ class CrossbandForcedFillConfig:
     sep_frac_bmaj: float = 0.25
     peak_dip_ratio: float = 0.70
     enable_phot_dip: bool = True
+    enable_gap_insert: bool = True
+    min_seed_peak_jy: float = 0.0
     resid_abs_jy: float = 1.0
     resid_frac: float = 0.5
     fixed_position: bool = True
@@ -99,6 +101,18 @@ def _sep_deg(ra0: float, dec0: float, ra1: float, dec1: float) -> float:
     return float(a.separation(b).deg)
 
 
+def _seps_to_hits_deg(ra0: float, dec0: float, hits: pd.DataFrame) -> np.ndarray:
+    """Vectorized great-circle separations from one seed to *hits* rows (deg)."""
+    if hits.empty:
+        return np.zeros(0, dtype=float)
+    seed = SkyCoord(ra=ra0 * u.deg, dec=dec0 * u.deg)
+    hit_sc = SkyCoord(
+        ra=hits["RA"].to_numpy(dtype=float) * u.deg,
+        dec=hits["DEC"].to_numpy(dtype=float) * u.deg,
+    )
+    return seed.separation(hit_sc).deg
+
+
 def _near_hit_mask(
     seed_row: pd.Series,
     hits: pd.DataFrame,
@@ -111,26 +125,18 @@ def _near_hit_mask(
     ra0 = float(seed_row["RA"])
     dec0 = float(seed_row["DEC"])
     bmaj0 = float(seed_row.get("BMAJ", 0.0) or 0.0)
-    mask = np.zeros(len(hits), dtype=bool)
-    for i in range(len(hits)):
-        hit = hits.iloc[i]
-        sep = _sep_deg(ra0, dec0, float(hit["RA"]), float(hit["DEC"]))
-        bmaj1 = float(hit.get("BMAJ", 0.0) or 0.0)
-        limit = float(sep_frac_bmaj) * max(bmaj0, bmaj1, 0.0)
-        mask[i] = np.isfinite(sep) and sep <= limit
-    return mask
+    seps = _seps_to_hits_deg(ra0, dec0, hits)
+    bmaj1 = pd.to_numeric(hits["BMAJ"], errors="coerce").to_numpy(dtype=float)
+    bmaj1 = np.where(np.isfinite(bmaj1), bmaj1, 0.0)
+    limits = float(sep_frac_bmaj) * np.maximum(np.maximum(bmaj0, bmaj1), 0.0)
+    return np.isfinite(seps) & (seps <= limits)
 
 
 def _pick_nearest_hit(seed_row: pd.Series, hits: pd.DataFrame) -> int:
     """Return iloc into *hits* for nearest (then brightest Peak) row."""
     if len(hits) == 1:
         return 0
-    ra0 = float(seed_row["RA"])
-    dec0 = float(seed_row["DEC"])
-    seps = np.array(
-        [_sep_deg(ra0, dec0, float(r["RA"]), float(r["DEC"])) for _, r in hits.iterrows()],
-        dtype=float,
-    )
+    seps = _seps_to_hits_deg(float(seed_row["RA"]), float(seed_row["DEC"]), hits)
     peak = pd.to_numeric(hits["Peak_flux"], errors="coerce").to_numpy(dtype=float)
     peak = np.where(np.isfinite(peak), peak, -np.inf)
     order = np.lexsort((-peak, seps))
@@ -161,39 +167,59 @@ def classify_crossband_actions(
         if seed_df is None or seed_df.empty:
             continue
         s = _ensure_bmaj(seed_df.reset_index(drop=True))
+        seed_peaks_all = pd.to_numeric(s["Peak_flux"], errors="coerce").to_numpy(dtype=float)
+        if float(cfg.min_seed_peak_jy) > 0:
+            keep = np.isfinite(seed_peaks_all) & (
+                seed_peaks_all >= float(cfg.min_seed_peak_jy)
+            )
+            if not keep.any():
+                continue
+            # Preserve original ilocs for seed_iloc provenance.
+            orig_ilocs = np.flatnonzero(keep)
+            s = s.iloc[keep].reset_index(drop=True)
+            seed_peaks_all = seed_peaks_all[keep]
+        else:
+            orig_ilocs = np.arange(len(s))
         hits_by_seed, _matched = associate_catalogs(s, t)
         for seed_i in range(len(s)):
+            seed_peak = float(seed_peaks_all[seed_i])
             seed_row = s.iloc[seed_i]
-            seed_peak = float(pd.to_numeric(seed_row.get("Peak_flux"), errors="coerce"))
+            seed_iloc_orig = int(orig_ilocs[seed_i])
             hit_ilocs = hits_by_seed.get(seed_i, [])
             if not hit_ilocs:
-                insert_cands.append(
-                    {
-                        "action": "insert",
-                        "seed_band": str(seed_band),
-                        "seed_iloc": int(seed_i),
-                        "target_iloc": -1,
-                        "seed_ra": float(seed_row["RA"]),
-                        "seed_dec": float(seed_row["DEC"]),
-                        "seed_peak": seed_peak,
-                        "target_peak": float("nan"),
-                        "peak_ratio": float("nan"),
-                        "sep_deg": float("nan"),
-                        "reason": "no_beam_hit",
-                    }
-                )
+                if cfg.enable_gap_insert:
+                    insert_cands.append(
+                        {
+                            "action": "insert",
+                            "seed_band": str(seed_band),
+                            "seed_iloc": seed_iloc_orig,
+                            "target_iloc": -1,
+                            "seed_ra": float(seed_row["RA"]),
+                            "seed_dec": float(seed_row["DEC"]),
+                            "seed_peak": seed_peak,
+                            "target_peak": float("nan"),
+                            "peak_ratio": float("nan"),
+                            "sep_deg": float("nan"),
+                            "reason": "no_beam_hit",
+                        }
+                    )
                 continue
             hit_df = t.iloc[list(hit_ilocs)].reset_index(drop=True)
             near = _near_hit_mask(seed_row, hit_df, sep_frac_bmaj=cfg.sep_frac_bmaj)
             if not near.any():
+                if not cfg.enable_gap_insert:
+                    continue
                 # Beam hit(s) exist but all are offset → gap / 426 path
                 far_i = _pick_nearest_hit(seed_row, hit_df)
                 far = hit_df.iloc[far_i]
+                seps = _seps_to_hits_deg(
+                    float(seed_row["RA"]), float(seed_row["DEC"]), hit_df
+                )
                 insert_cands.append(
                     {
                         "action": "insert",
                         "seed_band": str(seed_band),
-                        "seed_iloc": int(seed_i),
+                        "seed_iloc": seed_iloc_orig,
                         "target_iloc": -1,
                         "seed_ra": float(seed_row["RA"]),
                         "seed_dec": float(seed_row["DEC"]),
@@ -202,12 +228,7 @@ def classify_crossband_actions(
                             pd.to_numeric(far.get("Peak_flux"), errors="coerce")
                         ),
                         "peak_ratio": float("nan"),
-                        "sep_deg": _sep_deg(
-                            float(seed_row["RA"]),
-                            float(seed_row["DEC"]),
-                            float(far["RA"]),
-                            float(far["DEC"]),
-                        ),
+                        "sep_deg": float(seps[far_i]),
                         "reason": "offset_only",
                     }
                 )
@@ -218,7 +239,7 @@ def classify_crossband_actions(
             local = _pick_nearest_hit(seed_row, near_hit_df)
             t_iloc = near_orig[local]
             near_claims.setdefault(t_iloc, []).append(
-                (str(seed_band), int(seed_i), seed_peak)
+                (str(seed_band), seed_iloc_orig, seed_peak)
             )
 
     # Phot-dip replaces (one action per target row)
@@ -245,15 +266,16 @@ def classify_crossband_actions(
                 continue
             neigh = float(np.median(seed_peaks))
             ratio = t_peak / neigh
-            seed_band = claims[0][0]
-            # Prefer listing all seed bands in seed_band field
-            seed_band_label = ",".join(sorted({b for b, _, _ in claims}))
+            bands_sorted = sorted({b for b, _, _ in claims})
+            seed_band_label = ",".join(bands_sorted)
+            primary_band = bands_sorted[0]
+            primary_iloc = next(i for b, i, _p in claims if b == primary_band)
             if ratio < float(cfg.peak_dip_ratio):
                 rows.append(
                     {
                         "action": "replace",
                         "seed_band": seed_band_label,
-                        "seed_iloc": int(claims[0][1]),
+                        "seed_iloc": int(primary_iloc),
                         "target_iloc": int(t_iloc),
                         "seed_ra": float(t.iloc[t_iloc]["RA"]),
                         "seed_dec": float(t.iloc[t_iloc]["DEC"]),
@@ -268,8 +290,8 @@ def classify_crossband_actions(
                 rows.append(
                     {
                         "action": "skip",
-                        "seed_band": seed_band_label or seed_band,
-                        "seed_iloc": int(claims[0][1]),
+                        "seed_band": seed_band_label,
+                        "seed_iloc": int(primary_iloc),
                         "target_iloc": int(t_iloc),
                         "seed_ra": float(t.iloc[t_iloc]["RA"]),
                         "seed_dec": float(t.iloc[t_iloc]["DEC"]),
