@@ -2,11 +2,14 @@
 
 Living design notes for agents working in this repository. Distilled from the
 2026-08 through 2026-10 research/plan/implement/experiment trail and checked
-against the code as of 2026-09-07 (PSF/α conclusions refreshed 2026-10-12).
-Older markdown sources for the 2026-08–09 trail were removed; **this file is
-the memory** (plus retained `.agents/experiment-*` / research summaries). When
-this file and the code disagree, **trust the code**, then update this file. Do
-not resurrect CSV dual-write, HEALPix FITS maps, or compatibility shims.
+against the code as of 2026-09-07 (PSF/α conclusions refreshed 2026-10-12;
+78 MHz residual / background / rms_box + flux-reliability pilots distilled
+2026-10-29). Older markdown sources for the 2026-08–09 trail were removed;
+**this file is the memory** (plus retained `.agents/` research/plan/experiment
+markdown and harness `*.py`). Experiment result Parquets/JSON are not kept —
+re-run harnesses if needed. When this file and the code disagree, **trust the
+code**, then update this file. Do not resurrect CSV dual-write, HEALPix FITS
+maps, or compatibility shims.
 
 ---
 
@@ -669,6 +672,19 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 - Treating raw header-median `BMAJ`/`BMIN` as the true image-plane restoring
   beam on HEALPix coadds without a smear correction (α or upstream header
   update).
+- `rms_box` ≥ `min(tile_shape)/4` (old `(256,64)` on nside 2048 /
+  `nside_tile=4`) — PyBDSF silently falls back to **constant** rms+mean and
+  inert `rms_box_bright` / adaptive boxes; sky-clustered bad fits near bright
+  sources follow. Keep boxes under ~146 px (`(120,30)` / `(40,10)` shipped).
+- Residual maps as **obs − model** without subtracting PyBDSF `mean_arr` /
+  `healpix_background_*` — coadd zero level is ≈ −0.04 Jy/beam, so the map
+  reads as ~2× “oversubtraction” while model/(obs−bkg) ≈ 1.04–1.06.
+- Sky-wide `atrous_do=True` to fix residual-map oversubtraction — pilot raised
+  Σ model/Σ obs on every tile and inflated `frac_M` / runtime on clean sky
+  (→ `experiment-atrous-78mhz-pilot.md`).
+- Expanding `fuse_gaul_m_with_tier2_s` so tier-2 `S` also replaces `C`
+  (`fuse_MC`) as a residual-HiPS fix — cuts `n_C` but **raises** model/obs
+  (→ `experiment-tier2-fuse-replace-c.md`). Keep **M-only** fuse.
 
 ---
 
@@ -710,9 +726,13 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 
 ## Experiment conclusions (PSF / HEALPix detect, 2026-10)
 
-Trail under `.agents/` (`research-*`, `plan-*`, `experiment-*`, `implement-*`);
-**bulky per-trial catalogs removed** — keep markdown + `summary*.parquet` (+ small
-recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
+Trail under `.agents/` (`research-*`, `plan-*`, `experiment-*`, `implement-*`
+markdown + harness `experiment_*.py` / `run_*.py`). **Do not keep experiment
+result Parquets/JSON** — numbers live in the markdown and in this section;
+re-run a harness to regenerate tables. Older PSF pilots may lack a top-level
+`.md`; conclusions below are authoritative.
+
+### Restoring beam / α
 
 - **LST coadd smear:** Hour-stack Maj widening vanishes under elliptical elev
   cuts (**22.76°/55°**); absolute `Maj/BMAJ≈1.29` even at N=1 (beam prior).
@@ -720,7 +740,7 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
   `Total/Peak≈1`. The N=1 gap means **header `BMAJ`/`BMIN` understate the
   effective image-plane PSF** (regrid / HEALPix / residual smear) — α is a
   detect-time correction for that mismatch, not a free photometry knob alone.
-  → `experiment-lst-average-psf-smearing.md`
+  → conclusions above (result tables not retained)
 - **Restoring-beam α — three different losses:** Residual-optimal,
   size/photometry (`Maj/BMAJ≈1`, `Total/Peak≈1`), and “min α under phot
   gates” are **not interchangeable**. Residual-opt (shipped
@@ -728,8 +748,8 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
   Total/Peak** (~1.8) while map−GAUL residual looks best — Peak×Maj paint
   optimizes the wrong loss for Total SEDs. Size/phot on the probe grid
   preferred α≈1.5–1.7; α≤1.3 passed strict phot gates on **0/15** bands.
-  → `experiment-healpix-alpha-near-one.md`,
-  `experiment-beam-psf-overdecomp/all-subbands/`
+  → `experiment_healpix_alpha_near_one.py`,
+  `experiment-beam-psf-overdecomp/all-subbands/summary.md`
 - **Probe equal-weight trap:** Size/phot α≈1.7 matched the **mean of three
   Dec-stratified tile medians** of `Maj/BMAJ` (S, Peak≥1 Jy, |b|≥20°), not
   the sky-wide catalog median. Tile 189 (Dec~−18°) sits at Maj/BMAJ~1.2 and
@@ -738,6 +758,13 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
   Implied sky-wide size-match α ≈ **1.4–1.5**. Same low-Dec overshoot that
   killed unconstrained Maj-median estimators — do not reintroduce via
   equal-weight probe averaging.
+- **Dec gradient (five-tile shape check):** At fixed band, median
+  `Maj/BMAJ` ≈ 0.9–1.1 at high Dec and **1.6–1.8** by Dec≈−20°…−30°
+  (α=1.0, `S` Peak≥1); `Min/BMIN` stays ~0.9–1.1; source `|dPA|` vs catalog
+  `BPA` ≈ **55°** (useless prior). Absolute fitted Maj is nearly α-tree
+  invariant; ratio moves with stored `BMAJ`. Report **per-tile / Dec-binned**,
+  not equal-weight 5-tile means.
+  → `experiment-tile-beam-vs-source-shape.md`
 - **Full-sky α=1.2 vs α=1.0 (subband2 vs subband3, 2026-10-12):** Trees
   `/fast/claw/metacatalog_healpix_IdTR-0.75s_subband2` (`BEAM_SCALE=1.2`) and
   `..._subband3` (`BEAM_SCALE=1.0`), same elev 22.76/55 + 2-tier. Catalog
@@ -770,10 +797,10 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
   fusion bug. `DC_Maj` empty/≤0 when unresolved vs that prior.
 - **Over-decomposition / 2-tier:** Residual-opt α cuts source/`M` counts
   (esp. single-tier); muted under tier2fuse. **Keep 2-tier**
-  (`fuse_gaul_m_with_tier2_s`). Fake-source blank recovery ~99% — detect +
-  tile merge are faithful when the beam prior matches; real-sky
+  (`fuse_gaul_m_with_tier2_s`, **M→S only**). Fake-source blank recovery ~99%
+  — detect + tile merge are faithful when the beam prior matches; real-sky
   incompleteness is confusion-dominated.
-  → `experiment-fake-source-recovery-73mhz.md`
+  → conclusions above (fake-source recovery harness was not retained)
 - **Shipped defaults / tools:**
   - Default: isotropic `DEFAULT_BEAM_SCALE = 1.0` (`κ=0`); HEALPix-tile attach
     **`BPA=90°`**. Production photometry: `BeamScaleModel(α, κ)` with shared κ
@@ -789,6 +816,51 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
     residual-opt α as Total-SED defaults. Validate Dec-binned Maj/BMAJ and
     Min/BMIN plus zenith vs all-sky VLSSR ratios.
   - Plan: `plan-anisotropic-header-beam-alpha.md`
+
+### 78 MHz residual / background (subband4, 2026-10-29)
+
+Research: `research-78mhz-residual-oversubtraction-subband4.md`. Apparent ~2×
+residual-HiPS oversubtraction and sky-clustered bad fits around bright /
+plane structure.
+
+- **Root cause (shipped):** (1) PyBDSF fits `image − mean`; coadd zero level
+  is negative (≈ −0.04 Jy/beam). Obs−model residuals omit that mean →
+  model/obs ≈ 1.7–1.9 while model/(obs−bkg) ≈ 1.04–1.06; paint matches
+  PyBDSF `model_gaus` (~1.00). (2) Production `rms_box=(256,64)` exceeded
+  `min(tile)/4` on every tile → **constant** rms+mean fallback; adaptive /
+  bright boxes were inert; sidelobe rings near Peak≥10 Jy got
+  over-modeled. **Adopt** `rms_box=(120,30)`, `rms_box_bright=(40,10)`,
+  `mean_map="map"`; write `healpix_background_{band}`; residual products =
+  **obs − background − model** (`residual_bkgsub` HiPS). Reject box60
+  (GalCentre Total −17%). Quiet-sky Totals unchanged (~0.99–1.00).
+  → `experiment-pybdsf-background-rms-box.md`
+- **À trous pilot — do not ship for oversubtraction:** `atrous_do=True`
+  (default jmax and `jmax=3`) raised map model/obs on all four pilot tiles;
+  clean control `frac_M` 8%→13%, runtime up to 14×. Island `Resid_Isl_*`
+  can look better while painted flux budget worsens — do not conflate.
+  Keep **`atrous_do=False`**. → `experiment-atrous-78mhz-pilot.md`
+- **Tier-2 fuse `C` — do not ship for oversubtraction:** Expanding
+  `fuse_gaul_m_with_tier2_s` to replace `C` as well as `M` cuts `n_C` / CM
+  Peak sum but **raises** model/obs (+0.02–0.07). Production **M-only**
+  fuse stays. → `experiment-tier2-fuse-replace-c.md`
+- Remaining after box+bkg: CygA near-bright residual bowls and Galactic
+  diffuse leftovers are beyond rms_box tuning; south-Dec Maj/BMAJ and
+  bright multi-`M` still open.
+
+### Subband flux reliability / over-decomp (2026-10-28)
+
+- **Eval mechanisms (meta_id 426 / 861 / 451 on subband3):** three distinct
+  failure modes — missing near-position detect + confused attach (426);
+  residual multi-`M` island under-count after 2-tier fuse, fusion stores
+  brightest component only (451); unconfused HF `M`/`C` with Total≪Peak
+  (861). `S_Code` ≠ `n_confused`; island siblings stay separate after tile
+  merge.   → `research-subband-detection-flux-reliability.md`,
+  `experiment_subband_flux_reliability_eval_set.py`
+- **Tier-3 forced bright-`M` collapse (prototype):** after 2-tier fuse,
+  beam-shaped forced single Gaussian on residual bright multi-`M` islands
+  recovered Peak≈20 Jy for meta 451’s island (stored 14.7; neighbors
+  ~20–23). Optional path only — not production default; does not fix
+  426/861. → `experiment-tier3-forced-m-collapse.md`
 
 ## Open and deferred
 
@@ -808,7 +880,11 @@ never signed off):
   gap is this header vs image-plane mismatch.
 - Anchor α on more bands (size/phot and/or external catalogs); do not
   extrapolate the 73 MHz VLSSR result as a global α. Library default remains
-  1.0.
+  1.0. Stronger / non-linear south-Dec κ (Maj/BMAJ still high at Dec<−20
+  after κ≈0.009).
+- Full-sky re-detect validation of box120 + background subtract (n_gaus,
+  `M` fraction, VLSSR Totals, `residual_bkgsub` HiPS) beyond the four 78 MHz
+  pilot tiles; leftover bright-neighbor / plane diffuse after that fix.
 - VLSSR completeness denominator (all sources vs Dec cut vs LWA footprint /
   sensitivity). Seeding union-find from VLSSR was explicitly **out of scope**.
 - Peak+Total spectral fits in one pass; RGB as default spectral input; HiPS of
@@ -820,13 +896,15 @@ never signed off):
 - Validate cross-band forced fill on `/fast/claw` trees (426/861 recovery +
   false-positive rate on steep smooth SEDs) before enabling
   `ENABLE_CROSSBAND_FORCED_FILL` by default; island undercount (451) still
-  needs island-sum / `n_assoc>1` SED gates.
+  needs island-sum / `n_assoc>1` SED gates and/or optional tier-3 forced
+  bright-`M` collapse (`plan` not yet shipped).
+- Cosmic-web / diffuse HEALPix cross-correlation science path remains
+  research-only (`research-cosmic-web-diffuse-healpix-cross-correlation.md`).
 - `notebooks/README.md` and root `README.md` still under-document radio/spectral
   sidecars and several notebooks.
 
 Later than this distillation (exists in code; treat the modules as authority):
 `analyze/nedlvs.py`, `nvss.py`, `vlass.py`, `erass3.py`, `bootstrap.py`,
-`crossmatch_radius.py`, expanded `SourceQualityFlag`,
-`notebooks/metacatalog_nedlvs_crossmatch.ipynb`,
-`notebooks/xray_crossmatch.ipynb`, hybrid Aladin markers
+`crossmatch_radius.py`, expanded `SourceQualityFlag`, background-aware
+residual writers, hybrid Aladin markers
 (`ellipse_visible_at_fov` / `DEFAULT_MIN_ELLIPSE_FOV_FRAC`).
