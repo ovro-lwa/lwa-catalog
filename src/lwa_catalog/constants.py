@@ -62,6 +62,13 @@ LODES_DEFAULT_PATH: Path = Path(
     "/fast/claw/LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits"
 )
 
+# Radio Fundamental Catalogue (Petrov & Kovalev 2025; rfc_2026c release).
+# VLBI absolute-astrometry positions of compact radio sources (mas-level).
+RFC_DEFAULT_PATH: Path = Path("/fast/claw/rfc_2026c_cat.txt")
+RFC_CROSS_MATCH_DEFAULT_PATH: Path = Path("/fast/claw/rfc_2026c_cross_match.txt")
+# Fallback 1σ when eRA/eDE are missing (~few mas; match is LWA-radius dominated).
+RFC_POSITION_ERROR_DEFAULT_ARCSEC: float = 0.01
+
 # eROSITA eRASS:3 Main + Legacy Survey DR10 counterparts (Merloni et al.;
 # German / western Galactic hemisphere, Galactic longitude 180°–360°).
 ERASS3_DEFAULT_PATH: Path = Path(

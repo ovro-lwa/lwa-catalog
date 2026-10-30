@@ -51,6 +51,14 @@ HARMONIZED_CLASS_MAP: dict[str, str] = {
     "NVSS": "radio",
     "VLASS": "radio",
     "LoDeSS": "radio",
+    # RFC NED ``type`` examples (actual logic is catalog-aware for RFC).
+    "QSO": "agn",
+    "QSOc": "agn",
+    "BLLac": "agn",
+    "BZ": "agn",
+    "BZc": "agn",
+    "GClstr": "cluster",
+    "XrayS": "xray",
 }
 
 RADIO_ASSOCIATION_CATALOGS: tuple[str, ...] = ("VLSSR", "NVSS", "VLASS", "LoDeSS")
@@ -115,6 +123,14 @@ ASSOCIATION_SPEC_TWORXS = CatalogAssociationSpec(
     positions_col="tworxs_positions",
     n_col="n_2rxs",
     class_column=None,
+)
+ASSOCIATION_SPEC_RFC = CatalogAssociationSpec(
+    catalog="RFC",
+    id_column="Name",
+    positions_col="rfc_positions",
+    n_col="n_rfc",
+    class_column="type",
+    id_fallback_columns=("Comnam",),
 )
 
 
@@ -432,6 +448,21 @@ def harmonize_class_native(catalog: str, class_native: str) -> str:
             return "star"
         if primary in {"Q", "A", "B", "K", "N"}:
             return "agn"
+        return HARMONIZED_CLASS_MAP.get(native, "unknown")
+    if cat == "RFC":
+        # NED ``type`` from rfc_*_cross_match.txt (blank → compact VLBI / radio).
+        if native in {"", "RFC"}:
+            return "radio"
+        if native in {"QSO", "QSOc", "BLLac", "BZ", "BZc", "Q_Lens"}:
+            return "agn"
+        if native in {"G", "GPair", "GTrpl", "GGroup", "G_Lens", "PofG"}:
+            return "galaxy"
+        if native == "GClstr":
+            return "cluster"
+        if native in {"*", "Blue*", "Red*", "V*", "!V*", "!*"}:
+            return "star"
+        if native == "XrayS":
+            return "xray"
         return HARMONIZED_CLASS_MAP.get(native, "unknown")
     if cat == "eRASS3":
         if native.lower() == "blazar":

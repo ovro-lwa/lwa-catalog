@@ -131,6 +131,28 @@ def test_analyze_lodess_exports() -> None:
     assert hasattr(LodesMatchResult, "__dataclass_fields__")
 
 
+def test_analyze_rfc_exports() -> None:
+    from lwa_catalog.analyze import (
+        ASSOCIATION_SPEC_RFC,
+        RFC_REFERENCE_RADIUS_LOCALIZATION,
+        RfcMatchConfig,
+        RfcMatchResult,
+        load_rfc_catalog,
+        load_rfc_cross_match,
+        match_catalog_to_rfc,
+        summarize_rfc_match,
+    )
+
+    assert callable(load_rfc_catalog)
+    assert callable(load_rfc_cross_match)
+    assert callable(match_catalog_to_rfc)
+    assert callable(summarize_rfc_match)
+    assert RfcMatchConfig().target == "metacatalog"
+    assert hasattr(RfcMatchResult, "__dataclass_fields__")
+    assert ASSOCIATION_SPEC_RFC.catalog == "RFC"
+    assert RFC_REFERENCE_RADIUS_LOCALIZATION.mode == "localization"
+
+
 def test_analyze_erass3_exports() -> None:
     from lwa_catalog.analyze import (
         Erass3MatchConfig,
