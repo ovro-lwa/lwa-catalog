@@ -55,7 +55,10 @@ Under `CatalogLayout(root)` / `OUTPUT_DIR` / `CATALOG_DIR`:
 | Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows; optional radio survey attach then `spec_*` fits |
 | Associations | `metacatalog_associations.parquet` | Long-form unique cross-match evidence (`meta_id`↔`ref_id`); replace-by-`catalog` |
 | Per-band beam α | `beam_alpha_by_band.parquet` | VLSSR+neighbor bootstrap; input to healpix re-detect `BEAM_SCALE` |
-| BEAM_SCALE JSON | `beam_scale.json` | Scalar or `{band: α}` + metadata; written next to Parquets |
+| α+κ size table | `beam_alpha_kappa_by_band.parquet` | Joint size α + shared κ (+ hybrid VLSSR `s`) |
+| BEAM_SCALE JSON | `beam_scale.json` | Scalar, `{band: α}`, or `{band: {alpha, kappa}}` + metadata |
+| Stage-3 residual matched | `residual_matched_{band}.parquet` | Leftover residual islands under stage-2 sources (QA / `resid_leftover`) |
+| PyBDSF background | `healpix_background_{band}_nside*.fits` | Tier-1 per-tile `mean_arr` sampled onto HEALPix (image product, MAP+WEIGHT); subtract in every residual |
 | Legacy X-ray sidecar | `metacatalog_xray.parquet` | Older trees only — **do not write**; use associations |
 | Quality bit table | `metacatalog_quality_flags.parquet` | Per-bit boolean diagnostics (optional) |
 | Reliability HiPS | `hips_*_nside64/` | Peak-flux-weighted maps, not FITS |
@@ -137,22 +140,23 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   `detect_sources_on_healpix_tiles` → `run_pybdsf_on_hdu` (not
   `detect_sources`). Defaults: `nside_map=2048`, `nside_tile=4`, TAN, nested,
   `align="diamond"` with `margin=0.05` (HEALPix-edge-aligned tiles; use
-  `align="celestial"` + `overlap` for legacy north-aligned squares).   Band-median
-  header `BMAJ`/`BMIN` are multiplied by `beam_scale` (library default
-  **`DEFAULT_BEAM_SCALE = 1.0`**, unscaled median) before both tiers;
-  catalog `BMAJ`/`BMIN`/`BPA` follow the scaled fit-time beam. Header medians
-  understate the effective image-plane PSF after HEALPix/regrid smear, so
-  `beam_scale` (α) may differ by band; **α=1.2 is trusted at 73 MHz** from
-  VLSSR Total comparison (see Experiment conclusions).   Detect notebooks load per-band α from `OUTPUT_DIR/beam_scale.json` (or an
-  explicit `{band: α}` `BEAM_SCALE` dict override) via `resolve_beam_scale`
-  (`healpix_detect.py`). Write that JSON with `beam_alpha_bootstrap.ipynb`
-  (`analyze/beam_alpha_bootstrap.py` — VLSSR Total anchor + Peak-normalized
-  neighbor Total ratios). Optional library **`estimate_beam_scale`**
-  (`create/beam_scale.py`) remains residual-only (probe tiles 28/102/189) and
-  is **not** wired into the healpix detect notebook — do not treat it as
-  photometry-optimal. Prefer the VLSSR bootstrap mapping for Total-flux work.
-  Do **not** use unconstrained Maj-median as the production estimator. PyBDSF fits an **image-plane** Gaussian (not
-  deconvolved⊗beam); `Total_flux = Peak_flux × (Maj×Min)/(BMAJ×BMIN)`.
+  `align="celestial"` + `overlap` for legacy north-aligned squares).   Band-median header `BMAJ`/`BMIN` are scaled by a
+  :class:`~lwa_catalog.create.BeamScaleModel` `(α, κ)` (library default
+  isotropic **`DEFAULT_BEAM_SCALE = 1.0`**, `κ=0`) before both tiers.
+  **α ≥ 1** is isotropic header understatement; **κ ≥ 0** is zenith-south Maj
+  stretch `E=1+κ·max(0,φ−δ)` at tile-center Dec (`φ=OVRO_LATITUDE_DEG`).
+  Attach/catalog **`BPA` is always 90°** on the HEALPix-tile path (E–W
+  formation; ignore hourly-header BPA). Catalog `BMAJ`/`BMIN` follow the
+  tile-effective beam (also the association radius). Prefer
+  `estimate_beam_alpha_kappa` + hybrid near-zenith VLSSR α rescale
+  (`beam_alpha_kappa_estimate.ipynb`) for production photometry; scalar
+  `bootstrap_beam_alpha` remains available. Residual-only
+  **`estimate_beam_scale`** (`create/beam_scale.py`) is **not**
+  photometry-optimal. Do **not** equal-weight Dec-probe Maj means or fit BPA
+  from source PA. Detect loads `OUTPUT_DIR/beam_scale.json` via
+  `load_beam_scale` / `resolve_beam_scale_model`. PyBDSF fits an **image-plane**
+  Gaussian (not deconvolved⊗beam);
+  `Total_flux = Peak_flux × (Maj×Min)/(BMAJ×BMIN)`.
   `Total < Peak` means fitted FWHM < attached beam (`fix_to_beam` is off).
   Optional **2-tier detect** (`tier2_bdsf_kw` not `None`): tier-1 deep catalog
   (notebook `thresh_isl=2` / `thresh_pix=3`) plus a high-threshold pass
@@ -166,6 +170,34 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   neighbors — including `S_Code=M` island siblings — remain separate rows.
   Transitive hub chaining through a third tile (`A—X—B`) is accepted deferred
   debt. Output is LST-merged-shaped Parquets for `build_global_metacatalog`.
+  Optional **cross-band forced fill** (`create/crossband_forced_fill.py`):
+  post–tile-merge / pre-fusion neighbor-seeded forced Peak+Total on HEALPix
+  cutouts — gap **insert** (reverse-confused / missing near-position detect)
+  and phot-dip **replace** (unconfused Peak step). Not inside 2-tier fuse.
+  Healpix detect notebook: `ENABLE_CROSSBAND_FORCED_FILL` (default off).
+  **Background + rms boxes:** PyBDSF fits Gaussians to `image − mean`; the
+ coadd zero level is negative (≈ −0.04 Jy/beam), so `obs − model` alone
+ reads as ~2× oversubtraction. Pass `background_out=` to
+ `detect_sources_on_healpix_tiles` (tier-1 `mean_arr` via
+ `run_pybdsf_on_hdu(return_background=True)` → `sample_tile_onto_healpix`)
+ and write `healpix_background_path(...)`; residuals are
+ **obs − background − model** (`build_residual_healpix_map(background=)`,
+ `write_residual_healpix_fits(background_path=)`, reliability
+ `residual_bkgsub` HiPS). `rms_box` must be **< min(tile shape)/4**
+ (≈146 px at nside 2048 / `nside_tile=4`) or PyBDSF silently uses a
+ constant rms+mean — the old `(256,64)` did this on every tile and caused
+ sky-clustered bad fits near bright sources. Notebook: `rms_box=(120,30)`,
+ `rms_box_bright=(40,10)`, `mean_map="map"` (tier-2 inherits). →
+ `.agents/experiment-pybdsf-background-rms-box.md`
+ Optional **Stage 3 residual re-detect** (`create/residual_redetect.py`):
+  after tile merge, paint stage-2 catalog onto `healpix_{band}`, write
+  positive-clipped `healpix_residual_{band}_nside*.fits`, single-tier tile
+  PyBDSF (`tier2_bdsf_kw=None`, same deep `BDSF_KW`), append **unmatched**
+  islands (`detect_stage=3`) into `metacatalog_lst_{band}`; matched leftovers
+  → `residual_matched_{band}.parquet`. Fusion runs once afterward and sets
+  `resid_leftover` on claimed primaries (reliability bit `RESID_LEFTOVER`).
+  Notebook gate: `ENABLE_RESIDUAL_STAGE3` (default **off**). Distinct from
+  cross-band forced fill.
   Coadd elevation blanking may be circular
   (`min_elevation`) or elliptical (`min_elevation_ns` / `min_elevation_ew`;
   notebook default 22.76° N/S ≈ Dec≥−30° at OVRO meridian, 55° E/W). Image HEALPix FITS (`write_healpix_fits` MAP+WEIGHT) is an
@@ -376,15 +408,16 @@ Three related but **not interchangeable** layers:
    (avoids double rematch I/O).
 3. **`quality_flag` bitmask** (`SourceQualityFlag`): 0 = check passed, 1 =
    concern. `quality_flag == 0` means every implemented check passed. Bits
-   0–18 are defined (through `COMPLEX_RESID`: `SCODE_COMPLEX` and seed
-   `Resid_Isl_rms > complex_resid_rms_thresh_jy`, default 0.3 Jy/beam;
-   `BAND_POSITION_INCONSISTENT` is max pairwise band–band position sep >
-   1 × BMAJ_match among bands with `n_confused_*` not `> 1`; rematches LST
-   catalogs when `RA_{band}`/`DEC_{band}` are absent, as on subband fusion).
-   `CONFUSED_ASSOC` is `n_confused_* > 1` (reverse: many meta rows claim one
-   attached-band source), not forward `n_assoc_* > 1`. Bits 19–31 reserved.
-   Written onto `metacatalog.parquet` (optional
-   `metacatalog_quality_flags.parquet` keeps per-bit booleans).
+   0–19 are defined (through `RESID_LEFTOVER`: fusion/`resid_leftover` from
+   stage-3 residual leftover under a primary; `COMPLEX_RESID` bit 18 =
+   `SCODE_COMPLEX` and seed `Resid_Isl_rms > complex_resid_rms_thresh_jy`,
+   default 0.3 Jy/beam; `BAND_POSITION_INCONSISTENT` is max pairwise
+   band–band position sep > 1 × BMAJ_match among bands with `n_confused_*`
+   not `> 1`; rematches LST catalogs when `RA_{band}`/`DEC_{band}` are
+   absent, as on subband fusion). `CONFUSED_ASSOC` is `n_confused_* > 1`
+   (reverse: many meta rows claim one attached-band source), not forward
+   `n_assoc_* > 1`. Bits 20–31 reserved. Written onto `metacatalog.parquet`
+   (optional `metacatalog_quality_flags.parquet` keeps per-bit booleans).
 
 Do not conflate **percentile QA** (Fit quality, Mahalanobis) with **absolute
 library cuts** (reliability E3 / `RESID_ABS_FAIL`).
@@ -531,8 +564,9 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `ovro_lwa_metacatalog.ipynb` | RGB detect → LST merge → fusion; Fit quality section |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same on 15 MHz subbands |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd experiment vs LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix coadd → nested TAN tiles → PyBDSF; α from `beam_scale.json` or `BEAM_SCALE` dict; `merge_tile_metacatalog` → band fusion (Option 2) |
-| `beam_alpha_bootstrap.ipynb` | Post-metacatalog VLSSR + neighbor Total/Peak α → `beam_alpha_by_band.parquet` for re-detect |
+| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix coadd → nested TAN tiles → PyBDSF; `(α,κ)` from `beam_scale.json` / `BEAM_SCALE`; BPA=90°; `merge_tile_metacatalog`; optional Stage 3 residual re-detect → band fusion |
+| `beam_alpha_kappa_estimate.ipynb` | Size α + shared κ (+ optional zenith VLSSR hybrid) → `beam_scale.json` |
+| `beam_alpha_bootstrap.ipynb` | Scalar VLSSR + neighbor Total/Peak α → `beam_alpha_by_band.parquet` |
 | `metacatalog_query.ipynb` | Browse, sky overlay, **band-merge source trace**, Mahalanobis |
 | `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + **band-merge** source trace |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
@@ -615,6 +649,11 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
   explicitly replaces rematch.
 - Residual-optimal `estimate_beam_scale` α as the production photometry /
   Total-flux SED default (59/78 MHz Total inflation).
+- Keeping hourly-header median `BPA` on HEALPix-tile detect (use **90°**).
+- Fitting BPA from median source `PA`, or circularizing header beams before
+  α/κ (keep header `BMAJ`/`BMIN` sizes; κ adds Maj stretch).
+- Equal-weight Dec-probe means as the κ or α objective; fixed sky-wide
+  `(α_maj, α_min)` without a Dec law when Maj-vs-Dec is the failure mode.
 - Flat α=1.0 at **73 MHz** for Total-flux work when VLSSR is the reference —
   Total_73/Peak_VLSSR ≈1.74 (α=1.0) vs ≈1.21 (α=1.2); Peak is fine either
   way. Other bands may use other α; do not assume one global scale.
@@ -736,26 +775,20 @@ recovery/truth tables). Harness scripts stay at `.agents/experiment_*.py`.
   incompleteness is confusion-dominated.
   → `experiment-fake-source-recovery-73mhz.md`
 - **Shipped defaults / tools:**
-  - Default: `DEFAULT_BEAM_SCALE = 1.0` (library; unscaled header median).
-    α may be set per band / run; **trusted value at 73 MHz is 1.2** (VLSSR
-    Total; subband2 tree). Other bands are not pinned by that comparison —
-    check `OUTPUT_DIR` / `BEAM_SCALE` before trusting Totals.
-  - Estimate (resid): `estimate_beam_scale` — mean **resid** on probes
-    28/102/189, tier2fuse, discrete α grid. Not a Total-flux α picker.
-  - Estimate (Total photometry): `bootstrap_beam_alpha` /
-    `beam_alpha_bootstrap.ipynb` — requires detect-time `beam_scale_used`
-    (1.0 if unscaled); `α_true = beam_scale_used × √(med Total/VLSSR)`, then
-    Peak-normalized neighbor Total ratios; writes `beam_alpha_by_band.parquet`
-    for `BEAM_SCALE` / `BEAM_SCALE_TABLE` on re-detect.
-  - **Reject** Maj-median / per-tile size estimators and equal-weight probe
-    Maj means as production α. Validate any new α on **sky-wide** med
-    `Maj/BMAJ` and `Total/Peak`, VLSSR Total/Peak where available, plus a
-    few band-merged SEDs — not probe residual alone.
-  - Summaries: `experiment-beam-psf-overdecomp/{summary,all-subbands/summary}.*`,
-    `experiment-healpix-alpha-near-one/`,
-    `research-subband2-vs-subband3-metacatalog-comparison.md`
-  - Plans: `plan-per-band-beam-alpha-estimate.md`,
-    `implement-per-band-beam-alpha-estimate.md`
+  - Default: isotropic `DEFAULT_BEAM_SCALE = 1.0` (`κ=0`); HEALPix-tile attach
+    **`BPA=90°`**. Production photometry: `BeamScaleModel(α, κ)` with shared κ
+    and per-band α; hybrid near-zenith VLSSR can rescale all α. Historical
+    scalar **α=1.2 at 73 MHz** (subband2) remains a VLSSR Total reference.
+  - Estimate (α+κ size + hybrid): `estimate_beam_alpha_kappa` /
+    `beam_alpha_kappa_estimate.ipynb` — near-zenith `|δ−φ|≤20°` α; shared
+    n-weighted κ; optional zenith VLSSR `s`. Writes `beam_scale.json`.
+  - Estimate (resid): `estimate_beam_scale` — probe resid only; not Total α.
+  - Estimate (scalar VLSSR): `bootstrap_beam_alpha` /
+    `beam_alpha_bootstrap.ipynb` — still valid isotropic path (`κ=0`).
+  - **Reject** equal-weight Dec-probe Maj means, BPA-from-source-PA, and
+    residual-opt α as Total-SED defaults. Validate Dec-binned Maj/BMAJ and
+    Min/BMIN plus zenith vs all-sky VLSSR ratios.
+  - Plan: `plan-anisotropic-header-beam-alpha.md`
 
 ## Open and deferred
 
@@ -784,6 +817,10 @@ never signed off):
   `quality_flag`.
 - HiPS overlay Phase 4: tier-diff overlays, MOC footprints.
 - Persist member-level tables instead of rematching.
+- Validate cross-band forced fill on `/fast/claw` trees (426/861 recovery +
+  false-positive rate on steep smooth SEDs) before enabling
+  `ENABLE_CROSSBAND_FORCED_FILL` by default; island undercount (451) still
+  needs island-sum / `n_assoc>1` SED gates.
 - `notebooks/README.md` and root `README.md` still under-document radio/spectral
   sidecars and several notebooks.
 
