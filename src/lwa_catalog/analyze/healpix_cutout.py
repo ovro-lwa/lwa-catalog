@@ -49,6 +49,11 @@ def healpix_residual_path(root: Path | str, band: str, *, nside: int) -> Path:
     return Path(root) / f"healpix_residual_{band}_nside{int(nside)}.fits"
 
 
+def healpix_background_path(root: Path | str, band: str, *, nside: int) -> Path:
+    """PyBDSF background mean MAP FITS path (tier-1 ``mean_arr`` per tile)."""
+    return Path(root) / f"healpix_background_{band}_nside{int(nside)}.fits"
+
+
 def tan_cutout_header(
     ra_deg: float,
     dec_deg: float,

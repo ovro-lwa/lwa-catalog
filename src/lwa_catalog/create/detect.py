@@ -334,18 +334,54 @@ def _isolate_in_memory_outdir(
     return out
 
 
+def pybdsf_background_image(img: Any) -> np.ndarray | None:
+    """Return PyBDSF's background mean map in FITS ``(y, x)`` order.
+
+    PyBDSF stores image-plane arrays as ``(x, y)`` (it transposes on FITS
+    export). Gaussians are fit to ``image − mean``, so this map is the zero
+    level that belongs with the Gaussian model in any residual. Blanked
+    (NaN-input) pixels are NaN. Returns ``None`` when *img* has no mean map.
+    """
+    mean = getattr(img, "mean_arr", None)
+    if mean is None:
+        return None
+    arr = np.asarray(mean, dtype=np.float32)
+    if arr.ndim != 2:
+        return None
+    return arr.T
+
+
 def run_pybdsf_on_hdu(
     hdu: fits.PrimaryHDU,
     *,
     bdsf_kw: Mapping[str, Any] | None = None,
+    return_background: bool = False,
     **process_kw: Any,
-) -> Table | None:
+) -> Table | None | tuple[Table | None, np.ndarray | None]:
     """Run PyBDSF on an in-memory HDU and return the Gaussian catalog table.
 
     If sliding-box RMS estimation fails on a constant/blank patch
     (``FloatingPointError: divide by zero`` or ``unphysical rms``), retries once
     with a constant background (``rms_map=False``, ``mean_map='const'``).
+
+    With ``return_background=True`` returns ``(table, background)`` where
+    *background* is :func:`pybdsf_background_image` on the same pixel grid as
+    ``hdu.data`` (``None`` if PyBDSF did not get that far).
     """
+    img = _process_image_with_fallback(hdu, bdsf_kw=bdsf_kw, **process_kw)
+    table = _gaul_table_from_image(img) if img is not None else None
+    if return_background:
+        background = pybdsf_background_image(img) if img is not None else None
+        return table, background
+    return table
+
+
+def _process_image_with_fallback(
+    hdu: fits.PrimaryHDU,
+    *,
+    bdsf_kw: Mapping[str, Any] | None = None,
+    **process_kw: Any,
+) -> Any:
     try:
         bdsf = _import_pybdsf_safely()
     except ImportError as exc:  # pragma: no cover
@@ -391,7 +427,10 @@ def run_pybdsf_on_hdu(
             stacklevel=2,
         )
         return None
+    return img
 
+
+def _gaul_table_from_image(img: Any) -> Table | None:
     with tempfile.NamedTemporaryFile(suffix=".gaul.fits", delete=False) as tmp:
         cat_path = tmp.name
     try:

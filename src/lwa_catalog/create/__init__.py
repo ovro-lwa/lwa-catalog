@@ -47,6 +47,7 @@ from lwa_catalog.create.healpix_detect import (
     resolve_beam_scale,
     resolve_beam_scale_model,
     restfreq_hz_from_header,
+    sample_tile_onto_healpix,
     scale_beam,
 )
 from lwa_catalog.create.merge import (
@@ -68,6 +69,7 @@ from lwa_catalog.create.residual_redetect import (
     ResidualStage3Config,
     ResidualStage3Result,
     build_residual_healpix_map,
+    healpix_background_path,
     healpix_residual_path,
     mark_resid_leftover_on_metacatalog,
     merge_residual_into_stage2,
@@ -121,6 +123,7 @@ __all__ = [
     "resolve_beam_scale_model",
     "resolve_fits_slot",
     "restfreq_hz_from_header",
+    "sample_tile_onto_healpix",
     "scale_beam",
     "source_elevation_deg",
     "summarize_beam_scale_estimate",
@@ -137,6 +140,7 @@ __all__ = [
     "ResidualStage3Config",
     "ResidualStage3Result",
     "build_residual_healpix_map",
+    "healpix_background_path",
     "healpix_residual_path",
     "mark_resid_leftover_on_metacatalog",
     "merge_residual_into_stage2",

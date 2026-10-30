@@ -182,3 +182,70 @@ def test_write_residual_healpix_fits_roundtrip(tmp_path: Path) -> None:
     assert resid.shape == (npix,)
     assert np.nanmin(resid) >= 0.0
     assert w.shape == (npix,)
+
+
+def test_build_residual_subtracts_background() -> None:
+    nside = 2
+    npix = 12 * nside**2
+    obs = np.full(npix, -0.04, dtype=float)
+    bkg = np.full(npix, -0.04, dtype=float)
+    bkg[0] = np.nan  # missing background → treated as 0
+    resid = build_residual_healpix_map(
+        obs, None, nside=nside, nest=True, clip_negative=False, background=bkg
+    )
+    assert resid[1:] == pytest.approx(0.0)
+    assert resid[0] == pytest.approx(-0.04)
+    with pytest.raises(ValueError, match="background shape"):
+        build_residual_healpix_map(
+            obs, None, nside=nside, background=np.zeros(npix + 1)
+        )
+
+
+def test_healpix_background_path() -> None:
+    from lwa_catalog.analyze.healpix_cutout import healpix_background_path
+
+    assert healpix_background_path("/tmp/out", "78MHz", nside=2048) == Path(
+        "/tmp/out/healpix_background_78MHz_nside2048.fits"
+    )
+
+
+def test_write_residual_healpix_fits_with_background(tmp_path: Path) -> None:
+    pytest.importorskip("lwa_healpix")
+    pytest.importorskip("healpy")
+    from lwa_healpix import read_healpix_fits, write_healpix_fits
+
+    from lwa_catalog.analyze.healpix_cutout import healpix_background_path
+    from lwa_catalog.create.residual_redetect import write_residual_healpix_fits
+
+    nside = 8
+    npix = 12 * nside**2
+    weight = np.ones(npix, dtype=np.float32)
+    write_healpix_fits(
+        tmp_path / "healpix_73MHz_nside8.fits",
+        np.full(npix, -0.05, dtype=np.float32),
+        weight,
+        nside=nside,
+        nested=True,
+        overwrite=True,
+    )
+    bkg_path = healpix_background_path(tmp_path, "73MHz", nside=nside)
+    write_healpix_fits(
+        bkg_path,
+        np.full(npix, -0.05, dtype=np.float32),
+        weight,
+        nside=nside,
+        nested=True,
+        overwrite=True,
+    )
+    out = write_residual_healpix_fits(
+        tmp_path,
+        "73MHz",
+        None,
+        nside=nside,
+        nested=True,
+        clip_negative=False,
+        background_path=bkg_path,
+        overwrite=True,
+    )
+    resid, _w, _meta = read_healpix_fits(out)
+    assert np.asarray(resid) == pytest.approx(0.0, abs=1e-6)

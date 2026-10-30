@@ -24,7 +24,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from lwa_catalog.analyze.healpix_cutout import healpix_coadd_path, healpix_residual_path
+from lwa_catalog.analyze.healpix_cutout import (
+    healpix_background_path,
+    healpix_coadd_path,
+    healpix_residual_path,
+)
 from lwa_catalog.analyze.healpix_map import (
     catalog_with_peak_from_total_flux,
     metacatalog_to_healpix,
@@ -37,6 +41,7 @@ __all__ = [
     "ResidualStage3Config",
     "ResidualStage3Result",
     "build_residual_healpix_map",
+    "healpix_background_path",
     "healpix_residual_path",
     "mark_resid_leftover_on_metacatalog",
     "merge_residual_into_stage2",
@@ -98,13 +103,17 @@ def build_residual_healpix_map(
     nside: int,
     nest: bool = True,
     clip_negative: bool = True,
+    background: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Return ``obs − Gaussian paint``, with negatives clipped to 0 by default.
+    """Return ``obs − background − Gaussian paint``; negatives clipped by default.
 
     Unobserved / non-finite ``obs`` pixels stay NaN. Model paint uses
     :func:`~lwa_catalog.analyze.healpix_map.catalog_with_peak_from_total_flux`
     when ``Total_flux`` is present so Peak is Jy/beam consistent with residual
-    HiPS.
+    HiPS. *background* is the PyBDSF mean map on the same HEALPix grid
+    (``healpix_background_{band}``); PyBDSF fits Gaussians above it, so
+    omitting it leaves the coadd's (negative) zero level in the residual.
+    Non-finite background pixels count as 0.
     """
     obs = np.asarray(obs_map, dtype=float)
     npix = int(obs.size)
@@ -112,6 +121,12 @@ def build_residual_healpix_map(
     if npix != expected:
         msg = f"obs_map length {npix} != 12*nside^2 ({expected}) for nside={nside}"
         raise ValueError(msg)
+    if background is not None:
+        bkg = np.asarray(background, dtype=float)
+        if bkg.shape != obs.shape:
+            msg = f"background shape {bkg.shape} != obs_map shape {obs.shape}"
+            raise ValueError(msg)
+        obs = obs - np.where(np.isfinite(bkg), bkg, 0.0)
 
     if catalog is None or catalog.empty:
         model = np.zeros(npix, dtype=float)
@@ -149,11 +164,14 @@ def write_residual_healpix_fits(
     nested: bool = True,
     clip_negative: bool = True,
     obs_path: Path | str | None = None,
+    background_path: Path | str | None = None,
     overwrite: bool = False,
 ) -> Path:
     """Build and write residual HEALPix MAP+WEIGHT FITS for *band*.
 
-    Weight is copied from the observed coadd. Returns the output path.
+    Weight is copied from the observed coadd. *background_path* (typically
+    :func:`~lwa_catalog.analyze.healpix_cutout.healpix_background_path`) is
+    subtracted along with the model when given. Returns the output path.
     """
     lwa_healpix = _import_lwa_healpix()
     root_path = Path(root)
@@ -167,12 +185,27 @@ def write_residual_healpix_fits(
     obs_map, weight, meta = lwa_healpix.read_healpix_fits(obs_fits)
     nest = bool(meta.get("nested", nested))
     file_nside = int(meta.get("nside", nside))
+    background = None
+    if background_path is not None:
+        background, _bkg_weight, bkg_meta = lwa_healpix.read_healpix_fits(
+            Path(background_path)
+        )
+        if int(bkg_meta.get("nside", file_nside)) != file_nside or bool(
+            bkg_meta.get("nested", nest)
+        ) != nest:
+            msg = (
+                f"background {background_path} (nside={bkg_meta.get('nside')}, "
+                f"nested={bkg_meta.get('nested')}) does not match coadd "
+                f"(nside={file_nside}, nested={nest})"
+            )
+            raise ValueError(msg)
     resid = build_residual_healpix_map(
         obs_map,
         catalog,
         nside=file_nside,
         nest=nest,
         clip_negative=clip_negative,
+        background=background,
     )
     out = healpix_residual_path(root_path, band, nside=file_nside)
     return lwa_healpix.write_healpix_fits(

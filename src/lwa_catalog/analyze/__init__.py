@@ -187,6 +187,7 @@ from lwa_catalog.analyze.forced_photometry import (
 from lwa_catalog.analyze.healpix_cutout import (
     HealpixMapCache,
     cutout_grid_shape,
+    healpix_background_path,
     healpix_coadd_path,
     healpix_cutout,
     healpix_residual_path,
@@ -482,6 +483,7 @@ __all__ = [
     "filter_metacatalog_reliability",
     "filter_or_hesl",
     "catalog_with_peak_from_total_flux",
+    "healpix_background_path",
     "healpix_coadd_path",
     "healpix_residual_path",
     "healpix_cutout",

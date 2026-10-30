@@ -358,3 +358,53 @@ def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPa
     assert len(df) == 1
     assert df.iloc[0]["S_Code"] == "S"
     assert int(df.iloc[0]["Source_id"]) == 99
+
+
+def test_detect_sources_on_healpix_tiles_background_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("healpy")
+    nside_map = 16
+    nside_tile = 2
+    npix = 12 * nside_map**2
+    ratio = (nside_map // nside_tile) ** 2
+    healpix_map = np.ones(npix, dtype=np.float64)
+    weight = np.zeros(npix, dtype=np.float64)
+    weight[0:ratio] = 1.0  # only nested parent 0
+
+    def _fake_pybdsf(hdu, *, bdsf_kw=None, return_background=False, **kwargs):
+        table = Table({"RA": [float(hdu.header["CRVAL1"])], "DEC": [float(hdu.header["CRVAL2"])]})
+        if return_background:
+            return table, np.full(hdu.data.shape, -0.04, dtype=np.float32)
+        return table
+
+    monkeypatch.setattr(
+        "lwa_catalog.create.healpix_detect.run_pybdsf_on_hdu",
+        _fake_pybdsf,
+    )
+    background = np.full(npix, np.nan)
+    df = detect_sources_on_healpix_tiles(
+        healpix_map,
+        weight,
+        nside_map=nside_map,
+        nside_tile=nside_tile,
+        bmaj=0.1,
+        bmin=0.1,
+        restfreq_hz=5.5e7,
+        band="Full",
+        skip_empty=True,
+        background_out=background,
+    )
+    assert len(df) == 1
+    assert background[:ratio] == pytest.approx(-0.04)
+    assert np.isnan(background[ratio:]).all()
+    with pytest.raises(ValueError, match="background_out shape"):
+        detect_sources_on_healpix_tiles(
+            healpix_map,
+            weight,
+            nside_map=nside_map,
+            nside_tile=nside_tile,
+            bmaj=0.1,
+            bmin=0.1,
+            background_out=np.zeros(npix + 1),
+        )

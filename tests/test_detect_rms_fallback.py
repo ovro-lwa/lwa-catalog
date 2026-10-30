@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 from astropy.io import fits
 from astropy.table import Table
@@ -12,6 +13,7 @@ from lwa_catalog.create.detect import (
     _is_recoverable_rms_error,
     _is_skippable_pybdsf_island_error,
     _with_constant_rms_fallback,
+    pybdsf_background_image,
     run_pybdsf_on_hdu,
 )
 
@@ -169,3 +171,39 @@ def test_run_pybdsf_does_not_retry_unrelated_runtime_error() -> None:
         run_pybdsf_on_hdu(hdu)
 
     assert bdsf.process_image.call_count == 1
+
+
+def test_pybdsf_background_image_transposes_to_fits_order() -> None:
+    img = MagicMock()
+    img.mean_arr = np.arange(6, dtype=float).reshape(3, 2)  # PyBDSF (x, y)
+    bkg = pybdsf_background_image(img)
+    assert bkg.shape == (2, 3)
+    assert bkg[1, 2] == pytest.approx(img.mean_arr[2, 1])
+    img.mean_arr = None
+    assert pybdsf_background_image(img) is None
+
+
+def test_run_pybdsf_return_background() -> None:
+    hdu = fits.PrimaryHDU(
+        data=np.zeros((2, 3)),
+        header=fits.Header({"BMAJ": 0.1, "BMIN": 0.1, "BPA": 0.0}),
+    )
+    table = Table({"RA": [10.0], "DEC": [20.0]})
+    img = MagicMock()
+    img.mean_arr = np.full((3, 2), -0.04)
+
+    def fake_write_catalog(*, outfile: str, **_kwargs: object) -> None:
+        with open(outfile, "wb") as fh:
+            fh.write(b"gaul")
+
+    img.write_catalog.side_effect = fake_write_catalog
+    bdsf = MagicMock()
+    bdsf.process_image.return_value = img
+    with (
+        patch("lwa_catalog.create.detect._import_pybdsf_safely", return_value=bdsf),
+        patch("lwa_catalog.create.detect.Table.read", return_value=table),
+    ):
+        out, bkg = run_pybdsf_on_hdu(hdu, return_background=True)
+    assert out is table
+    assert bkg.shape == hdu.data.shape
+    assert bkg == pytest.approx(-0.04)

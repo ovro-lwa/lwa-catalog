@@ -50,6 +50,7 @@ __all__ = [
     "resolve_beam_scale",
     "resolve_beam_scale_model",
     "restfreq_hz_from_header",
+    "sample_tile_onto_healpix",
     "scale_beam",
 ]
 
@@ -165,6 +166,40 @@ def attach_beam_and_freq(
     return fits.PrimaryHDU(data=data, header=header)
 
 
+def sample_tile_onto_healpix(
+    out: np.ndarray,
+    tile_data: np.ndarray,
+    tile_header: fits.Header,
+    *,
+    tile_ipix: int,
+    nside_map: int,
+    nside_tile: int,
+) -> None:
+    """Write *tile_data* into the NESTED HEALPix children of *tile_ipix*.
+
+    Nearest-pixel sampling of the tile at each child pixel centre (lon/lat in
+    the tile header's celestial frame). Children outside the tile or on NaN
+    tile pixels are left unchanged. Intended for smooth products such as the
+    PyBDSF background mean map, not for point-like model images.
+    """
+    import healpy as hp
+    from astropy.wcs import WCS
+
+    from lwa_catalog.create.beam_scale import tile_pixel_mask
+
+    pix = tile_pixel_mask(nside_map, nside_tile, tile_ipix, nested=True)
+    lon, lat = hp.pix2ang(int(nside_map), pix, nest=True, lonlat=True)
+    x, y = WCS(tile_header).celestial.world_to_pixel_values(lon, lat)
+    xi = np.rint(np.asarray(x)).astype(np.int64)
+    yi = np.rint(np.asarray(y)).astype(np.int64)
+    ny, nx = tile_data.shape
+    inside = (xi >= 0) & (xi < nx) & (yi >= 0) & (yi < ny)
+    vals = np.full(pix.size, np.nan, dtype=float)
+    vals[inside] = tile_data[yi[inside], xi[inside]]
+    ok = np.isfinite(vals)
+    out[pix[ok]] = vals[ok]
+
+
 def detect_sources_on_healpix_tiles(
     healpix_map: np.ndarray,
     weight: np.ndarray,
@@ -188,6 +223,7 @@ def detect_sources_on_healpix_tiles(
     skip_empty: bool = True,
     ctype: str = "TAN",
     bunit: str = "JY/BEAM",
+    background_out: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Project nested tiles from a HEALPix map and run PyBDSF on each.
 
@@ -227,6 +263,13 @@ def detect_sources_on_healpix_tiles(
         are replaced by coincident tier-2 ``S`` Gaussians when present.
     skip_empty
         If ``True``, skip tiles whose nested child weight sum is ``<= 0``.
+    background_out
+        Optional 1-D NESTED array (``12 * nside_map**2``, usually NaN-filled)
+        filled in place with each tile's tier-1 PyBDSF background mean
+        (:func:`~lwa_catalog.create.detect.pybdsf_background_image`), sampled
+        onto that tile's own nested children. Gaussians are fit above this
+        mean, so residuals should be ``obs − background − model``. Requires
+        ``nested=True``.
 
     Returns
     -------
@@ -241,6 +284,16 @@ def detect_sources_on_healpix_tiles(
     _ = bpa  # ignored: HEALPix-tile attach always uses HEALPIX_ATTACH_BPA_DEG
     run_tier2 = tier2_bdsf_kw is not None
     tier2_kw = merge_tier2_bdsf_kw(bdsf_kw, tier2_bdsf_kw) if run_tier2 else None
+    if background_out is not None:
+        if not nested:
+            msg = "background_out requires nested=True"
+            raise ValueError(msg)
+        if background_out.shape != (12 * int(nside_map) ** 2,):
+            msg = (
+                f"background_out shape {background_out.shape} != "
+                f"(12*nside_map**2,) for nside_map={nside_map}"
+            )
+            raise ValueError(msg)
 
     tiles = lwa_healpix.iter_nested_tile_headers(
         nside_tile,
@@ -280,7 +333,21 @@ def detect_sources_on_healpix_tiles(
             continue
 
         try:
-            table = run_pybdsf_on_hdu(hdu, bdsf_kw=bdsf_kw)
+            if background_out is None:
+                table = run_pybdsf_on_hdu(hdu, bdsf_kw=bdsf_kw)
+            else:
+                table, background = run_pybdsf_on_hdu(
+                    hdu, bdsf_kw=bdsf_kw, return_background=True
+                )
+                if background is not None and background.shape == hdu.data.shape:
+                    sample_tile_onto_healpix(
+                        background_out,
+                        background,
+                        hdu.header,
+                        tile_ipix=ipix,
+                        nside_map=nside_map,
+                        nside_tile=nside_tile,
+                    )
         except Exception as exc:  # noqa: BLE001 — skip bad tiles; continue band
             warnings.warn(
                 f"PyBDSF failed on tile_ipix={ipix} band={band!r} ({exc}); skipping tile",
