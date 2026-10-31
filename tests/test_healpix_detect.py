@@ -11,6 +11,8 @@ from astropy.table import Table
 
 pytest.importorskip("lwa_healpix")
 
+from lwa_healpix import iter_nested_tile_headers  # noqa: E402
+
 from lwa_catalog.constants import OVRO_LATITUDE_DEG  # noqa: E402
 from lwa_catalog.create.beam_scale_model import (  # noqa: E402
     HEALPIX_ATTACH_BPA_DEG,
@@ -26,7 +28,6 @@ from lwa_catalog.create.healpix_detect import (  # noqa: E402
     restfreq_hz_from_header,
     scale_beam,
 )
-from lwa_healpix import iter_nested_tile_headers  # noqa: E402
 
 
 def _tiny_fits(path: Path, *, bmaj: float = 0.1, bmin: float = 0.08, bpa: float = 1.0) -> Path:
@@ -145,8 +146,8 @@ def test_detect_sources_on_healpix_tiles_tags_ipix(monkeypatch: pytest.MonkeyPat
     weight = np.zeros(npix, dtype=np.float64)
     weight[0:ratio] = 1.0  # only nested parent 0
 
-    def _fake_pybdsf(hdu, *, bdsf_kw=None, **kwargs):
-        return Table(
+    def _fake_pybdsf(hdu, *, bdsf_kw=None, return_background=False, **kwargs):
+        table = Table(
             {
                 "RA": [float(hdu.header["CRVAL1"])],
                 "DEC": [float(hdu.header["CRVAL2"])],
@@ -165,6 +166,9 @@ def test_detect_sources_on_healpix_tiles_tags_ipix(monkeypatch: pytest.MonkeyPat
                 "S_Code": ["S"],
             }
         )
+        if return_background:
+            return table, np.zeros(hdu.data.shape, dtype=np.float32)
+        return table
 
     monkeypatch.setattr(
         "lwa_catalog.create.healpix_detect.run_pybdsf_on_hdu",
@@ -183,11 +187,13 @@ def test_detect_sources_on_healpix_tiles_tags_ipix(monkeypatch: pytest.MonkeyPat
         restfreq_hz=5.5e7,
         band="Full",
         skip_empty=True,
+        tier_thresholds=((3.0, 5.0),),
     )
     assert len(df) == 1
     assert int(df.iloc[0]["tile_ipix"]) == 0
     assert int(df.iloc[0]["nside_tile"]) == nside_tile
     assert df.iloc[0]["band"] == "Full"
+    assert int(df.iloc[0]["detect_stage"]) == 1
     # Default beam_scale=1.0 (identity) on catalog beam columns
     assert df.iloc[0]["BMAJ"] == pytest.approx(0.1 * DEFAULT_BEAM_SCALE)
     assert df.iloc[0]["BMIN"] == pytest.approx(0.1 * DEFAULT_BEAM_SCALE)
@@ -205,11 +211,11 @@ def test_detect_sources_on_healpix_tiles_beam_scale(
     weight[0:ratio] = 1.0
     attached: list[tuple[float, float, float]] = []
 
-    def _fake_pybdsf(hdu, *, bdsf_kw=None, **kwargs):
+    def _fake_pybdsf(hdu, *, bdsf_kw=None, return_background=False, **kwargs):
         attached.append(
             (float(hdu.header["BMAJ"]), float(hdu.header["BMIN"]), float(hdu.header["BPA"]))
         )
-        return Table(
+        table = Table(
             {
                 "RA": [float(hdu.header["CRVAL1"])],
                 "DEC": [float(hdu.header["CRVAL2"])],
@@ -228,6 +234,9 @@ def test_detect_sources_on_healpix_tiles_beam_scale(
                 "S_Code": ["S"],
             }
         )
+        if return_background:
+            return table, np.zeros(hdu.data.shape, dtype=np.float32)
+        return table
 
     monkeypatch.setattr(
         "lwa_catalog.create.healpix_detect.run_pybdsf_on_hdu",
@@ -246,6 +255,7 @@ def test_detect_sources_on_healpix_tiles_beam_scale(
         restfreq_hz=5.5e7,
         band="Full",
         skip_empty=True,
+        tier_thresholds=((3.0, 5.0),),
     )
     df_default = detect_sources_on_healpix_tiles(**common)
     assert df_default.iloc[0]["BMAJ"] == pytest.approx(0.2)
@@ -275,7 +285,10 @@ def test_detect_sources_on_healpix_tiles_beam_scale(
     assert df_k["BPA"].eq(HEALPIX_ATTACH_BPA_DEG).all()
 
 
-def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_sources_on_healpix_tiles_residual_tiers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """High tier locks center S; deep residual tier appends an offset source."""
     nside_map = 8
     nside_tile = 2
     npix = 12 * nside_map**2
@@ -283,19 +296,21 @@ def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPa
     healpix_map = np.ones(npix, dtype=np.float64)
     weight = np.zeros(npix, dtype=np.float64)
     weight[0:ratio] = 1.0
+    calls: list[dict] = []
 
-    def _fake_pybdsf(hdu, *, bdsf_kw=None, **kwargs):
+    def _fake_pybdsf(hdu, *, bdsf_kw=None, return_background=False, **kwargs):
         kw = dict(bdsf_kw or {})
+        calls.append(kw)
         ra = float(hdu.header["CRVAL1"])
         dec = float(hdu.header["CRVAL2"])
-        if float(kw.get("thresh_pix", 0.0)) >= 7.0:
-            # Tier-2: single S at tile center
-            return Table(
+        isl = float(kw.get("thresh_isl", 0.0))
+        if isl >= 9.0:
+            table = Table(
                 {
                     "RA": [ra],
                     "DEC": [dec],
-                    "Peak_flux": [3.0],
-                    "Total_flux": [3.0],
+                    "Peak_flux": [5.0],
+                    "Total_flux": [5.0],
                     "E_Peak_flux": [0.1],
                     "E_Total_flux": [0.1],
                     "Maj": [0.1],
@@ -307,32 +322,38 @@ def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPa
                     "Resid_Isl_rms": [0.01],
                     "Resid_Isl_mean": [0.0],
                     "S_Code": ["S"],
-                    "Source_id": [99],
+                    "Source_id": [1],
                     "Isl_id": [0],
                 }
             )
-        # Tier-1: over-decomposed M clump
-        return Table(
+            if return_background:
+                return table, np.zeros(hdu.data.shape, dtype=np.float32)
+            return table
+        # Later tier on residual: new far source (no beam match to tier-1)
+        table = Table(
             {
-                "RA": [ra, ra + 0.01],
-                "DEC": [dec, dec],
-                "Peak_flux": [1.0, 0.8],
-                "Total_flux": [1.0, 0.8],
-                "E_Peak_flux": [0.1, 0.1],
-                "E_Total_flux": [0.1, 0.1],
-                "Maj": [0.1, 0.1],
-                "Min": [0.1, 0.1],
-                "PA": [0.0, 0.0],
-                "DC_Maj": [0.1, 0.1],
-                "DC_Min": [0.1, 0.1],
-                "DC_PA": [0.0, 0.0],
-                "Resid_Isl_rms": [0.01, 0.01],
-                "Resid_Isl_mean": [0.0, 0.0],
-                "S_Code": ["M", "M"],
-                "Source_id": [0, 1],
-                "Isl_id": [0, 0],
+                "RA": [ra + 5.0],
+                "DEC": [dec],
+                "Peak_flux": [0.5],
+                "Total_flux": [0.5],
+                "E_Peak_flux": [0.1],
+                "E_Total_flux": [0.1],
+                "Maj": [0.1],
+                "Min": [0.1],
+                "PA": [0.0],
+                "DC_Maj": [0.1],
+                "DC_Min": [0.1],
+                "DC_PA": [0.0],
+                "Resid_Isl_rms": [0.01],
+                "Resid_Isl_mean": [0.0],
+                "S_Code": ["S"],
+                "Source_id": [2],
+                "Isl_id": [1],
             }
         )
+        if return_background:
+            return table, np.zeros(hdu.data.shape, dtype=np.float32)
+        return table
 
     monkeypatch.setattr(
         "lwa_catalog.create.healpix_detect.run_pybdsf_on_hdu",
@@ -351,13 +372,16 @@ def test_detect_sources_on_healpix_tiles_tier2_fuse(monkeypatch: pytest.MonkeyPa
         beam_scale=1.0,
         restfreq_hz=5.5e7,
         band="Full",
-        bdsf_kw={"thresh_isl": 2.0, "thresh_pix": 3.0},
-        tier2_bdsf_kw={},
+        bdsf_kw={"quiet": True},
+        tier_thresholds=((9.0, 11.0), (2.0, 3.0)),
         skip_empty=True,
     )
-    assert len(df) == 1
-    assert df.iloc[0]["S_Code"] == "S"
-    assert int(df.iloc[0]["Source_id"]) == 99
+    assert len(calls) == 2
+    assert float(calls[0]["thresh_isl"]) == 9.0
+    assert float(calls[1]["thresh_isl"]) == 2.0
+    assert len(df) == 2
+    assert set(df["Source_id"].astype(int)) == {1, 2}
+    assert set(df["detect_stage"].astype(int)) == {1, 2}
 
 
 def test_detect_sources_on_healpix_tiles_background_out(

@@ -1,8 +1,8 @@
-"""Two-tier PyBDSF GAUL fusion: replace over-decomposed ``M`` with tier-2 ``S``."""
+"""Multi-tier PyBDSF GAUL merge helpers (legacy M→S fuse + shallow→deep)."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -11,16 +11,79 @@ import pandas as pd
 from lwa_catalog.create.merge import associate_catalogs
 
 __all__ = [
+    "DEFAULT_DETECT_TIER_THRESHOLDS",
     "DEFAULT_TIER2_BDSF_KW",
     "fuse_gaul_m_with_tier2_s",
+    "merge_shallow_then_deep",
     "merge_tier2_bdsf_kw",
+    "normalize_tier_thresholds",
 ]
 
+# Scheme B defaults: high → mid → deep (residual-chained on healpix tiles).
+DEFAULT_DETECT_TIER_THRESHOLDS: tuple[tuple[float, float], ...] = (
+    (9.0, 11.0),
+    (5.0, 7.0),
+    (2.0, 3.0),
+)
+
 # Overrides merged onto the tier-1 ``bdsf_kw`` for the high-threshold pass.
+# Retained for legacy ``fuse_gaul_m_with_tier2_s`` / older harnesses.
 DEFAULT_TIER2_BDSF_KW: dict[str, Any] = {
     "thresh_isl": 4.0,
     "thresh_pix": 7.0,
 }
+
+
+def normalize_tier_thresholds(
+    tier_thresholds: Sequence[tuple[float, float] | Sequence[float]] | None,
+) -> tuple[tuple[float, float], ...]:
+    """Validate and normalize ``[(thresh_isl, thresh_pix), ...]``."""
+    if tier_thresholds is None:
+        return DEFAULT_DETECT_TIER_THRESHOLDS
+    if len(tier_thresholds) < 1:
+        msg = "tier_thresholds must contain at least one (thresh_isl, thresh_pix) pair"
+        raise ValueError(msg)
+    out: list[tuple[float, float]] = []
+    for i, pair in enumerate(tier_thresholds):
+        if len(pair) != 2:
+            msg = f"tier_thresholds[{i}] must be length 2, got {pair!r}"
+            raise ValueError(msg)
+        isl, pix = float(pair[0]), float(pair[1])
+        if not (np.isfinite(isl) and np.isfinite(pix)):
+            msg = f"tier_thresholds[{i}] must be finite, got {pair!r}"
+            raise ValueError(msg)
+        out.append((isl, pix))
+    return tuple(out)
+
+
+def merge_shallow_then_deep(
+    shallow: pd.DataFrame,
+    deep: pd.DataFrame,
+) -> pd.DataFrame:
+    """Keep all *shallow* rows; append *deep* rows with no beam-sky match.
+
+    Used by residual-chained multi-tier detect: earlier (higher-threshold)
+    detections stay locked; later passes only contribute sky-new islands.
+    """
+    if shallow is None or shallow.empty:
+        return deep.copy() if deep is not None else pd.DataFrame()
+    if deep is None or deep.empty:
+        return shallow.copy()
+
+    sh = _ensure_bmaj(shallow.reset_index(drop=True))
+    dp = _ensure_bmaj(deep.reset_index(drop=True))
+    for col in ("RA", "DEC"):
+        if col not in sh.columns or col not in dp.columns:
+            return pd.concat([sh, dp], ignore_index=True, sort=False)
+
+    _mapping, matched_deep = associate_catalogs(sh, dp)
+    keep = np.ones(len(dp), dtype=bool)
+    if matched_deep:
+        keep[list(matched_deep)] = False
+    appended = dp.loc[keep]
+    if appended.empty:
+        return sh
+    return pd.concat([sh, appended], ignore_index=True, sort=False)
 
 
 def merge_tier2_bdsf_kw(

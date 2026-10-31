@@ -100,24 +100,6 @@ def test_pick_best_alpha_fallback_empty_and_nan() -> None:
     assert any("NaN" in w for w in warn2)
 
 
-def test_estimate_beam_scale_requires_tier2() -> None:
-    npix = 12 * 8**2
-    with pytest.raises(ValueError, match="tier2_bdsf_kw"):
-        estimate_beam_scale(
-            np.zeros(npix),
-            np.ones(npix),
-            nside_map=8,
-            bmaj=0.1,
-            bmin=0.1,
-            tier2_bdsf_kw=None,
-            config=BeamScaleEstimateConfig(
-                probe_tiles=(0,),
-                alpha_grid=(1.0,),
-                nside_tile=2,
-            ),
-        )
-
-
 def test_estimate_beam_scale_fallback_zero_weight(monkeypatch: pytest.MonkeyPatch) -> None:
     pytest.importorskip("lwa_healpix")
     nside_map, nside_tile = 8, 2
@@ -139,7 +121,6 @@ def test_estimate_beam_scale_fallback_zero_weight(monkeypatch: pytest.MonkeyPatc
             bmaj=0.1,
             bmin=0.08,
             band="73MHz",
-            tier2_bdsf_kw={},
             config=BeamScaleEstimateConfig(
                 probe_tiles=(0, 1),
                 alpha_grid=(1.0, 1.2),

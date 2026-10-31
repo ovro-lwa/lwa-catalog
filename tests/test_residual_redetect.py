@@ -20,6 +20,7 @@ from lwa_catalog.create.residual_redetect import (
     build_residual_healpix_map,
     mark_resid_leftover_on_metacatalog,
     merge_residual_into_stage2,
+    residual_tile_from_catalog,
     summarize_residual_stage3,
 )
 from lwa_catalog.paths import CatalogLayout
@@ -249,3 +250,31 @@ def test_write_residual_healpix_fits_with_background(tmp_path: Path) -> None:
     )
     resid, _w, _meta = read_healpix_fits(out)
     assert np.asarray(resid) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_residual_tile_from_catalog_no_clip_preserves_negatives() -> None:
+    from astropy.wcs import WCS
+
+    w = WCS(naxis=2)
+    w.wcs.crpix = [3, 3]
+    w.wcs.cdelt = [-0.1, 0.1]
+    w.wcs.crval = [10.0, 20.0]
+    w.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    header = w.to_header()
+    header["BMAJ"] = 0.5
+    header["BMIN"] = 0.5
+    header["BPA"] = 90.0
+
+    obs = np.full((5, 5), -0.04, dtype=float)
+    obs[0, 0] = np.nan
+    bkg = np.full((5, 5), -0.04, dtype=float)
+    # Empty catalog → obs - bkg = 0 (except NaN)
+    resid = residual_tile_from_catalog(obs, None, header, background=bkg, clip_negative=False)
+    assert np.isnan(resid[0, 0])
+    assert resid[1, 1] == pytest.approx(0.0)
+
+    cat = pd.DataFrame([_src(10.0, 20.0, peak=5.0, bmaj=0.5)])
+    resid2 = residual_tile_from_catalog(obs, cat, header, background=bkg, clip_negative=False)
+    assert np.nanmin(resid2) < 0.0
+    resid_clip = residual_tile_from_catalog(obs, cat, header, background=bkg, clip_negative=True)
+    assert np.nanmin(resid_clip) >= 0.0

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from lwa_catalog.create.tiered_detect import (
+    DEFAULT_DETECT_TIER_THRESHOLDS,
     DEFAULT_TIER2_BDSF_KW,
     fuse_gaul_m_with_tier2_s,
+    merge_shallow_then_deep,
     merge_tier2_bdsf_kw,
+    normalize_tier_thresholds,
 )
 
 
@@ -129,3 +133,40 @@ def test_fuse_collapses_many_m_to_one_s() -> None:
     assert len(out) == 1
     assert int(out.iloc[0]["Source_id"]) == 99
     assert out.iloc[0]["S_Code"] == "S"
+
+
+def test_normalize_tier_thresholds_defaults_and_errors() -> None:
+    assert normalize_tier_thresholds(None) == DEFAULT_DETECT_TIER_THRESHOLDS
+    assert normalize_tier_thresholds([(9, 11)]) == ((9.0, 11.0),)
+    with pytest.raises(ValueError, match="at least one"):
+        normalize_tier_thresholds([])
+    with pytest.raises(ValueError, match="length 2"):
+        normalize_tier_thresholds([(1, 2, 3)])  # type: ignore[arg-type]
+
+
+def test_merge_shallow_then_deep_keeps_shallow_appends_new() -> None:
+    shallow = pd.DataFrame(
+        [
+            _row(ra=10.0, dec=20.0, peak=5.0, s_code="S", source_id=1),
+            _row(ra=11.0, dec=20.0, peak=4.0, s_code="S", source_id=2),
+        ]
+    )
+    deep = pd.DataFrame(
+        [
+            _row(ra=10.05, dec=20.0, peak=1.0, s_code="M", source_id=10),  # match → drop
+            _row(ra=50.0, dec=20.0, peak=0.5, s_code="S", source_id=11),  # new
+        ]
+    )
+    out = merge_shallow_then_deep(shallow, deep)
+    assert len(out) == 3
+    assert set(out["Source_id"].astype(int)) == {1, 2, 11}
+
+
+def test_merge_shallow_then_deep_empty_sides() -> None:
+    shallow = pd.DataFrame([_row(ra=10.0, dec=20.0, peak=1.0, s_code="S")])
+    out_shallow = merge_shallow_then_deep(shallow, pd.DataFrame())
+    assert len(out_shallow) == 1
+    deep = pd.DataFrame([_row(ra=10.0, dec=20.0, peak=1.0, s_code="S", source_id=9)])
+    out = merge_shallow_then_deep(pd.DataFrame(), deep)
+    assert len(out) == 1
+    assert int(out.iloc[0]["Source_id"]) == 9

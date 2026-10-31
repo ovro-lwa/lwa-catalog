@@ -23,6 +23,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from astropy.io import fits
 
 from lwa_catalog.analyze.healpix_cutout import (
     healpix_background_path,
@@ -45,9 +46,14 @@ __all__ = [
     "healpix_residual_path",
     "mark_resid_leftover_on_metacatalog",
     "merge_residual_into_stage2",
+    "paint_catalog_onto_image",
+    "residual_tile_from_catalog",
     "summarize_residual_stage3",
     "write_residual_healpix_fits",
 ]
+
+# FWHM → Gaussian σ (degrees); match analyze.healpix_map.
+_FWHM_TO_SIGMA = 1.0 / (2.0 * np.sqrt(2.0 * np.log(2.0)))
 
 DETECT_STAGE_COL = "detect_stage"
 RESID_LEFTOVER_COL = "resid_leftover"
@@ -94,6 +100,128 @@ def summarize_residual_stage3(result: ResidualStage3Result) -> str:
         f"n_matched={s.get('n_matched', 0)}, "
         f"n_out={s.get('n_out', len(result.catalog))}"
     )
+
+
+def paint_catalog_onto_image(
+    catalog: pd.DataFrame | None,
+    header: Mapping[str, Any] | fits.Header,
+    shape: tuple[int, int],
+    *,
+    n_sigma: float = 5.0,
+) -> np.ndarray:
+    """Paint elliptical Gaussians (Peak, Maj/Min FWHM deg, PA N→E) onto a 2-D image.
+
+    Uses celestial WCS from *header*. When ``Total_flux`` is present, Peak is
+    taken from :func:`~lwa_catalog.analyze.healpix_map.catalog_with_peak_from_total_flux`
+    (Jy/beam). Empty / None catalog → zeros.
+    """
+    from astropy.wcs import WCS
+
+    ny, nx = int(shape[0]), int(shape[1])
+    out = np.zeros((ny, nx), dtype=float)
+    if catalog is None or catalog.empty:
+        return out
+
+    paint_cat = catalog
+    if "Total_flux" in catalog.columns:
+        try:
+            paint_cat = catalog_with_peak_from_total_flux(catalog)
+        except (KeyError, ValueError):
+            paint_cat = catalog
+
+    need = ("RA", "DEC", "Peak_flux", "Maj", "Min", "PA")
+    if any(c not in paint_cat.columns for c in need):
+        return out
+
+    wcs = WCS(header).celestial
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    sky = wcs.pixel_to_world(xx, yy)
+    ra_grid = np.asarray(sky.ra.deg, dtype=float)
+    dec_grid = np.asarray(sky.dec.deg, dtype=float)
+
+    ra = pd.to_numeric(paint_cat["RA"], errors="coerce").to_numpy(dtype=float)
+    dec = pd.to_numeric(paint_cat["DEC"], errors="coerce").to_numpy(dtype=float)
+    amp = pd.to_numeric(paint_cat["Peak_flux"], errors="coerce").to_numpy(dtype=float)
+    maj = pd.to_numeric(paint_cat["Maj"], errors="coerce").to_numpy(dtype=float)
+    minor = pd.to_numeric(paint_cat["Min"], errors="coerce").to_numpy(dtype=float)
+    pa = pd.to_numeric(paint_cat["PA"], errors="coerce").to_numpy(dtype=float)
+
+    # Approximate pixel scale (deg) for FWHM floor.
+    try:
+        pix_deg = float(abs(wcs.wcs.cdelt[0]))
+    except Exception:  # noqa: BLE001
+        pix_deg = 1e-3
+    floor = max(pix_deg, 1e-6)
+
+    for i in range(len(ra)):
+        peak = float(amp[i])
+        if not np.isfinite(peak) or peak == 0.0:
+            continue
+        ra0, dec0 = float(ra[i]), float(dec[i])
+        if not (np.isfinite(ra0) and np.isfinite(dec0)):
+            continue
+        maj_i = float(maj[i]) if np.isfinite(maj[i]) else floor
+        min_i = float(minor[i]) if np.isfinite(minor[i]) else maj_i
+        maj_i = max(abs(maj_i), floor)
+        min_i = max(abs(min_i), floor)
+        if min_i > maj_i:
+            maj_i, min_i = min_i, maj_i
+        pa_i = float(pa[i]) if np.isfinite(pa[i]) else 0.0
+        sig_maj = maj_i * _FWHM_TO_SIGMA
+        sig_min = min_i * _FWHM_TO_SIGMA
+        # Bounding box in pixels via world→pixel of a sky box is costly;
+        # evaluate on full tile (tile sizes ~600² are fine for a few sources).
+        cos_dec = np.cos(np.deg2rad(dec0))
+        d_east = (ra_grid - ra0) * cos_dec
+        d_north = dec_grid - dec0
+        pa_rad = np.deg2rad(pa_i)
+        sin_pa = np.sin(pa_rad)
+        cos_pa = np.cos(pa_rad)
+        u = d_east * sin_pa + d_north * cos_pa
+        v = d_east * cos_pa - d_north * sin_pa
+        rad2 = (u / sig_maj) ** 2 + (v / sig_min) ** 2
+        mask = rad2 <= (float(n_sigma) ** 2)
+        if not np.any(mask):
+            continue
+        out[mask] += peak * np.exp(-0.5 * rad2[mask])
+    return out
+
+
+def residual_tile_from_catalog(
+    obs: np.ndarray,
+    catalog: pd.DataFrame | None,
+    header: Mapping[str, Any] | fits.Header,
+    *,
+    background: np.ndarray | None = None,
+    clip_negative: bool = False,
+) -> np.ndarray:
+    """Return ``obs − background − model`` on a tile image (default: no clip).
+
+    Non-finite *obs* pixels stay NaN. Non-finite *background* counts as 0.
+    Model uses :func:`paint_catalog_onto_image`.
+    """
+    obs_arr = np.asarray(obs, dtype=float)
+    if obs_arr.ndim != 2:
+        msg = f"obs must be 2-D, got shape {obs_arr.shape}"
+        raise ValueError(msg)
+    if background is None:
+        bkg = np.zeros(obs_arr.shape, dtype=float)
+    else:
+        bkg = np.asarray(background, dtype=float)
+        if bkg.shape != obs_arr.shape:
+            msg = f"background shape {bkg.shape} != obs shape {obs_arr.shape}"
+            raise ValueError(msg)
+        bkg = np.where(np.isfinite(bkg), bkg, 0.0)
+
+    model = paint_catalog_onto_image(catalog, header, obs_arr.shape)
+    resid = obs_arr - bkg - model
+    finite_obs = np.isfinite(obs_arr)
+    resid = np.where(finite_obs, resid, np.nan)
+    if clip_negative:
+        neg = finite_obs & np.isfinite(resid) & (resid < 0.0)
+        resid = resid.copy()
+        resid[neg] = 0.0
+    return resid.astype(float, copy=False)
 
 
 def build_residual_healpix_map(

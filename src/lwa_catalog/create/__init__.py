@@ -73,13 +73,18 @@ from lwa_catalog.create.residual_redetect import (
     healpix_residual_path,
     mark_resid_leftover_on_metacatalog,
     merge_residual_into_stage2,
+    paint_catalog_onto_image,
+    residual_tile_from_catalog,
     summarize_residual_stage3,
     write_residual_healpix_fits,
 )
 from lwa_catalog.create.tiered_detect import (
+    DEFAULT_DETECT_TIER_THRESHOLDS,
     DEFAULT_TIER2_BDSF_KW,
     fuse_gaul_m_with_tier2_s,
+    merge_shallow_then_deep,
     merge_tier2_bdsf_kw,
+    normalize_tier_thresholds,
 )
 
 __all__ = [
@@ -105,6 +110,7 @@ __all__ = [
     "filter_detections_near_transit",
     "detect_sources_many",
     "detect_sources_on_healpix_tiles",
+    "DEFAULT_DETECT_TIER_THRESHOLDS",
     "DEFAULT_TIER2_BDSF_KW",
     "fuse_gaul_m_with_tier2_s",
     "gaul_model_residual",
@@ -114,8 +120,10 @@ __all__ = [
     "lst_hours_from_discovery",
     "median_beam_from_paths",
     "merge_lst_metacatalog",
+    "merge_shallow_then_deep",
     "merge_tier2_bdsf_kw",
     "merge_tile_metacatalog",
+    "normalize_tier_thresholds",
     "parse_fits_metadata",
     "pick_best_alpha",
     "pick_highest_elevation_row",
@@ -144,6 +152,8 @@ __all__ = [
     "healpix_residual_path",
     "mark_resid_leftover_on_metacatalog",
     "merge_residual_into_stage2",
+    "paint_catalog_onto_image",
+    "residual_tile_from_catalog",
     "summarize_residual_stage3",
     "write_residual_healpix_fits",
 ]

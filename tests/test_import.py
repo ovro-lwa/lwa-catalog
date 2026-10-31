@@ -49,11 +49,11 @@ def test_analyze_survey_attach_exports() -> None:
     from lwa_catalog.analyze import (
         CASCADE_SURVEY_BANDS,
         RADIO_SURVEY_BANDS,
+        advance_from_match,
         attach_radio_surveys_to_metacatalog,
         attach_survey_to_metacatalog,
-        normalize_survey_band_catalog,
         native_lwa_frame,
-        advance_from_match,
+        normalize_survey_band_catalog,
     )
 
     assert RADIO_SURVEY_BANDS == ("VLASS", "NVSS", "VLSSR", "LoDeSS")
@@ -240,8 +240,8 @@ def test_analyze_associations_exports() -> None:
         association_rows_from_match,
         flag_association_conflicts,
         harmonize_class_native,
-        meta_ids_for_classes,
         meta_ids_for_class_and_spectral,
+        meta_ids_for_classes,
         read_associations,
         replace_catalog_associations,
         summarize_classifications,
@@ -423,12 +423,15 @@ def test_create_apis_importable() -> None:
     from lwa_catalog.create import (
         DEFAULT_BEAM_SCALE,
         DEFAULT_BEAM_SCALE_PROBE_TILES,
+        DEFAULT_DETECT_TIER_THRESHOLDS,
         DEFAULT_TIER2_BDSF_KW,
         HEALPIX_ATTACH_BPA_DEG,
         BeamScaleEstimateConfig,
         BeamScaleModel,
         CrossbandForcedFillConfig,
         CrossbandForcedFillResult,
+        ResidualStage3Config,
+        ResidualStage3Result,
         attach_beam_and_freq,
         blank_below_elevation,
         classify_crossband_actions,
@@ -439,23 +442,23 @@ def test_create_apis_importable() -> None:
         estimate_beam_scale,
         fill_band_crossband_forced,
         fill_interior_subbands_crossband_forced,
+        filter_detections_near_transit,
         forced_fit_on_healpix_band,
         fuse_gaul_m_with_tier2_s,
         iter_detect_sources,
+        mark_resid_leftover_on_metacatalog,
         median_beam_from_paths,
-        filter_detections_near_transit,
         merge_lst_metacatalog,
         merge_residual_into_stage2,
+        merge_shallow_then_deep,
         merge_tier2_bdsf_kw,
-        mark_resid_leftover_on_metacatalog,
+        normalize_tier_thresholds,
         resolve_beam_scale,
         resolve_beam_scale_model,
         restfreq_hz_from_header,
         summarize_crossband_forced_fill,
         summarize_residual_stage3,
         write_residual_healpix_fits,
-        ResidualStage3Config,
-        ResidualStage3Result,
     )
 
     assert callable(blank_below_elevation)
@@ -469,7 +472,10 @@ def test_create_apis_importable() -> None:
     assert callable(discover_fits_files)
     assert callable(filter_detections_near_transit)
     assert callable(fuse_gaul_m_with_tier2_s)
+    assert callable(merge_shallow_then_deep)
     assert callable(merge_tier2_bdsf_kw)
+    assert callable(normalize_tier_thresholds)
+    assert DEFAULT_DETECT_TIER_THRESHOLDS == ((9.0, 11.0), (5.0, 7.0), (2.0, 3.0))
     assert callable(estimate_beam_scale)
     assert callable(resolve_beam_scale)
     assert callable(resolve_beam_scale_model)

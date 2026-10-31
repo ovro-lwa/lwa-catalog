@@ -2,8 +2,9 @@
 
 Estimates one scalar multiplier on the band-median ``BMAJ``/``BMIN`` by
 minimizing mean map−GAUL residual RMS on fixed nested probe tiles under the
-production tier2fuse detect path. Does **not** use Maj-median size estimators
-(rejected experimentally). Fallback is :data:`DEFAULT_BEAM_SCALE` (1.0).
+production residual-chained multi-tier detect path. Does **not** use
+Maj-median size estimators (rejected experimentally). Fallback is
+:data:`DEFAULT_BEAM_SCALE` (1.0).
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from astropy.io import fits
 from astropy.table import Table
 
 from lwa_catalog.constants import GAUL_DETECTION_COLUMNS
@@ -24,11 +26,27 @@ from lwa_catalog.create.healpix_detect import (
     attach_beam_and_freq,
     scale_beam,
 )
+from lwa_catalog.create.residual_redetect import (
+    DETECT_STAGE_COL,
+    residual_tile_from_catalog,
+)
 from lwa_catalog.create.tiered_detect import (
-    fuse_gaul_m_with_tier2_s,
-    merge_tier2_bdsf_kw,
+    DEFAULT_DETECT_TIER_THRESHOLDS,
+    merge_shallow_then_deep,
+    normalize_tier_thresholds,
 )
 from lwa_catalog.gaul import cast_gaul_string_columns
+
+
+def _bdsf_kw_for_tier(
+    bdsf_kw: Mapping[str, Any] | None,
+    thresh_isl: float,
+    thresh_pix: float,
+) -> dict[str, Any]:
+    out = dict(bdsf_kw or {})
+    out["thresh_isl"] = float(thresh_isl)
+    out["thresh_pix"] = float(thresh_pix)
+    return out
 
 # Dec-stratified nside_tile=4 nested probes (high / equator / low Dec).
 DEFAULT_BEAM_SCALE_PROBE_TILES: tuple[int, ...] = (28, 102, 189)
@@ -326,9 +344,10 @@ def _detect_probe_tile(
     restfreq_hz: float | None,
     band: str,
     bdsf_kw: Mapping[str, Any] | None,
-    tier2_kw: Mapping[str, Any],
+    tier_thresholds: Sequence[tuple[float, float]],
     gaul_columns: Sequence[str],
 ) -> pd.DataFrame:
+    """Residual-chained multi-tier detect on one probe tile (Scheme B path)."""
     lwa_healpix = _import_lwa_healpix()
     header = lwa_healpix.nested_tile_header(
         int(config.nside_tile),
@@ -359,23 +378,42 @@ def _detect_probe_tile(
     if not np.isfinite(hdu.data).any():
         return pd.DataFrame()
 
-    table = run_pybdsf_on_hdu(hdu, bdsf_kw=bdsf_kw)
-    if table is None or len(table) == 0:
-        return pd.DataFrame()
-    df = _table_to_tile_df(
-        table,
-        gaul_columns=gaul_columns,
-        tile_ipix=int(tile_ipix),
-        nside_tile=int(config.nside_tile),
-        band=band,
-        bmaj=bmaj_s,
-        bmin=bmin_s,
-        bpa=bpa_s,
-    )
-    table2 = run_pybdsf_on_hdu(hdu, bdsf_kw=tier2_kw)
-    if table2 is not None and len(table2) > 0:
-        df2 = _table_to_tile_df(
-            table2,
+    obs_data = np.array(hdu.data, dtype=np.float32, copy=True)
+    catalog = pd.DataFrame()
+    tile_background: np.ndarray | None = None
+    thresholds = normalize_tier_thresholds(tier_thresholds)
+
+    for tier_i, (thresh_isl, thresh_pix) in enumerate(thresholds):
+        tier_kw = _bdsf_kw_for_tier(bdsf_kw, thresh_isl, thresh_pix)
+        stage = tier_i + 1
+        try:
+            if tier_i == 0:
+                table, tile_background = run_pybdsf_on_hdu(
+                    hdu, bdsf_kw=tier_kw, return_background=True
+                )
+            else:
+                resid = residual_tile_from_catalog(
+                    obs_data,
+                    catalog if not catalog.empty else None,
+                    hdu.header,
+                    background=tile_background,
+                    clip_negative=False,
+                )
+                resid_hdu = fits.PrimaryHDU(
+                    data=np.asarray(resid, dtype=np.float32),
+                    header=hdu.header.copy(),
+                )
+                table = run_pybdsf_on_hdu(resid_hdu, bdsf_kw=tier_kw)
+        except Exception:
+            if tier_i == 0:
+                return pd.DataFrame()
+            break
+        if table is None or len(table) == 0:
+            if tier_i == 0:
+                return pd.DataFrame()
+            continue
+        df_new = _table_to_tile_df(
+            table,
             gaul_columns=gaul_columns,
             tile_ipix=int(tile_ipix),
             nside_tile=int(config.nside_tile),
@@ -384,8 +422,9 @@ def _detect_probe_tile(
             bmin=bmin_s,
             bpa=bpa_s,
         )
-        df = fuse_gaul_m_with_tier2_s(df, df2)
-    return df
+        df_new[DETECT_STAGE_COL] = int(stage)
+        catalog = df_new if catalog.empty else merge_shallow_then_deep(catalog, df_new)
+    return catalog
 
 
 def estimate_beam_scale(
@@ -399,30 +438,28 @@ def estimate_beam_scale(
     restfreq_hz: float | None = None,
     band: str = "Full",
     bdsf_kw: Mapping[str, Any] | None = None,
-    tier2_bdsf_kw: Mapping[str, Any] | None = None,
+    tier_thresholds: Sequence[tuple[float, float]] | None = None,
     config: BeamScaleEstimateConfig | None = None,
     gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
 ) -> BeamScaleEstimateResult:
     """Estimate one beam scale α for a band HEALPix coadd.
 
-    Runs tier2fuse detect on :data:`DEFAULT_BEAM_SCALE_PROBE_TILES` (or
-    ``config.probe_tiles``) for each α in the grid, scores map−GAUL
-    ``resid_rms``, and picks the α with the lowest **mean** residual across
-    probes with finite scores (tie → smallest α). On failure returns
-    ``config.fallback_scale`` (default 1.0).
+    Runs residual-chained multi-tier detect on
+    :data:`DEFAULT_BEAM_SCALE_PROBE_TILES` (or ``config.probe_tiles``) for each
+    α in the grid, scores map−GAUL ``resid_rms``, and picks the α with the
+    lowest **mean** residual across probes with finite scores (tie → smallest
+    α). On failure returns ``config.fallback_scale`` (default 1.0).
 
     Parameters
     ----------
-    tier2_bdsf_kw
-        Required (non-``None``). Pass ``{}`` for library tier-2 defaults.
+    tier_thresholds
+        Per-tier ``(thresh_isl, thresh_pix)``. Default Scheme B
+        :data:`~lwa_catalog.create.tiered_detect.DEFAULT_DETECT_TIER_THRESHOLDS`.
     """
     cfg = config if config is not None else BeamScaleEstimateConfig()
-    if tier2_bdsf_kw is None:
-        msg = (
-            "estimate_beam_scale requires tier2_bdsf_kw (tier2fuse path); "
-            "pass {} for defaults or notebook overrides"
-        )
-        raise ValueError(msg)
+    thresholds = normalize_tier_thresholds(
+        tier_thresholds if tier_thresholds is not None else DEFAULT_DETECT_TIER_THRESHOLDS
+    )
     for name, val in (("bmaj", bmaj), ("bmin", bmin), ("bpa", bpa)):
         if not np.isfinite(float(val)):
             msg = f"{name} must be finite, got {val!r}"
@@ -434,7 +471,6 @@ def estimate_beam_scale(
     warn: list[str] = []
     map_arr = np.asarray(healpix_map)
     weight_arr = np.asarray(weight)
-    tier2_kw = merge_tier2_bdsf_kw(bdsf_kw, tier2_bdsf_kw)
 
     usable_probes: list[int] = []
     for ipix in cfg.probe_tiles:
@@ -495,7 +531,7 @@ def estimate_beam_scale(
                     restfreq_hz=restfreq_hz,
                     band=band,
                     bdsf_kw=bdsf_kw,
-                    tier2_kw=tier2_kw,
+                    tier_thresholds=thresholds,
                     gaul_columns=gaul_columns,
                 )
             except Exception as exc:  # pragma: no cover - PyBDSF / healpix edge

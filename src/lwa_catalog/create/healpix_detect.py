@@ -26,27 +26,33 @@ from lwa_catalog.create.beam_scale_model import (
     resolve_beam_scale_model,
 )
 from lwa_catalog.create.detect import run_pybdsf_on_hdu
+from lwa_catalog.create.residual_redetect import (
+    DETECT_STAGE_COL,
+    residual_tile_from_catalog,
+)
 from lwa_catalog.create.tiered_detect import (
-    fuse_gaul_m_with_tier2_s,
-    merge_tier2_bdsf_kw,
+    DEFAULT_DETECT_TIER_THRESHOLDS,
+    merge_shallow_then_deep,
+    normalize_tier_thresholds,
 )
 from lwa_catalog.gaul import cast_gaul_string_columns
 
-# Global scale on band-median BMAJ/BMIN for HEALPix-tile PyBDSF (both tiers).
+# Global scale on band-median BMAJ/BMIN for HEALPix-tile PyBDSF (all tiers).
 # Default 1.0 (unscaled median); use estimate_beam_scale for per-band residual-optimal α.
 # Prefer BeamScaleModel (α, κ) for Dec-dependent Maj elongation; see beam_scale_model.
 DEFAULT_BEAM_SCALE: float = 1.0
 
 __all__ = [
     "DEFAULT_BEAM_SCALE",
+    "DEFAULT_DETECT_TIER_THRESHOLDS",
     "HEALPIX_ATTACH_BPA_DEG",
     "BeamScaleModel",
     "attach_beam_and_freq",
     "beam_scale_model_from_value",
     "detect_sources_on_healpix_tiles",
-    "fuse_gaul_m_with_tier2_s",
     "median_beam_from_paths",
-    "merge_tier2_bdsf_kw",
+    "merge_shallow_then_deep",
+    "normalize_tier_thresholds",
     "resolve_beam_scale",
     "resolve_beam_scale_model",
     "restfreq_hz_from_header",
@@ -200,6 +206,18 @@ def sample_tile_onto_healpix(
     out[pix[ok]] = vals[ok]
 
 
+def _bdsf_kw_for_tier(
+    bdsf_kw: Mapping[str, Any] | None,
+    thresh_isl: float,
+    thresh_pix: float,
+) -> dict[str, Any]:
+    """Shared PyBDSF kwargs with per-tier ``thresh_isl`` / ``thresh_pix``."""
+    out = dict(bdsf_kw or {})
+    out["thresh_isl"] = float(thresh_isl)
+    out["thresh_pix"] = float(thresh_pix)
+    return out
+
+
 def detect_sources_on_healpix_tiles(
     healpix_map: np.ndarray,
     weight: np.ndarray,
@@ -218,14 +236,19 @@ def detect_sources_on_healpix_tiles(
     restfreq_hz: float | None = None,
     band: str = "Full",
     bdsf_kw: Mapping[str, Any] | None = None,
-    tier2_bdsf_kw: Mapping[str, Any] | None = None,
+    tier_thresholds: Sequence[tuple[float, float]] | None = None,
     gaul_columns: Sequence[str] = GAUL_DETECTION_COLUMNS,
     skip_empty: bool = True,
     ctype: str = "TAN",
     bunit: str = "JY/BEAM",
     background_out: np.ndarray | None = None,
 ) -> pd.DataFrame:
-    """Project nested tiles from a HEALPix map and run PyBDSF on each.
+    """Project nested tiles from a HEALPix map and run residual-chained PyBDSF.
+
+    Default :data:`DEFAULT_DETECT_TIER_THRESHOLDS` is Scheme B: high → mid →
+    deep. Tier 1 runs on the observed tile; later tiers run on
+    ``obs − background − model(merged catalog)`` (**no** negative clip) and
+    are merged with :func:`merge_shallow_then_deep`.
 
     Parameters
     ----------
@@ -254,36 +277,33 @@ def detect_sources_on_healpix_tiles(
     band
         Catalog ``band`` column value.
     bdsf_kw
-        Tier-1 PyBDSF keywords (deep / low-threshold catalog).
-    tier2_bdsf_kw
-        If not ``None``, run a second PyBDSF pass per tile with
-        ``merge_tier2_bdsf_kw(bdsf_kw, tier2_bdsf_kw)`` (defaults
-        ``thresh_isl=4``, ``thresh_pix=7``) and fuse with
-        :func:`fuse_gaul_m_with_tier2_s` so over-decomposed ``M`` sources
-        are replaced by coincident tier-2 ``S`` Gaussians when present.
+        Shared PyBDSF keywords (rms boxes, ``mean_map``, etc.). Per-tier
+        ``thresh_isl`` / ``thresh_pix`` come from *tier_thresholds*.
+    tier_thresholds
+        Sequence of ``(thresh_isl, thresh_pix)`` pairs. Default Scheme B
+        ``((9, 11), (5, 7), (2, 3))``. Length 1 → single pass on obs only.
     skip_empty
         If ``True``, skip tiles whose nested child weight sum is ``<= 0``.
     background_out
         Optional 1-D NESTED array (``12 * nside_map**2``, usually NaN-filled)
         filled in place with each tile's tier-1 PyBDSF background mean
         (:func:`~lwa_catalog.create.detect.pybdsf_background_image`), sampled
-        onto that tile's own nested children. Gaussians are fit above this
-        mean, so residuals should be ``obs − background − model``. Requires
-        ``nested=True``.
+        onto that tile's own nested children. Requires ``nested=True``.
 
     Returns
     -------
     pandas.DataFrame
         Concatenated GAUL rows with ``tile_ipix``, ``nside_tile``, ``band``,
-        and beam columns. Empty if no detections.
+        beam columns, and ``detect_stage`` (1-based tier that introduced the
+        row). Empty if no detections.
     """
     lwa_healpix = _import_lwa_healpix()
     weight_arr = np.asarray(weight)
     map_arr = np.asarray(healpix_map)
     model = beam_scale_model_from_value(beam_scale)
     _ = bpa  # ignored: HEALPix-tile attach always uses HEALPIX_ATTACH_BPA_DEG
-    run_tier2 = tier2_bdsf_kw is not None
-    tier2_kw = merge_tier2_bdsf_kw(bdsf_kw, tier2_bdsf_kw) if run_tier2 else None
+    thresholds = normalize_tier_thresholds(tier_thresholds)
+    need_background = background_out is not None or len(thresholds) > 1
     if background_out is not None:
         if not nested:
             msg = "background_out requires nested=True"
@@ -332,65 +352,95 @@ def detect_sources_on_healpix_tiles(
         if not np.isfinite(hdu.data).any():
             continue
 
-        try:
-            if background_out is None:
-                table = run_pybdsf_on_hdu(hdu, bdsf_kw=bdsf_kw)
-            else:
-                table, background = run_pybdsf_on_hdu(
-                    hdu, bdsf_kw=bdsf_kw, return_background=True
-                )
-                if background is not None and background.shape == hdu.data.shape:
-                    sample_tile_onto_healpix(
-                        background_out,
-                        background,
-                        hdu.header,
-                        tile_ipix=ipix,
-                        nside_map=nside_map,
-                        nside_tile=nside_tile,
-                    )
-        except Exception as exc:  # noqa: BLE001 — skip bad tiles; continue band
-            warnings.warn(
-                f"PyBDSF failed on tile_ipix={ipix} band={band!r} ({exc}); skipping tile",
-                UserWarning,
-                stacklevel=2,
-            )
-            continue
-        if table is None or len(table) == 0:
-            continue
-        df = _table_to_tile_dataframe(
-            table,
-            gaul_columns=gaul_columns,
-            tile_ipix=ipix,
-            nside_tile=nside_tile,
-            band=band,
-            bmaj=bmaj_s,
-            bmin=bmin_s,
-            bpa=bpa_s,
-        )
-        if run_tier2:
+        obs_data = np.array(hdu.data, dtype=np.float32, copy=True)
+        catalog = pd.DataFrame()
+        tile_background: np.ndarray | None = None
+
+        for tier_i, (thresh_isl, thresh_pix) in enumerate(thresholds):
+            tier_kw = _bdsf_kw_for_tier(bdsf_kw, thresh_isl, thresh_pix)
+            stage = tier_i + 1
             try:
-                table2 = run_pybdsf_on_hdu(hdu, bdsf_kw=tier2_kw)
+                if tier_i == 0:
+                    if need_background:
+                        table, tile_background = run_pybdsf_on_hdu(
+                            hdu, bdsf_kw=tier_kw, return_background=True
+                        )
+                        if (
+                            background_out is not None
+                            and tile_background is not None
+                            and tile_background.shape == hdu.data.shape
+                        ):
+                            sample_tile_onto_healpix(
+                                background_out,
+                                tile_background,
+                                hdu.header,
+                                tile_ipix=ipix,
+                                nside_map=nside_map,
+                                nside_tile=nside_tile,
+                            )
+                    else:
+                        table = run_pybdsf_on_hdu(hdu, bdsf_kw=tier_kw)
+                else:
+                    resid = residual_tile_from_catalog(
+                        obs_data,
+                        catalog if not catalog.empty else None,
+                        hdu.header,
+                        background=tile_background,
+                        clip_negative=False,
+                    )
+                    resid_hdu = fits.PrimaryHDU(
+                        data=np.asarray(resid, dtype=np.float32),
+                        header=hdu.header.copy(),
+                    )
+                    table = run_pybdsf_on_hdu(resid_hdu, bdsf_kw=tier_kw)
             except Exception as exc:  # noqa: BLE001
+                if tier_i == 0:
+                    warnings.warn(
+                        f"PyBDSF failed on tile_ipix={ipix} band={band!r} ({exc}); "
+                        "skipping tile",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    catalog = pd.DataFrame()
+                    break
                 warnings.warn(
-                    f"PyBDSF tier-2 failed on tile_ipix={ipix} band={band!r} ({exc}); "
-                    "keeping tier-1 only",
+                    f"PyBDSF tier-{stage} failed on tile_ipix={ipix} band={band!r} "
+                    f"({exc}); keeping catalog from earlier tiers",
                     UserWarning,
                     stacklevel=2,
                 )
-                table2 = None
-            if table2 is not None and len(table2) > 0:
-                df2 = _table_to_tile_dataframe(
-                    table2,
-                    gaul_columns=gaul_columns,
-                    tile_ipix=ipix,
-                    nside_tile=nside_tile,
-                    band=band,
-                    bmaj=bmaj_s,
-                    bmin=bmin_s,
-                    bpa=bpa_s,
-                )
-                df = fuse_gaul_m_with_tier2_s(df, df2)
-        frames.append(df)
+                break
+
+            if table is None or len(table) == 0:
+                if tier_i == 0:
+                    break
+                continue
+
+            df_new = _table_to_tile_dataframe(
+                table,
+                gaul_columns=gaul_columns,
+                tile_ipix=ipix,
+                nside_tile=nside_tile,
+                band=band,
+                bmaj=bmaj_s,
+                bmin=bmin_s,
+                bpa=bpa_s,
+            )
+            df_new[DETECT_STAGE_COL] = int(stage)
+            if catalog.empty:
+                catalog = df_new
+            else:
+                before = len(catalog)
+                catalog = merge_shallow_then_deep(catalog, df_new)
+                # Rows appended from this tier keep detect_stage; shallow rows unchanged.
+                if len(catalog) > before and DETECT_STAGE_COL in catalog.columns:
+                    # merge_shallow_then_deep concat preserves columns; new rows
+                    # already have detect_stage=stage from df_new.
+                    pass
+
+        if catalog is None or catalog.empty:
+            continue
+        frames.append(catalog)
 
     if not frames:
         cols = list(gaul_columns) + [
@@ -400,6 +450,7 @@ def detect_sources_on_healpix_tiles(
             "BMAJ",
             "BMIN",
             "BPA",
+            DETECT_STAGE_COL,
         ]
         return pd.DataFrame(columns=cols)
     return normalize_ra_columns(pd.concat(frames, ignore_index=True))
