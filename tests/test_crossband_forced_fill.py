@@ -236,3 +236,26 @@ def test_classify_min_seed_peak_filters_faint() -> None:
         config=CrossbandForcedFillConfig(min_seed_peak_jy=5.0, enable_gap_insert=True),
     )
     assert actions.empty
+
+
+def test_classify_insert_dedupe_keeps_brighter_neighbor() -> None:
+    """Two gap seeds within sep_frac×BMAJ → one insert (brighter Peak)."""
+    target = pd.DataFrame([_row(ra=0.0, dec=0.0, peak=1.0, source_id=1)])
+    # Far from target (no hit); seeds 0.05° apart with BMAJ=0.5 → near each other
+    # at sep_frac=0.25 (limit 0.125°).
+    seed = pd.DataFrame(
+        [
+            _row(ra=5.0, dec=0.0, peak=20.0, band="55MHz", source_id=2),
+            _row(ra=5.05, dec=0.0, peak=10.0, band="55MHz", source_id=3),
+        ]
+    )
+    actions = classify_crossband_actions(
+        target,
+        {"55MHz": seed},
+        config=CrossbandForcedFillConfig(
+            enable_gap_insert=True, enable_phot_dip=False, sep_frac_bmaj=0.25
+        ),
+    )
+    inserts = actions.loc[actions["action"] == "insert"]
+    assert len(inserts) == 1
+    assert float(inserts.iloc[0]["seed_peak"]) == pytest.approx(20.0)

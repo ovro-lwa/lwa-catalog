@@ -143,6 +143,101 @@ def _pick_nearest_hit(seed_row: pd.Series, hits: pd.DataFrame) -> int:
     return int(order[0])
 
 
+def _seed_bmaj_deg(
+    seed_frames: Mapping[str, pd.DataFrame],
+    seed_band: str,
+    seed_iloc: int,
+) -> float:
+    """BMAJ (deg) for a seed row; 0.0 if missing."""
+    if seed_band not in seed_frames or seed_frames[seed_band] is None:
+        return 0.0
+    sdf = seed_frames[seed_band]
+    if sdf.empty or seed_iloc < 0 or seed_iloc >= len(sdf):
+        return 0.0
+    val = pd.to_numeric(
+        sdf.reset_index(drop=True).iloc[int(seed_iloc)].get("BMAJ"),
+        errors="coerce",
+    )
+    return float(val) if np.isfinite(val) else 0.0
+
+
+def _dedupe_insert_candidates(
+    insert_cands: list[dict[str, Any]],
+    *,
+    seed_frames: Mapping[str, pd.DataFrame],
+    near_claim_ilocs: Sequence[int],
+    target: pd.DataFrame,
+    sep_frac_bmaj: float,
+) -> list[dict[str, Any]]:
+    """Keep brightest insert per ``sep_frac × max(BMAJ)`` sky cluster.
+
+    Also drops inserts that fall within that gate of any near-claimed target
+    row. Match radii are applied via :func:`associate_catalogs` on BMAJ values
+    pre-scaled by ``sep_frac_bmaj`` (so ``sep ≤ sep_frac × max(BMAJ)``), avoiding
+    the O(N²) Python double loop that hung on full-sky catalogs.
+    """
+    if not insert_cands:
+        return []
+
+    n = len(insert_cands)
+    ra = np.empty(n, dtype=float)
+    dec = np.empty(n, dtype=float)
+    bmaj = np.empty(n, dtype=float)
+    peak = np.empty(n, dtype=float)
+    for i, cand in enumerate(insert_cands):
+        ra[i] = float(cand["seed_ra"])
+        dec[i] = float(cand["seed_dec"])
+        bmaj[i] = _seed_bmaj_deg(
+            seed_frames, str(cand["seed_band"]), int(cand["seed_iloc"])
+        )
+        p = cand.get("seed_peak", float("nan"))
+        peak[i] = float(p) if np.isfinite(p) else float("-inf")
+
+    frac = float(sep_frac_bmaj)
+    ins = pd.DataFrame(
+        {
+            "RA": ra,
+            "DEC": dec,
+            "BMAJ": np.maximum(bmaj, 0.0) * frac,
+            "Peak_flux": peak,
+        }
+    )
+
+    blocked = np.zeros(n, dtype=bool)
+    if near_claim_ilocs:
+        claim_ilocs = [int(i) for i in near_claim_ilocs]
+        cbmaj = pd.to_numeric(
+            target.iloc[claim_ilocs].get("BMAJ", 0.0), errors="coerce"
+        ).to_numpy(dtype=float)
+        claim = pd.DataFrame(
+            {
+                "RA": target.iloc[claim_ilocs]["RA"].to_numpy(dtype=float),
+                "DEC": target.iloc[claim_ilocs]["DEC"].to_numpy(dtype=float),
+                "BMAJ": np.where(np.isfinite(cbmaj), cbmaj, 0.0) * frac,
+                "Peak_flux": np.ones(len(claim_ilocs), dtype=float),
+            }
+        )
+        hits_to_claim, _ = associate_catalogs(ins, claim)
+        for i, hits in hits_to_claim.items():
+            if hits:
+                blocked[int(i)] = True
+
+    # Self-matches among inserts (includes i→i); greedy keep brightest.
+    hits_self, _ = associate_catalogs(ins, ins)
+    order = np.argsort(-peak)
+    taken = blocked.copy()
+    keep_mask = np.zeros(n, dtype=bool)
+    for i in order:
+        ii = int(i)
+        if taken[ii]:
+            continue
+        keep_mask[ii] = True
+        for j in hits_self.get(ii, [ii]):
+            taken[int(j)] = True
+
+    return [insert_cands[i] for i in range(n) if keep_mask[i]]
+
+
 def classify_crossband_actions(
     target: pd.DataFrame,
     seed_frames: Mapping[str, pd.DataFrame],
@@ -305,47 +400,15 @@ def classify_crossband_actions(
 
     # Dedupe inserts: drop candidates near an existing near-claimed target or
     # a brighter insert; keep brightest seed_peak per sky cluster.
-    claimed_sky = []
-    for t_iloc in near_claims:
-        claimed_sky.append((float(t.iloc[t_iloc]["RA"]), float(t.iloc[t_iloc]["DEC"]),
-                            float(t.iloc[t_iloc].get("BMAJ", 0.0) or 0.0)))
-
-    insert_cands.sort(
-        key=lambda r: -r["seed_peak"] if np.isfinite(r["seed_peak"]) else float("-inf")
+    # Pairwise Python loops are O(N²) and hang on full-sky catalogs — use
+    # SkyCoord.search_around_sky + greedy keep instead.
+    kept_inserts = _dedupe_insert_candidates(
+        insert_cands,
+        seed_frames=seed_frames,
+        near_claim_ilocs=list(near_claims.keys()),
+        target=t,
+        sep_frac_bmaj=float(cfg.sep_frac_bmaj),
     )
-    kept_inserts: list[dict[str, Any]] = []
-    for cand in insert_cands:
-        ra, dec = cand["seed_ra"], cand["seed_dec"]
-        bmaj_s = 0.0
-        # Approximate BMAJ from first seed frame row if available
-        sb = cand["seed_band"]
-        if sb in seed_frames and not seed_frames[sb].empty:
-            bmaj_s = float(
-                pd.to_numeric(
-                    seed_frames[sb].reset_index(drop=True).iloc[cand["seed_iloc"]].get("BMAJ"),
-                    errors="coerce",
-                )
-                or 0.0
-            )
-        skip = False
-        for cra, cdec, cbmaj in claimed_sky:
-            lim = float(cfg.sep_frac_bmaj) * max(bmaj_s, cbmaj, 0.0)
-            if _sep_deg(ra, dec, cra, cdec) <= lim:
-                skip = True
-                break
-        if skip:
-            continue
-        for kept in kept_inserts:
-            lim = float(cfg.sep_frac_bmaj) * max(bmaj_s, 0.0)
-            # Use kept seed BMAJ approx via same limit
-            if _sep_deg(ra, dec, kept["seed_ra"], kept["seed_dec"]) <= max(lim, 1e-12):
-                skip = True
-                break
-        if skip:
-            continue
-        kept_inserts.append(cand)
-        claimed_sky.append((ra, dec, bmaj_s))
-
     rows.extend(kept_inserts)
     if not rows:
         return pd.DataFrame(
