@@ -133,10 +133,10 @@ TWORXS_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
     mode="localization",
     default_arcsec=TWORXS_POSITION_ERROR_DEFAULT_ARCSEC,
 )
-# TeVCat: per-source BMAJ from max(size_x, size_y) degrees on load.
-TEVCAT_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
-    mode="beam",
-    default_arcsec=TEVCAT_DEFAULT_EXTENT_ARCMIN * 60.0,
+# TeVCat: fixed 3′ match gate (independent of catalog size_x/size_y).
+TEVCAT_REFERENCE_RADIUS_FIXED = CrossmatchRadiusSpec(
+    mode="fixed",
+    fixed_arcsec=TEVCAT_DEFAULT_EXTENT_ARCMIN * 60.0,
 )
 MILLIQUAS_REFERENCE_RADIUS_FIXED = CrossmatchRadiusSpec(
     mode="fixed",

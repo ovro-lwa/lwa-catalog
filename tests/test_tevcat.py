@@ -13,7 +13,7 @@ from lwa_catalog.analyze.associations import (
 )
 from lwa_catalog.analyze.crossmatch_radius import (
     LWA_CROSSMATCH_RADIUS_BEAM,
-    TEVCAT_REFERENCE_RADIUS_BEAM,
+    TEVCAT_REFERENCE_RADIUS_FIXED,
 )
 from lwa_catalog.analyze.tevcat import (
     TevcatMatchConfig,
@@ -150,7 +150,7 @@ def test_match_catalog_to_tevcat_unique() -> None:
         tevcat=tev,
         config=TevcatMatchConfig(
             lwa_radius=LWA_CROSSMATCH_RADIUS_BEAM,
-            reference_radius=TEVCAT_REFERENCE_RADIUS_BEAM,
+            reference_radius=TEVCAT_REFERENCE_RADIUS_FIXED,
         ),
     )
     assert result.summary["n_meta_matched"] == 1

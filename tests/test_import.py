@@ -236,7 +236,7 @@ def test_analyze_tworxs_exports() -> None:
 def test_analyze_tevcat_exports() -> None:
     from lwa_catalog.analyze import (
         ASSOCIATION_SPEC_TEVCAT,
-        TEVCAT_REFERENCE_RADIUS_BEAM,
+        TEVCAT_REFERENCE_RADIUS_FIXED,
         TevcatMatchConfig,
         TevcatMatchResult,
         filter_tevcat_by_subcatalog,
@@ -252,7 +252,8 @@ def test_analyze_tevcat_exports() -> None:
     assert TevcatMatchConfig().target == "metacatalog"
     assert hasattr(TevcatMatchResult, "__dataclass_fields__")
     assert ASSOCIATION_SPEC_TEVCAT.catalog == "TeVCat"
-    assert TEVCAT_REFERENCE_RADIUS_BEAM.mode == "beam"
+    assert TEVCAT_REFERENCE_RADIUS_FIXED.mode == "fixed"
+    assert TEVCAT_REFERENCE_RADIUS_FIXED.fixed_arcsec == 180.0
 
 
 def test_analyze_associations_exports() -> None:

@@ -11,7 +11,7 @@ import pandas as pd
 
 from lwa_catalog.analyze.crossmatch_radius import (
     LWA_CROSSMATCH_RADIUS_BEAM,
-    TEVCAT_REFERENCE_RADIUS_BEAM,
+    TEVCAT_REFERENCE_RADIUS_FIXED,
     CrossmatchRadiusSpec,
     apply_match_radius,
     catalog_match_frame,
@@ -57,7 +57,7 @@ class TevcatMatchConfig:
     catalog_path: Path = TEVCAT_DEFAULT_PATH
     target: TevcatTarget = "metacatalog"
     lwa_radius: CrossmatchRadiusSpec = LWA_CROSSMATCH_RADIUS_BEAM
-    reference_radius: CrossmatchRadiusSpec = TEVCAT_REFERENCE_RADIUS_BEAM
+    reference_radius: CrossmatchRadiusSpec = TEVCAT_REFERENCE_RADIUS_FIXED
     # Optional subset of ``subcatalog`` labels; None keeps all.
     subcatalogs: tuple[str, ...] | None = None
 
@@ -231,8 +231,8 @@ def match_catalog_to_tevcat(
 
     Matching uses ``associate_catalogs`` with configured
     :class:`~lwa_catalog.analyze.crossmatch_radius.CrossmatchRadiusSpec`
-    radii. The reference side defaults to beam mode so per-source
-    ``BMAJ`` (= TeV extent) sets the match scale.
+    radii. The reference side defaults to a fixed 3′ gate
+    (:data:`~lwa_catalog.analyze.crossmatch_radius.TEVCAT_REFERENCE_RADIUS_FIXED`).
     """
     cfg = config or TevcatMatchConfig()
     warnings: list[str] = []
