@@ -104,6 +104,12 @@ TWORXS_IMAGE_PIXEL_ARCSEC: float = 45.0
 # Paper recommendation: ExiML ≥ 9 ⇒ ~5% spurious (full catalog ~30%).
 TWORXS_DEFAULT_EXIML_MIN: float = 9.0
 
+# Wakely & Horan 2008 TeVCat VHE gamma-ray sources (VOTable export).
+# https://ui.adsabs.harvard.edu/abs/2008ICRC....3.1341W/abstract
+TEVCAT_DEFAULT_PATH: Path = Path("/fast/claw/tevcat.vot")
+# Fallback angular extent when size_x/size_y are missing (point-like TeV).
+TEVCAT_DEFAULT_EXTENT_ARCMIN: float = 3.0
+
 # MilliQUAS (Flesch) all-sky quasar/AGN catalog. Operator file is FITS despite
 # the ``.dat`` suffix (e.g. ``/fast/claw/milliquas.dat``).
 MILLIQUAS_DEFAULT_PATH: Path = Path("/fast/claw/milliquas.dat")

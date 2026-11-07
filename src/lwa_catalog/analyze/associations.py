@@ -47,6 +47,7 @@ HARMONIZED_CLASS_MAP: dict[str, str] = {
     "Xu2022": "cluster",
     "2RXS": "xray",
     "eRASS3": "xray",
+    "TeVCat": "tev",
     "VLSSR": "radio",
     "NVSS": "radio",
     "VLASS": "radio",
@@ -123,6 +124,14 @@ ASSOCIATION_SPEC_TWORXS = CatalogAssociationSpec(
     positions_col="tworxs_positions",
     n_col="n_2rxs",
     class_column=None,
+)
+ASSOCIATION_SPEC_TEVCAT = CatalogAssociationSpec(
+    catalog="TeVCat",
+    id_column="tevcat_name",
+    positions_col="tevcat_positions",
+    n_col="n_tevcat",
+    class_column="source_type",
+    id_fallback_columns=("canonical_name", "id"),
 )
 ASSOCIATION_SPEC_RFC = CatalogAssociationSpec(
     catalog="RFC",
@@ -440,6 +449,30 @@ def harmonize_class_native(catalog: str, class_native: str) -> str:
         return "cluster"
     if cat == "2RXS":
         return "xray"
+    if cat == "TeVCat":
+        # TeVCat ``source_type`` (Wakely & Horan 2008 + updates).
+        key = native.upper()
+        if key in {"HBL", "IBL", "FSRQ", "BLAZAR", "FRI"}:
+            return "agn"
+        if key in {"", "TEVCAT", "UNID", "DARK"}:
+            return "tev"
+        if key in {
+            "PWN",
+            "SHELL",
+            "SNR/MOLEC. CLOUD",
+            "COMPOSITE SNR",
+            "PWN/TEV HALO",
+            "TEV HALO",
+            "SUPERBUBBLE",
+            "PSR",
+            "BINARY",
+            "XRB",
+            "MICROQUASAR",
+            "MASSIVE STAR CLUSTER",
+            "GRB",
+        }:
+            return "tev"
+        return HARMONIZED_CLASS_MAP.get(native, "tev")
     if cat == "NEDLVS":
         return "galaxy"
     if cat == "MilliQuas":

@@ -22,6 +22,7 @@ from lwa_catalog.constants import (
     NVSS_POSITION_ERROR_DEFAULT_ARCSEC,
     RFC_POSITION_ERROR_DEFAULT_ARCSEC,
     RXGCC_DEFAULT_EXTENT_ARCMIN,
+    TEVCAT_DEFAULT_EXTENT_ARCMIN,
     TWORXS_POSITION_ERROR_DEFAULT_ARCSEC,
     VLASS_BMAJ_ARCSEC,
     VLSSR_BMAJ_ARCSEC,
@@ -131,6 +132,11 @@ RXGCC_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
 TWORXS_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
     mode="localization",
     default_arcsec=TWORXS_POSITION_ERROR_DEFAULT_ARCSEC,
+)
+# TeVCat: per-source BMAJ from max(size_x, size_y) degrees on load.
+TEVCAT_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
+    mode="beam",
+    default_arcsec=TEVCAT_DEFAULT_EXTENT_ARCMIN * 60.0,
 )
 MILLIQUAS_REFERENCE_RADIUS_FIXED = CrossmatchRadiusSpec(
     mode="fixed",

@@ -233,6 +233,28 @@ def test_analyze_tworxs_exports() -> None:
     assert TWORXS_REFERENCE_RADIUS_LOCALIZATION.mode == "localization"
 
 
+def test_analyze_tevcat_exports() -> None:
+    from lwa_catalog.analyze import (
+        ASSOCIATION_SPEC_TEVCAT,
+        TEVCAT_REFERENCE_RADIUS_BEAM,
+        TevcatMatchConfig,
+        TevcatMatchResult,
+        filter_tevcat_by_subcatalog,
+        load_tevcat_catalog,
+        match_catalog_to_tevcat,
+        summarize_tevcat_match,
+    )
+
+    assert callable(load_tevcat_catalog)
+    assert callable(match_catalog_to_tevcat)
+    assert callable(filter_tevcat_by_subcatalog)
+    assert callable(summarize_tevcat_match)
+    assert TevcatMatchConfig().target == "metacatalog"
+    assert hasattr(TevcatMatchResult, "__dataclass_fields__")
+    assert ASSOCIATION_SPEC_TEVCAT.catalog == "TeVCat"
+    assert TEVCAT_REFERENCE_RADIUS_BEAM.mode == "beam"
+
+
 def test_analyze_associations_exports() -> None:
     from lwa_catalog.analyze import (
         ASSOCIATION_SPEC_MILLIQUAS,

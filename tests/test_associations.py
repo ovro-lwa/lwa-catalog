@@ -218,6 +218,9 @@ def test_harmonize_and_conflicts() -> None:
     assert harmonize_class_native("RFC", "QSO") == "agn"
     assert harmonize_class_native("RFC", "G") == "galaxy"
     assert harmonize_class_native("RFC", "") == "radio"
+    assert harmonize_class_native("TeVCat", "HBL") == "agn"
+    assert harmonize_class_native("TeVCat", "PWN") == "tev"
+    assert harmonize_class_native("TeVCat", "UNID") == "tev"
 
     assoc = pd.DataFrame(
         {
