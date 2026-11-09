@@ -161,19 +161,24 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   Gaussian (not deconvolved⊗beam);
   `Total_flux = Peak_flux × (Maj×Min)/(BMAJ×BMIN)`.
   `Total < Peak` means fitted FWHM < attached beam (`fix_to_beam` is off).
-  Default HEALPix-tile detect is **Scheme B residual-chained 3-tier**
+  Default HEALPix-tile detect is **residual-chained 3-tier** (docs often
+  call this “Scheme B residual-chained”; the 2026-11 pilot labeled the same
+  contract **Scheme C3** — do not confuse with same-map “Scheme B” below)
   (`tier_thresholds`, library default `DEFAULT_DETECT_TIER_THRESHOLDS` =
   `(9,11)→(5,7)→(2,3)`): pass 1 on the observed tile; passes 2–3 on
   **obs − background − model** with **no** negative clip; catalogs combine
   via `merge_shallow_then_deep` (keep all earlier rows; append only
-  beam-unmatched new rows). Shared non-threshold PyBDSF kwargs stay in
-  `bdsf_kw`; per-tier `thresh_isl`/`thresh_pix` override. Rows carry
-  `detect_stage` = 1-based tier that first introduced them. Single-tier:
+  beam-unmatched new rows). Length-2
+  `tier_thresholds=((9,11),(2,3))` (pilot **Scheme C**) is supported but
+  not the default. Shared non-threshold PyBDSF kwargs stay in `bdsf_kw`;
+  per-tier `thresh_isl`/`thresh_pix` override. Rows carry `detect_stage` =
+  1-based tier that first introduced them. Single-tier:
   `tier_thresholds=((2, 3),)`. Former `tier2_bdsf_kw` +
   `fuse_gaul_m_with_tier2_s` are **not** used on this path (fuse helper
   remains in the library for harnesses only). Notebook Stage-3 residual
   append (`ENABLE_RESIDUAL_STAGE3`) is **removed** — inter-tier residuals
-  replace it; `write_residual_healpix_fits` remains for QA maps.
+  replace it; `write_residual_healpix_fits` remains for QA maps (detect
+  does not persist inter-tier residual maps).
   **Cross-tile** overlap duplicates collapse via `merge_tile_metacatalog`
   (requires finite `tile_ipix`; brightest flux; `n_lst_contributions=1`).
   Same-tile beam neighbors — including `S_Code=M` island siblings — remain
@@ -697,8 +702,11 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
   (replaced by residual-chained `tier_thresholds` + `merge_shallow_then_deep`).
 - Re-adding notebook `ENABLE_RESIDUAL_STAGE3` append into `metacatalog_lst_*`
   as a fourth detect pass (inter-tier residuals supersede it).
-- Clipping inter-tier residual negatives to 0 (Scheme B uses signed
-  `obs − background − model`).
+- Same-map multi-pass `(9,11)→(5,7)→(2,3)` on obs (+ Stage-3 append) as a
+  production detect default or dropout/complex remedy (2026-11 pilot: worse
+  than residual-chained C3).
+- Clipping inter-tier residual negatives to 0 (residual-chained detect uses
+  signed `obs − background − model`).
 
 ---
 
@@ -876,16 +884,40 @@ plane structure.
   ~20–23). Optional path only — not production default; does not fix
   426/861. → `experiment-tier3-forced-m-collapse.md`
 
-### Multi-tier threshold order / Scheme B (2026-10-31)
+### Multi-tier threshold order / residual-chained default (2026-10-31)
 
 - High-first merging (`merge_shallow_then_deep`) cuts `frac_M` / complex
   fraction vs deep-first M→S fuse with little dropout cost on pilot tiles.
-  **Ship Scheme B residual-chained 3-tier** as healpix detect default:
+  **Ship residual-chained 3-tier** as healpix detect default:
   `(9,11)→(5,7)→(2,3)` on obs then `obs−bkg−model` (no clip); drop notebook
   Stage-3 append; keep `ENABLE_CROSSBAND_FORCED_FILL` opt-in; beam from
   `beam_scale.json`. → `experiment-multi-tier-pybdsf-threshold-order.md`,
   `plan-multi-tier-scheme-b-residual.md`,
   `implement-multi-tier-scheme-b-residual.md`
+
+### Residual-chained C / C3 vs same-map Scheme B (2026-11-09)
+
+4 tiles (`118/36/28/102`) × bands `82–69` MHz on subband4. Pilot labels:
+**B** = same-map `(9,11)→(5,7)→(2,3)` on obs + Stage-3 append; **C** =
+residual `((9,11),(2,3))`; **C3** = residual `((9,11),(5,7),(2,3))` (=
+production default; bit-matched production `sources_healpix_tiles_*` on
+this pilot).
+
+| Metric | B same-map+S3 | C | C3 |
+| ------ | ------------: | -: | --: |
+| n | 26266 | 21790 | 22578 |
+| frac complex | 0.270 | 0.212 | **0.158** |
+| Peak-dropout cells | 1.61% | 0.67% | 0.70% |
+| residual RMS (78 MHz) | 0.46 | 0.38 | **0.34** |
+
+**Keep residual-chained 3-tier (C3 / library default).** Same-map B is
+worse on complex and dropouts; do not restore Stage-3 append for that.
+Optional length-2 residual C only if runtime dominates. Forced fill stays
+post–tile-merge / pre-fusion, opt-in. →
+`research-scheme-c-residual-multitier.md`,
+`experiment-scheme-c-vs-b-residual-2tier.md` (harnesses
+`experiment_scheme_c_vs_b_residual_2tier.py`,
+`experiment_scheme_c_residual_hips.py`).
 
 ## Open and deferred
 
@@ -923,9 +955,10 @@ never signed off):
   `ENABLE_CROSSBAND_FORCED_FILL` by default; island undercount (451) still
   needs island-sum / `n_assoc>1` SED gates and/or optional tier-3 forced
   bright-`M` collapse (`plan` not yet shipped).
-- Full-sky / one-band smoke of Scheme B residual-chained defaults
-  (`DETECT_TIER_THRESHOLDS`) vs prior 2-tier+Stage3 trees (`frac_M`,
-  `detect_stage` mix, VLSSR); signed-residual deep-tier RMS fallback rate.
+- Full-sky / one-band smoke of residual-chained defaults
+  (`DETECT_TIER_THRESHOLDS` / C3) vs legacy same-map+Stage3 trees beyond the
+  2026-11 four-tile pilot (`frac_M`, `detect_stage` mix, VLSSR);
+  signed-residual deep-tier RMS fallback rate.
 - Cosmic-web / diffuse HEALPix cross-correlation science path remains
   research-only (`research-cosmic-web-diffuse-healpix-cross-correlation.md`).
 - `notebooks/README.md` and root `README.md` still under-document radio/spectral
