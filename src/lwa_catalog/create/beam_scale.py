@@ -347,7 +347,7 @@ def _detect_probe_tile(
     tier_thresholds: Sequence[tuple[float, float]],
     gaul_columns: Sequence[str],
 ) -> pd.DataFrame:
-    """Residual-chained multi-tier detect on one probe tile (Scheme B path)."""
+    """Residual-chained multi-tier detect on one probe tile (C3 path)."""
     lwa_healpix = _import_lwa_healpix()
     header = lwa_healpix.nested_tile_header(
         int(config.nside_tile),
@@ -453,7 +453,8 @@ def estimate_beam_scale(
     Parameters
     ----------
     tier_thresholds
-        Per-tier ``(thresh_isl, thresh_pix)``. Default Scheme B
+        Per-tier ``(thresh_isl, thresh_pix)``. Default residual-chained 3-tier
+        (C3)
         :data:`~lwa_catalog.create.tiered_detect.DEFAULT_DETECT_TIER_THRESHOLDS`.
     """
     cfg = config if config is not None else BeamScaleEstimateConfig()

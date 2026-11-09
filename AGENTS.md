@@ -161,9 +161,8 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   Gaussian (not deconvolved⊗beam);
   `Total_flux = Peak_flux × (Maj×Min)/(BMAJ×BMIN)`.
   `Total < Peak` means fitted FWHM < attached beam (`fix_to_beam` is off).
-  Default HEALPix-tile detect is **residual-chained 3-tier** (docs often
-  call this “Scheme B residual-chained”; the 2026-11 pilot labeled the same
-  contract **Scheme C3** — do not confuse with same-map “Scheme B” below)
+  Default HEALPix-tile detect is **residual-chained 3-tier** (pilot
+  **Scheme C3** — do not confuse with same-map “Scheme B” below)
   (`tier_thresholds`, library default `DEFAULT_DETECT_TIER_THRESHOLDS` =
   `(9,11)→(5,7)→(2,3)`): pass 1 on the observed tile; passes 2–3 on
   **obs − background − model** with **no** negative clip; catalogs combine
@@ -579,7 +578,7 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `ovro_lwa_metacatalog.ipynb` | RGB detect → LST merge → fusion; Fit quality section |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same on 15 MHz subbands |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd experiment vs LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix coadd → nested TAN tiles → Scheme B residual-chained 3-tier PyBDSF; `(α,κ)` from `beam_scale.json` / `BEAM_SCALE`; BPA=90°; `merge_tile_metacatalog`; optional cross-band forced fill → band fusion |
+| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix coadd → nested TAN tiles → residual-chained 3-tier PyBDSF (C3); `(α,κ)` from `beam_scale.json` / `BEAM_SCALE`; BPA=90°; `merge_tile_metacatalog`; optional cross-band forced fill → band fusion |
 | `beam_alpha_kappa_estimate.ipynb` | Size α + shared κ (+ optional zenith VLSSR hybrid) → `beam_scale.json` |
 | `beam_alpha_bootstrap.ipynb` | Scalar VLSSR + neighbor Total/Peak α → `beam_alpha_by_band.parquet` |
 | `metacatalog_query.ipynb` | Browse, sky overlay, **band-merge source trace**, Mahalanobis |

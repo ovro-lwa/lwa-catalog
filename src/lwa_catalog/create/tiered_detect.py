@@ -19,7 +19,7 @@ __all__ = [
     "normalize_tier_thresholds",
 ]
 
-# Scheme B defaults: high → mid → deep (residual-chained on healpix tiles).
+# Residual-chained 3-tier defaults (pilot Scheme C3) on healpix tiles.
 DEFAULT_DETECT_TIER_THRESHOLDS: tuple[tuple[float, float], ...] = (
     (9.0, 11.0),
     (5.0, 7.0),

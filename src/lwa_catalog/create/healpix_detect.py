@@ -245,10 +245,10 @@ def detect_sources_on_healpix_tiles(
 ) -> pd.DataFrame:
     """Project nested tiles from a HEALPix map and run residual-chained PyBDSF.
 
-    Default :data:`DEFAULT_DETECT_TIER_THRESHOLDS` is Scheme B: high → mid →
-    deep. Tier 1 runs on the observed tile; later tiers run on
-    ``obs − background − model(merged catalog)`` (**no** negative clip) and
-    are merged with :func:`merge_shallow_then_deep`.
+    Default :data:`DEFAULT_DETECT_TIER_THRESHOLDS` is residual-chained 3-tier
+    (pilot Scheme C3): high → mid → deep. Tier 1 runs on the observed tile;
+    later tiers run on ``obs − background − model(merged catalog)`` (**no**
+    negative clip) and are merged with :func:`merge_shallow_then_deep`.
 
     Parameters
     ----------
@@ -280,8 +280,9 @@ def detect_sources_on_healpix_tiles(
         Shared PyBDSF keywords (rms boxes, ``mean_map``, etc.). Per-tier
         ``thresh_isl`` / ``thresh_pix`` come from *tier_thresholds*.
     tier_thresholds
-        Sequence of ``(thresh_isl, thresh_pix)`` pairs. Default Scheme B
-        ``((9, 11), (5, 7), (2, 3))``. Length 1 → single pass on obs only.
+        Sequence of ``(thresh_isl, thresh_pix)`` pairs. Default residual-
+        chained 3-tier ``((9, 11), (5, 7), (2, 3))`` (C3). Length 1 →
+        single pass on obs only; length 2 is residual Scheme C.
     skip_empty
         If ``True``, skip tiles whose nested child weight sum is ``<= 0``.
     background_out
