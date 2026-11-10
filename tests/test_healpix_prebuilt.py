@@ -85,6 +85,32 @@ def test_resolve_missing(tmp_path: Path) -> None:
         resolve_prebuilt_healpix_for_band(tmp_path, "82MHz")
 
 
+def test_resolve_wide_mhz_glob_scoped_to_band(tmp_path: Path) -> None:
+    """Operator-style ``??MHz/...`` globs must not cross-match other bands."""
+    wide = (
+        "??MHz/I/healpix/??MHz_I_deep_Taper_Robust-0.75_coadd"
+        "*mosaic_jybeam_feather_allsky*.fits"
+    )
+    for band in ("82MHz", "78MHz", "36MHz"):
+        healpix = _band_healpix_dir(tmp_path, band)
+        _touch(healpix / _jybeam_name(band, ssub=False))
+        if band != "36MHz":
+            _touch(healpix / _jybeam_name(band, ssub=True))
+
+    got = resolve_prebuilt_healpix_for_band(
+        tmp_path, "82MHz", relative_glob=wide, prefer_substring="ssub-rst8"
+    )
+    assert got.name.startswith("82MHz_")
+    assert "ssub-rst8" in got.name
+
+    found = discover_prebuilt_healpix_maps(
+        tmp_path, relative_glob=wide, prefer_substring="ssub-rst8"
+    )
+    assert set(found) == {"82MHz", "78MHz", "36MHz"}
+    assert "ssub-rst8" in found["82MHz"].name
+    assert "ssub-rst8" not in found["36MHz"].name
+
+
 def test_discover_omits_missing_raises_ambiguous(tmp_path: Path) -> None:
     for band in ("82MHz", "36MHz"):
         healpix = _band_healpix_dir(tmp_path, band)

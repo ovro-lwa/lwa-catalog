@@ -90,7 +90,15 @@ def resolve_prebuilt_healpix_for_band(
     """
     root = Path(root)
     pattern = _format_band_glob(relative_glob, band)
-    matches = sorted({path.resolve() for path in root.glob(pattern) if path.is_file()})
+    # Wide globs like ``??MHz/...`` match every subband; keep only paths whose
+    # components include *band* (e.g. ``.../82MHz/I/healpix/...``).
+    matches = sorted(
+        {
+            path.resolve()
+            for path in root.glob(pattern)
+            if path.is_file() and band in path.resolve().parts
+        }
+    )
     if not matches:
         msg = f"No prebuilt HEALPix FITS for band {band!r} under {root} matching {pattern!r}"
         raise FileNotFoundError(msg)
@@ -131,7 +139,11 @@ def discover_prebuilt_healpix_maps(
     for band in band_list:
         pattern = _format_band_glob(relative_glob, band)
         matches = sorted(
-            {path.resolve() for path in root.glob(pattern) if path.is_file()}
+            {
+                path.resolve()
+                for path in root.glob(pattern)
+                if path.is_file() and band in path.resolve().parts
+            }
         )
         if not matches:
             continue
