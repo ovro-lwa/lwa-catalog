@@ -456,12 +456,14 @@ def test_create_apis_importable() -> None:
         ResidualStage3Config,
         ResidualStage3Result,
         attach_beam_and_freq,
+        beam_and_restfreq_from_healpix_fits,
         blank_below_elevation,
         classify_crossband_actions,
         detect_sources,
         detect_sources_many,
         detect_sources_on_healpix_tiles,
         discover_fits_files,
+        discover_prebuilt_healpix_maps,
         estimate_beam_scale,
         fill_band_crossband_forced,
         fill_interior_subbands_crossband_forced,
@@ -469,6 +471,8 @@ def test_create_apis_importable() -> None:
         forced_fit_on_healpix_band,
         fuse_gaul_m_with_tier2_s,
         iter_detect_sources,
+        list_mhz_subband_dirs,
+        load_prebuilt_healpix_map,
         mark_resid_leftover_on_metacatalog,
         median_beam_from_paths,
         merge_lst_metacatalog,
@@ -493,6 +497,10 @@ def test_create_apis_importable() -> None:
     assert callable(restfreq_hz_from_header)
     assert callable(iter_detect_sources)
     assert callable(discover_fits_files)
+    assert callable(discover_prebuilt_healpix_maps)
+    assert callable(beam_and_restfreq_from_healpix_fits)
+    assert callable(list_mhz_subband_dirs)
+    assert callable(load_prebuilt_healpix_map)
     assert callable(filter_detections_near_transit)
     assert callable(fuse_gaul_m_with_tier2_s)
     assert callable(merge_shallow_then_deep)

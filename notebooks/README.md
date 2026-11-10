@@ -5,7 +5,7 @@
 | `ovro_lwa_metacatalog.ipynb` | Discover FITS → PyBDSF → LST merge → global metacatalog (Parquet) |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same pipeline on 15 frequency subbands (18–82 MHz) |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd hourly Full-band FITS to one SIN mosaic → PyBDSF → compare to LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | Coadd hourly FITS to HEALPix (`nside=2048`) → nested TAN tiles → residual-chained 3-tier PyBDSF / C3 (`DETECT_TIER_THRESHOLDS`); `(α,κ)` from `beam_scale.json`; attach BPA=90°; optional cross-band forced fill |
+| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix (`nside=2048`) → nested TAN tiles → residual-chained 3-tier PyBDSF / C3; hourly `coadd_fits` **or** `USE_PREBUILT_HEALPIX` mosaic dirs (`*MHz/I/healpix/`, prefer `ssub-rst8`) rewritten as MAP+WEIGHT under `OUTPUT_DIR` (beam/`RESTFRQ` from mosaic Primary); `(α,κ)` from `beam_scale.json`; attach BPA=90°; optional cross-band forced fill |
 | `ovro_lwa_healpix_36mhz_map_compare.ipynb` | 36 MHz only: tile-detect xhall Galactic-masked HEALPix vs current coadd; toggle HiPS + catalogs (no fusion) |
 | `beam_alpha_kappa_estimate.ipynb` | Size α + shared Dec κ (+ optional zenith VLSSR hybrid) → `beam_scale.json` |
 | `beam_alpha_bootstrap.ipynb` | Scalar VLSSR-anchored + neighbor Total/Peak α → `beam_alpha_by_band.parquet` |

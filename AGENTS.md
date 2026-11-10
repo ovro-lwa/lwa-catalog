@@ -189,6 +189,12 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   (reverse-confused / missing near-position detect) and phot-dip
   **replace** (unconfused Peak step). Not inside multi-tier merge. Healpix
   detect notebook: `ENABLE_CROSSBAND_FORCED_FILL` (default off).
+  Optional **prebuilt maps** (`USE_PREBUILT_HEALPIX`): discover
+  `HEALPIX_ROOT/{band}/I/healpix/` via `create.healpix_prebuilt` (infer bands
+  from `*MHz` dirs; prefer `ssub-rst8` when the jybeam glob matches twice),
+  RING→NESTED + finite WEIGHT, rewrite canonical MAP+WEIGHT under `OUTPUT_DIR`;
+  beam / restfreq from mosaic Primary (`beam_and_restfreq_from_healpix_fits`;
+  `FITS_ROOT` unused in this mode).
   **Background + rms boxes:** PyBDSF fits Gaussians to `image − mean`; the
   coadd zero level is negative (≈ −0.04 Jy/beam), so `obs − model` alone
   reads as ~2× oversubtraction. Pass `background_out=` to
@@ -578,7 +584,7 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `ovro_lwa_metacatalog.ipynb` | RGB detect → LST merge → fusion; Fit quality section |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same on 15 MHz subbands |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd experiment vs LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix coadd → nested TAN tiles → residual-chained 3-tier PyBDSF (C3); `(α,κ)` from `beam_scale.json` / `BEAM_SCALE`; BPA=90°; `merge_tile_metacatalog`; optional cross-band forced fill → band fusion |
+| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix → nested TAN tiles → residual-chained 3-tier PyBDSF (C3); hourly `coadd_fits` or `USE_PREBUILT_HEALPIX` mosaic `*MHz/I/healpix/` (prefer `ssub-rst8`) rewritten as MAP+WEIGHT under `OUTPUT_DIR` with Primary beam/`RESTFRQ`; `(α,κ)` from `beam_scale.json` / `BEAM_SCALE`; BPA=90°; `merge_tile_metacatalog`; optional cross-band forced fill → band fusion |
 | `beam_alpha_kappa_estimate.ipynb` | Size α + shared κ (+ optional zenith VLSSR hybrid) → `beam_scale.json` |
 | `beam_alpha_bootstrap.ipynb` | Scalar VLSSR + neighbor Total/Peak α → `beam_alpha_by_band.parquet` |
 | `metacatalog_query.ipynb` | Browse, sky overlay, **band-merge source trace**, Mahalanobis |

@@ -50,6 +50,15 @@ from lwa_catalog.create.healpix_detect import (
     sample_tile_onto_healpix,
     scale_beam,
 )
+from lwa_catalog.create.healpix_prebuilt import (
+    DEFAULT_PREBUILT_HEALPIX_GLOB,
+    DEFAULT_PREBUILT_PREFER_SUBSTRING,
+    beam_and_restfreq_from_healpix_fits,
+    discover_prebuilt_healpix_maps,
+    list_mhz_subband_dirs,
+    load_prebuilt_healpix_map,
+    resolve_prebuilt_healpix_for_band,
+)
 from lwa_catalog.create.merge import (
     add_spectral_indices,
     associate_band_into_metacatalog,
@@ -115,10 +124,17 @@ __all__ = [
     "fuse_gaul_m_with_tier2_s",
     "gaul_model_residual",
     "iter_detect_sources",
+    "DEFAULT_PREBUILT_HEALPIX_GLOB",
+    "DEFAULT_PREBUILT_PREFER_SUBSTRING",
+    "beam_and_restfreq_from_healpix_fits",
     "discover_fits_files",
+    "discover_prebuilt_healpix_maps",
     "discovered_slots",
+    "list_mhz_subband_dirs",
+    "load_prebuilt_healpix_map",
     "lst_hours_from_discovery",
     "median_beam_from_paths",
+    "resolve_prebuilt_healpix_for_band",
     "merge_lst_metacatalog",
     "merge_shallow_then_deep",
     "merge_tier2_bdsf_kw",
