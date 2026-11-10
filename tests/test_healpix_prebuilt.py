@@ -141,8 +141,23 @@ def test_discover_omits_missing_raises_ambiguous(tmp_path: Path) -> None:
 
 
 def test_default_glob_format() -> None:
-    assert "{band}" in DEFAULT_PREBUILT_HEALPIX_GLOB
+    assert "??MHz" in DEFAULT_PREBUILT_HEALPIX_GLOB
     assert "jybeam" in DEFAULT_PREBUILT_HEALPIX_GLOB
+
+
+def test_legacy_band_placeholder_glob(tmp_path: Path) -> None:
+    band = "82MHz"
+    healpix = _band_healpix_dir(tmp_path, band)
+    ssub = _touch(healpix / _jybeam_name(band, ssub=True))
+    _touch(healpix / _jybeam_name(band, ssub=False))
+    legacy = (
+        "{band}/I/healpix/{band}_I_deep_Taper_Robust-0.75_coadd"
+        "*mosaic_jybeam_feather_allsky*.fits"
+    )
+    got = resolve_prebuilt_healpix_for_band(
+        tmp_path, band, relative_glob=legacy, prefer_substring="ssub-rst8"
+    )
+    assert got == ssub.resolve()
 
 
 def test_beam_and_restfreq_from_healpix_primary(tmp_path: Path) -> None:

@@ -6,6 +6,11 @@ Mosaic trees look like::
       82MHz/I/healpix/82MHz_I_deep_..._jybeam_feather_allsky*.fits
       78MHz/...
 
+``HEALPIX_GLOB`` works like ``FITS_GLOB``: one pattern under the root that
+selects all candidate HEALPix FITS. Band identity is taken from a ``\\d+MHz``
+path component (not from formatting the glob per band). When several files
+match one band, ``prefer_substring`` (default ``ssub-rst8``) narrows the set.
+
 Files are typically healpy BinTable ``SIGNAL`` maps in RING order (not
 ``lwa_healpix`` MAP+WEIGHT). Load converts to NESTED and synthesizes a
 finite-pixel weight so tile detect / HiPS can use the usual contract.
@@ -14,7 +19,8 @@ finite-pixel weight so tile detect / HiPS can use the usual contract.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections import defaultdict
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -30,9 +36,10 @@ __all__ = [
     "resolve_prebuilt_healpix_for_band",
 ]
 
-# Relative to HEALPIX_ROOT; ``{band}`` is substituted with e.g. ``82MHz``.
+# Relative to HEALPIX_ROOT — same role as FITS_GLOB under FITS_ROOT.
+# Optional ``{band}`` is expanded to ``*`` so one glob still covers all bands.
 DEFAULT_PREBUILT_HEALPIX_GLOB = (
-    "{band}/I/healpix/{band}_I_deep_Taper_Robust-0.75_coadd"
+    "??MHz/I/healpix/*_I_deep_Taper_Robust-0.75_coadd"
     "*mosaic_jybeam_feather_allsky*.fits"
 )
 DEFAULT_PREBUILT_PREFER_SUBSTRING = "ssub-rst8"
@@ -66,12 +73,57 @@ def list_mhz_subband_dirs(root: Path | str) -> list[str]:
     return sorted(names, key=_mhz_sort_key, reverse=True)
 
 
-def _format_band_glob(relative_glob: str, band: str) -> str:
-    try:
-        return relative_glob.format(band=band)
-    except (KeyError, IndexError, ValueError):
-        # Glob may use only ``??MHz`` wildcards with no ``{band}`` placeholder.
-        return relative_glob
+def _normalize_glob_pattern(relative_glob: str) -> str:
+    """Return a single root-relative glob (``{band}`` → ``*`` if present)."""
+    if "{band}" in relative_glob:
+        return relative_glob.format(band="*")
+    return relative_glob
+
+
+def _band_from_path(path: Path) -> str | None:
+    """Return the first ``\\d+MHz`` path component, preserving on-disk casing."""
+    for part in path.parts:
+        if _MHZ_DIR_RE.match(part):
+            return part
+    return None
+
+
+def _iter_glob_hits(root: Path, relative_glob: str) -> list[Path]:
+    pattern = _normalize_glob_pattern(relative_glob)
+    # Prefer Path.glob for patterns with directory parts (FITS_GLOB-style).
+    # Fall back to rglob when the pattern is basename-only.
+    if "/" not in pattern and "\\" not in pattern:
+        iterator = root.rglob(pattern)
+    else:
+        iterator = root.glob(pattern)
+    return sorted({path.resolve() for path in iterator if path.is_file()})
+
+
+def _pick_preferred(
+    matches: Sequence[Path],
+    *,
+    band: str,
+    prefer_substring: str | None,
+    pattern: str,
+) -> Path:
+    chosen = list(matches)
+    if prefer_substring:
+        preferred = [path for path in chosen if prefer_substring in path.name]
+        if preferred:
+            chosen = preferred
+    if len(chosen) == 1:
+        return chosen[0]
+    if not chosen:
+        msg = f"No prebuilt HEALPix FITS for band {band!r} matching {pattern!r}"
+        raise FileNotFoundError(msg)
+    names = [path.name for path in chosen]
+    msg = (
+        f"Ambiguous prebuilt HEALPix FITS for band {band!r} "
+        f"(pattern {pattern!r}"
+        + (f", prefer={prefer_substring!r}" if prefer_substring else "")
+        + f"): {names}"
+    )
+    raise FileNotFoundError(msg)
 
 
 def resolve_prebuilt_healpix_for_band(
@@ -83,42 +135,23 @@ def resolve_prebuilt_healpix_for_band(
 ) -> Path:
     """Resolve exactly one prebuilt HEALPix FITS for *band* under *root*.
 
-    *relative_glob* is matched with :meth:`Path.glob` from *root* after
-    ``str.format(band=band)`` (optional). When *prefer_substring* is set and
-    at least one match contains that substring, only those matches are kept.
-    Raises ``FileNotFoundError`` if zero or ambiguous matches remain.
+    Runs the same root-relative *relative_glob* as
+    :func:`discover_prebuilt_healpix_maps`, keeps hits whose path contains
+    *band*, then applies *prefer_substring*. Raises ``FileNotFoundError`` if
+    zero or ambiguous matches remain.
     """
     root = Path(root)
-    pattern = _format_band_glob(relative_glob, band)
-    # Wide globs like ``??MHz/...`` match every subband; keep only paths whose
-    # components include *band* (e.g. ``.../82MHz/I/healpix/...``).
-    matches = sorted(
-        {
-            path.resolve()
-            for path in root.glob(pattern)
-            if path.is_file() and band in path.resolve().parts
-        }
-    )
+    pattern = _normalize_glob_pattern(relative_glob)
+    matches = [path for path in _iter_glob_hits(root, relative_glob) if band in path.parts]
     if not matches:
         msg = f"No prebuilt HEALPix FITS for band {band!r} under {root} matching {pattern!r}"
         raise FileNotFoundError(msg)
-
-    if prefer_substring:
-        preferred = [path for path in matches if prefer_substring in path.name]
-        if preferred:
-            matches = preferred
-
-    if len(matches) == 1:
-        return matches[0]
-
-    names = [path.name for path in matches]
-    msg = (
-        f"Ambiguous prebuilt HEALPix FITS for band {band!r} under {root} "
-        f"(pattern {pattern!r}"
-        + (f", prefer={prefer_substring!r}" if prefer_substring else "")
-        + f"): {names}"
+    return _pick_preferred(
+        matches,
+        band=band,
+        prefer_substring=prefer_substring,
+        pattern=pattern,
     )
-    raise FileNotFoundError(msg)
 
 
 def discover_prebuilt_healpix_maps(
@@ -128,30 +161,41 @@ def discover_prebuilt_healpix_maps(
     prefer_substring: str | None = DEFAULT_PREBUILT_PREFER_SUBSTRING,
     bands: Sequence[str] | None = None,
 ) -> dict[str, Path]:
-    """Map band → resolved prebuilt HEALPix path.
+    """Map band → resolved prebuilt HEALPix path (FITS_GLOB-style discovery).
 
-    When *bands* is ``None``, uses :func:`list_mhz_subband_dirs`. Bands with
-    no matching file are omitted (not an error). Ambiguous matches still raise.
+    1. Glob *relative_glob* once under *root* (``{band}`` → ``*`` if present).
+    2. Group hits by the ``\\d+MHz`` directory in each path.
+    3. Per band, apply *prefer_substring* and require a unique file.
+
+    When *bands* is not ``None``, only those labels are returned (missing bands
+    omitted). When *bands* is ``None``, every band present in the glob hits is
+    returned (ordered high → low MHz via the caller’s usual sort if needed).
+    Ambiguous matches still raise.
     """
     root = Path(root)
-    band_list: Iterable[str] = bands if bands is not None else list_mhz_subband_dirs(root)
+    pattern = _normalize_glob_pattern(relative_glob)
+    by_band: dict[str, list[Path]] = defaultdict(list)
+    for path in _iter_glob_hits(root, relative_glob):
+        band = _band_from_path(path)
+        if band is None:
+            continue
+        by_band[band].append(path)
+
+    if bands is not None:
+        band_list = [b for b in bands if b in by_band]
+    else:
+        band_list = sorted(by_band.keys(), key=_mhz_sort_key, reverse=True)
+
     out: dict[str, Path] = {}
     for band in band_list:
-        pattern = _format_band_glob(relative_glob, band)
-        matches = sorted(
-            {
-                path.resolve()
-                for path in root.glob(pattern)
-                if path.is_file() and band in path.resolve().parts
-            }
-        )
+        matches = by_band.get(band, [])
         if not matches:
             continue
-        out[band] = resolve_prebuilt_healpix_for_band(
-            root,
-            band,
-            relative_glob=relative_glob,
+        out[band] = _pick_preferred(
+            matches,
+            band=band,
             prefer_substring=prefer_substring,
+            pattern=pattern,
         )
     return out
 
