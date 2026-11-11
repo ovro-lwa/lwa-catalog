@@ -167,3 +167,90 @@ def test_vlssr_hybrid_rescale() -> None:
     assert result.alpha_vlssr_anchor == pytest.approx(1.2)
     assert result.alpha_scale_factor == pytest.approx(1.2, rel=0.05)
     assert result.by_band.iloc[0]["alpha"] == pytest.approx(1.2, rel=0.05)
+
+
+def test_vlssr_missing_columns_warning() -> None:
+    sources = _synth_sources(alpha=1.0, kappa=0.0, bands=("73MHz",))
+    meta = pd.DataFrame(
+        {
+            "DEC": [OVRO_LATITUDE_DEG] * 5,
+            "Total_flux_73MHz": [1.0] * 5,
+        }
+    )
+    result = estimate_beam_alpha_kappa(
+        sources,
+        config=BeamAlphaKappaEstimateConfig(
+            beam_scale_used=1.0,
+            apply_vlssr_hybrid=True,
+            anchor_band="73MHz",
+        ),
+        metacatalog_vlssr=meta,
+    )
+    assert result.n_vlssr_zenith == 0
+    assert any("Peak_flux_VLSSR" in w for w in result.warnings)
+
+
+def test_estimate_undoes_detect_time_alpha_kappa() -> None:
+    """Catalog BMAJ already includes detect (α,κ); invert that model."""
+    from lwa_catalog.create.beam_scale_model import BeamScaleModel
+
+    phi = OVRO_LATITUDE_DEG
+    alpha_used = 1.15
+    kappa_used = 0.009
+    used = {
+        "73MHz": BeamScaleModel(alpha=alpha_used, kappa=kappa_used, phi_deg=phi),
+    }
+    bmaj_h, bmin_h = 0.18, 0.16
+    tiles = [(28, 54.0), (10, 42.0), (102, 0.0), (189, -19.5), (140, -30.0)]
+    rows = []
+    for ipix, dec in tiles:
+        u = max(0.0, phi - dec)
+        e = 1.0 + kappa_used * u
+        bmaj = alpha_used * e * bmaj_h
+        bmin = alpha_used * bmin_h
+        for _ in range(25):
+            rows.append(
+                {
+                    "band": "73MHz",
+                    "tile_ipix": ipix,
+                    "DEC": dec,
+                    "Peak_flux": 2.0,
+                    "Total_flux": 2.0,
+                    "S_Code": "S",
+                    "BMAJ": bmaj,
+                    "BMIN": bmin,
+                    # Perfect size match to attached beam → recover used (α,κ).
+                    "Maj": bmaj,
+                    "Min": bmin,
+                }
+            )
+    result = estimate_beam_alpha_kappa(
+        pd.DataFrame(rows),
+        config=BeamAlphaKappaEstimateConfig(
+            beam_scale_used=used,
+            apply_vlssr_hybrid=False,
+        ),
+    )
+    assert result.by_band.iloc[0]["alpha"] == pytest.approx(alpha_used, rel=0.02)
+    assert result.kappa == pytest.approx(kappa_used, rel=0.05, abs=0.001)
+
+
+def test_predict_total_flux_scales_with_alpha_squared() -> None:
+    from lwa_catalog.analyze.beam_alpha_kappa_estimate import (
+        predict_total_flux_for_beam_scale,
+    )
+
+    df = pd.DataFrame(
+        {
+            "band": ["73MHz", "73MHz"],
+            "DEC": [OVRO_LATITUDE_DEG, OVRO_LATITUDE_DEG],
+            "Total_flux": [1.44, 2.88],
+            "Peak_flux": [1.0, 2.0],
+        }
+    )
+    pred = predict_total_flux_for_beam_scale(
+        df, beam_scale_used=1.0, beam_scale_new=1.2
+    )
+    # Total' = Total * (1.0/1.2)^2
+    assert pred.iloc[0] == pytest.approx(1.44 / 1.44)
+    assert pred.iloc[1] == pytest.approx(2.88 / 1.44)

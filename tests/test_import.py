@@ -420,6 +420,7 @@ def test_analyze_beam_alpha_bootstrap_exports() -> None:
         estimate_beam_alpha_kappa,
         load_beam_alpha_mapping,
         load_beam_scale,
+        predict_total_flux_for_beam_scale,
         summarize_beam_alpha_bootstrap,
         summarize_beam_alpha_kappa_estimate,
         write_beam_alpha_kappa_result,
@@ -431,6 +432,7 @@ def test_analyze_beam_alpha_bootstrap_exports() -> None:
     assert callable(estimate_beam_alpha_kappa)
     assert callable(load_beam_alpha_mapping)
     assert callable(load_beam_scale)
+    assert callable(predict_total_flux_for_beam_scale)
     assert callable(write_beam_alpha_table)
     assert callable(write_beam_alpha_kappa_result)
     assert callable(write_beam_scale_json)

@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -22,6 +23,8 @@ from lwa_catalog.constants import OVRO_LATITUDE_DEG
 from lwa_catalog.create.beam_scale_model import (
     MODEL_ZENITH_SOUTH,
     BeamScaleModel,
+    beam_scale_model_from_value,
+    resolve_beam_scale_model,
     zenith_south_u,
 )
 from lwa_catalog.io import write_table
@@ -32,9 +35,12 @@ __all__ = [
     "BeamAlphaKappaEstimateConfig",
     "BeamAlphaKappaEstimateResult",
     "estimate_beam_alpha_kappa",
+    "predict_total_flux_for_beam_scale",
     "summarize_beam_alpha_kappa_estimate",
     "write_beam_alpha_kappa_result",
 ]
+
+BeamScaleUsed = float | BeamScaleModel | Mapping[str, Any]
 
 BEAM_ALPHA_KAPPA_BY_BAND_COLUMNS: tuple[str, ...] = (
     "band",
@@ -54,7 +60,7 @@ DEFAULT_ZENITH_HALF_WIDTH_DEG: float = 20.0
 class BeamAlphaKappaEstimateConfig:
     """Configuration for :func:`estimate_beam_alpha_kappa`."""
 
-    beam_scale_used: float
+    beam_scale_used: BeamScaleUsed
     zenith_half_width_deg: float = DEFAULT_ZENITH_HALF_WIDTH_DEG
     peak_min_jy: float = 1.0
     s_code: str = "S"
@@ -79,7 +85,7 @@ class BeamAlphaKappaEstimateResult:
     median_total_over_vlssr_allsky: float
     n_vlssr_zenith: int
     n_vlssr_allsky: int
-    beam_scale_used: float
+    beam_scale_used: BeamScaleUsed
     phi_deg: float
     zenith_half_width_deg: float
     warnings: tuple[str, ...] = ()
@@ -100,15 +106,58 @@ class BeamAlphaKappaEstimateResult:
         return out
 
 
-def _require_beam_scale_used(beam_scale_used: float) -> float:
-    scale = float(beam_scale_used)
-    if not np.isfinite(scale) or scale <= 0.0:
-        msg = (
-            "beam_scale_used must be finite and > 0 "
-            f"(detect-time α on catalog BMAJ/BMIN); got {beam_scale_used!r}"
+def _used_model_for_band(
+    band: str,
+    beam_scale_used: BeamScaleUsed,
+    *,
+    phi_deg: float,
+) -> BeamScaleModel:
+    """Resolve detect-time ``(α, κ)`` for one band."""
+    if isinstance(beam_scale_used, Mapping) and "alpha" not in beam_scale_used:
+        return resolve_beam_scale_model(
+            band,
+            beam_scale_used,
+            default=BeamScaleModel.isotropic(1.0, phi_deg=phi_deg),
         )
-        raise ValueError(msg)
-    return scale
+    model = beam_scale_model_from_value(beam_scale_used, default_phi_deg=phi_deg)
+    return BeamScaleModel(
+        alpha=model.alpha,
+        kappa=model.kappa,
+        model=model.model,
+        phi_deg=float(phi_deg),
+    )
+
+
+def _beam_scale_used_summary(beam_scale_used: BeamScaleUsed) -> str:
+    if isinstance(beam_scale_used, Mapping) and "alpha" not in beam_scale_used:
+        alphas = []
+        kappas = []
+        for raw in beam_scale_used.values():
+            m = beam_scale_model_from_value(raw)
+            alphas.append(m.alpha)
+            kappas.append(m.kappa)
+        if not alphas:
+            return "per-band (empty)"
+        a_lo, a_hi = float(np.min(alphas)), float(np.max(alphas))
+        k = float(np.median(kappas))
+        return f"per-band α∈[{a_lo:.4g},{a_hi:.4g}] κ≈{k:.4g} (n={len(alphas)})"
+    model = beam_scale_model_from_value(beam_scale_used)
+    if model.kappa == 0.0:
+        return f"{model.alpha:g}"
+    return f"α={model.alpha:g} κ={model.kappa:.4g}"
+
+
+def _jsonable_beam_scale_used(beam_scale_used: BeamScaleUsed) -> float | dict[str, Any]:
+    if isinstance(beam_scale_used, Mapping) and "alpha" not in beam_scale_used:
+        out: dict[str, Any] = {}
+        for band, raw in beam_scale_used.items():
+            model = beam_scale_model_from_value(raw)
+            out[str(band)] = model.as_mapping() if model.kappa != 0.0 else float(model.alpha)
+        return out
+    model = beam_scale_model_from_value(beam_scale_used)
+    if model.kappa == 0.0:
+        return float(model.alpha)
+    return model.as_mapping()
 
 
 def _select_compact(sources: pd.DataFrame, cfg: BeamAlphaKappaEstimateConfig) -> pd.DataFrame:
@@ -135,13 +184,77 @@ def _select_compact(sources: pd.DataFrame, cfg: BeamAlphaKappaEstimateConfig) ->
         & dec.notna()
     )
     out = df.loc[ok].copy()
-    used = _require_beam_scale_used(cfg.beam_scale_used)
-    # Catalog BMAJ already includes used; recover ratios vs unscaled header.
-    out["maj_over_bmaj"] = used * (maj.loc[ok] / bmaj.loc[ok])
-    out["min_over_bmin"] = used * (mn.loc[ok] / bmin.loc[ok])
-    out["_dec"] = dec.loc[ok].to_numpy(dtype=float)
-    out["_u"] = [zenith_south_u(d, phi_deg=cfg.phi_deg) for d in out["_dec"]]
+    dec_ok = dec.loc[ok].to_numpy(dtype=float)
+    maj_ok = maj.loc[ok].to_numpy(dtype=float)
+    mn_ok = mn.loc[ok].to_numpy(dtype=float)
+    bmaj_ok = bmaj.loc[ok].to_numpy(dtype=float)
+    bmin_ok = bmin.loc[ok].to_numpy(dtype=float)
+    bands_ok = out["band"].astype(str).to_numpy()
+    # Catalog BMAJ/BMIN already include detect-time α and (for Maj) E(δ;κ).
+    # Recover ratios vs unscaled header: Maj/header = α·E·Maj/BMAJ.
+    maj_over = np.empty(len(out), dtype=float)
+    min_over = np.empty(len(out), dtype=float)
+    model_cache: dict[str, BeamScaleModel] = {}
+    for i, band in enumerate(bands_ok):
+        model = model_cache.get(band)
+        if model is None:
+            model = _used_model_for_band(band, cfg.beam_scale_used, phi_deg=cfg.phi_deg)
+            model_cache[band] = model
+        e = model.elongation(float(dec_ok[i]))
+        maj_over[i] = model.alpha * e * (maj_ok[i] / bmaj_ok[i])
+        min_over[i] = model.alpha * (mn_ok[i] / bmin_ok[i])
+    out["maj_over_bmaj"] = maj_over
+    out["min_over_bmin"] = min_over
+    out["_dec"] = dec_ok
+    out["_u"] = [zenith_south_u(d, phi_deg=cfg.phi_deg) for d in dec_ok]
     return out
+
+
+def predict_total_flux_for_beam_scale(
+    sources: pd.DataFrame,
+    *,
+    beam_scale_used: BeamScaleUsed,
+    beam_scale_new: BeamScaleUsed,
+    phi_deg: float = OVRO_LATITUDE_DEG,
+    dec_col: str = "DEC",
+) -> pd.Series:
+    """Rescale catalog ``Total_flux`` to a different detect-time ``(α, κ)``.
+
+    Holds fitted ``Peak``/``Maj``/``Min`` fixed and uses
+    ``Total ∝ 1/(BMAJ·BMIN)`` with ``BMAJ∝α·E(δ;κ)``, ``BMIN∝α``. Peak is
+    unchanged. Useful for comparing photometry under used vs estimated scales
+    without re-detecting.
+    """
+    need = {"Total_flux", "band", dec_col}
+    missing = sorted(need - set(sources.columns))
+    if missing:
+        msg = f"sources missing required columns: {missing}"
+        raise ValueError(msg)
+    total = pd.to_numeric(sources["Total_flux"], errors="coerce")
+    dec = pd.to_numeric(sources[dec_col], errors="coerce")
+    bands = sources["band"].astype(str)
+    out = np.full(len(sources), np.nan, dtype=float)
+    used_cache: dict[str, BeamScaleModel] = {}
+    new_cache: dict[str, BeamScaleModel] = {}
+    for i, band in enumerate(bands.to_numpy()):
+        t = float(total.iloc[i])
+        d = float(dec.iloc[i])
+        if not np.isfinite(t) or not np.isfinite(d) or t <= 0.0:
+            continue
+        used = used_cache.get(band)
+        if used is None:
+            used = _used_model_for_band(band, beam_scale_used, phi_deg=phi_deg)
+            used_cache[band] = used
+        new = new_cache.get(band)
+        if new is None:
+            new = _used_model_for_band(band, beam_scale_new, phi_deg=phi_deg)
+            new_cache[band] = new
+        e_used = used.elongation(d)
+        e_new = new.elongation(d)
+        # Total' = Total * (α_used/α_new)^2 * (E_used/E_new)
+        scale = (used.alpha / new.alpha) ** 2 * (e_used / e_new)
+        out[i] = t * scale
+    return pd.Series(out, index=sources.index, name="Total_flux_pred")
 
 
 def _tile_or_dec_groups(df: pd.DataFrame) -> pd.DataFrame:
@@ -247,10 +360,18 @@ def _vlssr_median_ratio(
     *,
     anchor_band: str,
     zenith_mask: pd.Series | None,
-) -> tuple[float, int]:
+) -> tuple[float, int, str | None]:
+    """Return ``(median Total/VLSSR, n, skip_reason_or_None)``."""
     total_col = f"Total_flux_{anchor_band}"
-    if total_col not in meta.columns or "Peak_flux_VLSSR" not in meta.columns:
-        return float("nan"), 0
+    missing = [c for c in (total_col, "Peak_flux_VLSSR") if c not in meta.columns]
+    if missing:
+        return (
+            float("nan"),
+            0,
+            "metacatalog missing "
+            + ", ".join(repr(c) for c in missing)
+            + " (run radio_crossmatch / attach VLSSR into metacatalog_spectral)",
+        )
     t = pd.to_numeric(meta[total_col], errors="coerce")
     v = pd.to_numeric(meta["Peak_flux_VLSSR"], errors="coerce")
     if "n_assoc_VLSSR" in meta.columns:
@@ -262,8 +383,8 @@ def _vlssr_median_ratio(
         ok = ok & zenith_mask.reindex(meta.index, fill_value=False)
     n = int(ok.sum())
     if n == 0:
-        return float("nan"), 0
-    return float(np.median((t / v).loc[ok])), n
+        return float("nan"), 0, "no near-zenith unique VLSSR matches"
+    return float(np.median((t / v).loc[ok])), n, None
 
 
 def estimate_beam_alpha_kappa(
@@ -281,14 +402,16 @@ def estimate_beam_alpha_kappa(
         ``Peak_flux``, ``band``, and Dec (``config.dec_col``). Prefer
         ``S_Code`` + ``tile_ipix`` when available.
     config
-        Selection, zenith window, and hybrid options.
+        Selection, zenith window, and hybrid options. ``beam_scale_used`` may
+        be a scalar α, a single :class:`BeamScaleModel`, or a per-band mapping
+        matching detect-time ``beam_scale.json`` (required to undo κ as well
+        as α when recovering header size ratios).
     metacatalog_vlssr
         Optional fused/spectral rows with ``Total_flux_{anchor}``,
         ``Peak_flux_VLSSR``, and Dec for the hybrid α rescale. Ignored when
         ``config.apply_vlssr_hybrid`` is False.
     """
     cfg = config
-    used = _require_beam_scale_used(cfg.beam_scale_used)
     warnings: list[str] = []
 
     selected = _select_compact(sources, cfg)
@@ -348,18 +471,24 @@ def estimate_beam_alpha_kappa(
                 zen_mask = (dec - float(cfg.phi_deg)).abs() <= float(
                     cfg.zenith_half_width_deg
                 )
-                med_zen, n_zen = _vlssr_median_ratio(
+                med_zen, n_zen, zen_reason = _vlssr_median_ratio(
                     meta, anchor_band=cfg.anchor_band, zenith_mask=zen_mask
                 )
-                med_all, n_all = _vlssr_median_ratio(
+                med_all, n_all, _ = _vlssr_median_ratio(
                     meta, anchor_band=cfg.anchor_band, zenith_mask=None
                 )
                 if n_zen == 0 or not np.isfinite(med_zen) or med_zen <= 0.0:
                     warnings.append(
-                        "no near-zenith unique VLSSR matches; skipping rescale"
+                        f"{zen_reason or 'no near-zenith unique VLSSR matches'}; "
+                        "skipping rescale"
                     )
                 else:
-                    alpha_vlssr = float(used * np.sqrt(med_zen))
+                    used_anchor = _used_model_for_band(
+                        cfg.anchor_band,
+                        cfg.beam_scale_used,
+                        phi_deg=float(cfg.phi_deg),
+                    )
+                    alpha_vlssr = float(used_anchor.alpha * np.sqrt(med_zen))
                     alpha_size_anchor = float(alpha_final[cfg.anchor_band])
                     alpha_scale = float(alpha_vlssr / alpha_size_anchor)
                     alpha_final = {
@@ -394,7 +523,7 @@ def estimate_beam_alpha_kappa(
         median_total_over_vlssr_allsky=float(med_all),
         n_vlssr_zenith=int(n_zen),
         n_vlssr_allsky=int(n_all),
-        beam_scale_used=float(used),
+        beam_scale_used=cfg.beam_scale_used,
         phi_deg=float(cfg.phi_deg),
         zenith_half_width_deg=float(cfg.zenith_half_width_deg),
         warnings=tuple(warnings),
@@ -406,7 +535,7 @@ def summarize_beam_alpha_kappa_estimate(result: BeamAlphaKappaEstimateResult) ->
     lines = [
         f"shared κ={result.kappa:.6g} deg⁻¹  "
         f"(φ={result.phi_deg:.3f}°, W=±{result.zenith_half_width_deg:g}°)",
-        f"beam_scale_used={result.beam_scale_used:g}  "
+        f"beam_scale_used={_beam_scale_used_summary(result.beam_scale_used)}  "
         f"VLSSR α scale factor s={result.alpha_scale_factor:.6g}",
     ]
     if np.isfinite(result.alpha_vlssr_anchor):
@@ -456,7 +585,7 @@ def write_beam_alpha_kappa_result(
         "kappa": float(result.kappa),
         "phi_deg": float(result.phi_deg),
         "zenith_half_width_deg": float(result.zenith_half_width_deg),
-        "beam_scale_used": float(result.beam_scale_used),
+        "beam_scale_used": _jsonable_beam_scale_used(result.beam_scale_used),
         "alpha_scale_factor": float(result.alpha_scale_factor),
         "model": MODEL_ZENITH_SOUTH,
         "source": "alpha_kappa_vlssr_hybrid"

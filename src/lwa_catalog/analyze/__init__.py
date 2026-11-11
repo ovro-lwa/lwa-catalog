@@ -70,6 +70,7 @@ from lwa_catalog.analyze.beam_alpha_kappa_estimate import (
     BeamAlphaKappaEstimateConfig,
     BeamAlphaKappaEstimateResult,
     estimate_beam_alpha_kappa,
+    predict_total_flux_for_beam_scale,
     summarize_beam_alpha_kappa_estimate,
     write_beam_alpha_kappa_result,
 )
@@ -491,6 +492,7 @@ __all__ = [
     "lwa_bands_with_total_flux",
     "median_neighbor_flux_ratio",
     "native_lwa_frame",
+    "predict_total_flux_for_beam_scale",
     "read_beam_alpha_table",
     "read_beam_scale_json",
     "select_bijective_pairs",
