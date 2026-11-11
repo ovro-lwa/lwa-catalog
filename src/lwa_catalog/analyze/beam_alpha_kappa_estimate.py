@@ -32,6 +32,7 @@ from lwa_catalog.paths import CatalogLayout
 
 __all__ = [
     "BEAM_ALPHA_KAPPA_BY_BAND_COLUMNS",
+    "DEFAULT_ALPHA_KAPPA_PROBE_TILES",
     "BeamAlphaKappaEstimateConfig",
     "BeamAlphaKappaEstimateResult",
     "estimate_beam_alpha_kappa",
@@ -54,6 +55,10 @@ BEAM_ALPHA_KAPPA_BY_BAND_COLUMNS: tuple[str, ...] = (
 )
 
 DEFAULT_ZENITH_HALF_WIDTH_DEG: float = 20.0
+# Dec ladder for a fast size-only prior (same nested nside_tile=4 probes as
+# residual α estimate): high / equator / south. Tile 28 sits within the
+# default |δ−φ|≤20° zenith window for α; 102/189 pin shared κ.
+DEFAULT_ALPHA_KAPPA_PROBE_TILES: tuple[int, ...] = (28, 102, 189)
 
 
 @dataclass(frozen=True, slots=True)

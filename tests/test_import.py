@@ -414,6 +414,7 @@ def test_analyze_beam_alpha_bootstrap_exports() -> None:
     from lwa_catalog.analyze import (
         BeamAlphaBootstrapConfig,
         BeamAlphaBootstrapResult,
+        DEFAULT_ALPHA_KAPPA_PROBE_TILES,
         BeamAlphaKappaEstimateConfig,
         BeamAlphaKappaEstimateResult,
         bootstrap_beam_alpha,
@@ -433,6 +434,7 @@ def test_analyze_beam_alpha_bootstrap_exports() -> None:
     assert callable(load_beam_alpha_mapping)
     assert callable(load_beam_scale)
     assert callable(predict_total_flux_for_beam_scale)
+    assert DEFAULT_ALPHA_KAPPA_PROBE_TILES == (28, 102, 189)
     assert callable(write_beam_alpha_table)
     assert callable(write_beam_alpha_kappa_result)
     assert callable(write_beam_scale_json)

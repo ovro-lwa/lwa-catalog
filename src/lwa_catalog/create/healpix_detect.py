@@ -242,6 +242,7 @@ def detect_sources_on_healpix_tiles(
     ctype: str = "TAN",
     bunit: str = "JY/BEAM",
     background_out: np.ndarray | None = None,
+    tile_ipix: Sequence[int] | None = None,
 ) -> pd.DataFrame:
     """Project nested tiles from a HEALPix map and run residual-chained PyBDSF.
 
@@ -290,6 +291,11 @@ def detect_sources_on_healpix_tiles(
         filled in place with each tile's tier-1 PyBDSF background mean
         (:func:`~lwa_catalog.create.detect.pybdsf_background_image`), sampled
         onto that tile's own nested children. Requires ``nested=True``.
+    tile_ipix
+        Optional nested tile indices to process. ``None`` (default) runs all
+        tiles from the iterator. Use a short Dec ladder (e.g.
+        :data:`~lwa_catalog.create.beam_scale.DEFAULT_BEAM_SCALE_PROBE_TILES`)
+        for a fast size-only ``(α, κ)`` prior before full-sky detect.
 
     Returns
     -------
@@ -316,6 +322,13 @@ def detect_sources_on_healpix_tiles(
             )
             raise ValueError(msg)
 
+    wanted: set[int] | None = None
+    if tile_ipix is not None:
+        wanted = {int(i) for i in tile_ipix}
+        if not wanted:
+            msg = "tile_ipix must be non-empty when provided"
+            raise ValueError(msg)
+
     tiles = lwa_healpix.iter_nested_tile_headers(
         nside_tile,
         nside_map,
@@ -330,6 +343,8 @@ def detect_sources_on_healpix_tiles(
 
     frames: list[pd.DataFrame] = []
     for ipix, target_header in tiles:
+        if wanted is not None and int(ipix) not in wanted:
+            continue
         dec_deg = float(target_header["CRVAL2"])
         bmaj_s, bmin_s, bpa_s = model.effective_beam(
             bmaj, bmin, dec_deg=dec_deg

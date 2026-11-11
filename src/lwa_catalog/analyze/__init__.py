@@ -67,6 +67,7 @@ from lwa_catalog.analyze.beam_alpha_bootstrap import (
 )
 from lwa_catalog.analyze.beam_alpha_kappa_estimate import (
     BEAM_ALPHA_KAPPA_BY_BAND_COLUMNS,
+    DEFAULT_ALPHA_KAPPA_PROBE_TILES,
     BeamAlphaKappaEstimateConfig,
     BeamAlphaKappaEstimateResult,
     estimate_beam_alpha_kappa,
@@ -476,6 +477,7 @@ __all__ = [
     "summarize_forced_photometry",
     "BEAM_ALPHA_BY_BAND_COLUMNS",
     "BEAM_ALPHA_KAPPA_BY_BAND_COLUMNS",
+    "DEFAULT_ALPHA_KAPPA_PROBE_TILES",
     "BEAM_ALPHA_STEP_COLUMNS",
     "BeamAlphaBootstrapConfig",
     "BeamAlphaBootstrapResult",

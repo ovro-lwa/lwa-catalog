@@ -199,6 +199,91 @@ def test_detect_sources_on_healpix_tiles_tags_ipix(monkeypatch: pytest.MonkeyPat
     assert df.iloc[0]["BMIN"] == pytest.approx(0.1 * DEFAULT_BEAM_SCALE)
 
 
+def test_detect_sources_on_healpix_tiles_filters_ipix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nside_map = 8
+    nside_tile = 2
+    npix = 12 * nside_map**2
+    ratio = (nside_map // nside_tile) ** 2
+    healpix_map = np.ones(npix, dtype=np.float64)
+    weight = np.zeros(npix, dtype=np.float64)
+    # Enable two nested parents (0 and 1).
+    weight[0:ratio] = 1.0
+    weight[ratio : 2 * ratio] = 1.0
+    seen: list[int] = []
+
+    def _fake_pybdsf(hdu, *, bdsf_kw=None, return_background=False, **kwargs):
+        table = Table(
+            {
+                "RA": [float(hdu.header["CRVAL1"])],
+                "DEC": [float(hdu.header["CRVAL2"])],
+                "Peak_flux": [1.0],
+                "Total_flux": [1.0],
+                "E_Peak_flux": [0.1],
+                "E_Total_flux": [0.1],
+                "Maj": [0.1],
+                "Min": [0.1],
+                "PA": [0.0],
+                "DC_Maj": [0.1],
+                "DC_Min": [0.1],
+                "DC_PA": [0.0],
+                "Resid_Isl_rms": [0.01],
+                "Resid_Isl_mean": [0.0],
+                "S_Code": ["S"],
+            }
+        )
+        if return_background:
+            return table, np.zeros(hdu.data.shape, dtype=np.float32)
+        return table
+
+    monkeypatch.setattr(
+        "lwa_catalog.create.healpix_detect.run_pybdsf_on_hdu",
+        _fake_pybdsf,
+    )
+
+    # Patch iterator to record which tiles would run, then filter to ipix=1 only.
+    real_iter = iter_nested_tile_headers
+
+    def _tracking_iter(*args, **kwargs):
+        for ipix, hdr in real_iter(*args, **kwargs):
+            seen.append(int(ipix))
+            yield ipix, hdr
+
+    monkeypatch.setattr(
+        "lwa_healpix.iter_nested_tile_headers",
+        _tracking_iter,
+    )
+
+    df = detect_sources_on_healpix_tiles(
+        healpix_map,
+        weight,
+        nside_map=nside_map,
+        nside_tile=nside_tile,
+        overlap=0.0,
+        bmaj=0.1,
+        bmin=0.1,
+        restfreq_hz=5.5e7,
+        band="Full",
+        skip_empty=True,
+        tier_thresholds=((3.0, 5.0),),
+        tile_ipix=(1,),
+    )
+    assert set(df["tile_ipix"].astype(int)) == {1}
+    assert 0 in seen and 1 in seen  # iterator still yields both; filter skips 0
+    with pytest.raises(ValueError, match="tile_ipix must be non-empty"):
+        detect_sources_on_healpix_tiles(
+            healpix_map,
+            weight,
+            nside_map=nside_map,
+            nside_tile=nside_tile,
+            bmaj=0.1,
+            bmin=0.1,
+            tile_ipix=(),
+            tier_thresholds=((3.0, 5.0),),
+        )
+
+
 def test_detect_sources_on_healpix_tiles_beam_scale(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
