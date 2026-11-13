@@ -16,6 +16,9 @@ SURVEY_HIPS_URLS: dict[str, str] = {
     "VLSSR": "https://alasky.cds.unistra.fr/VLSSr/",
     "NVSS": "https://alasky.cds.unistra.fr/NVSS/intensity/",
     "VLASS": "https://vlass-dl.nrao.edu/vlass/HiPS/MedianStack/Quicklook/",
+    # GLEAM 72–103 MHz (IRAP/CADE mirror; closer to LWA than the 170–231 wide image).
+    # Override to …/ov-gso_P_GLEAM_170-231 for the catalog detection band.
+    "GLEAM": "https://alasky.cds.unistra.fr/IRAP/ov-gso_P_GLEAM_072-103/",
     # eROSITA eRASS1 RGB rate map (used as eRASS:3 visual QA base).
     "ERASS3": "https://erosita.mpe.mpg.de/erodat/static/hips/eRASS1_RGB_Rate_c010/",
 }
@@ -39,7 +42,7 @@ def survey_hips_url(
 ) -> str:
     """Return the HiPS root URL or Aladin ID for *survey*.
 
-    Known keys include ``VLSSR``, ``NVSS``, ``VLASS``, and ``ERASS3``.
+    Known keys include ``VLSSR``, ``NVSS``, ``VLASS``, ``GLEAM``, and ``ERASS3``.
 
     Parameters
     ----------

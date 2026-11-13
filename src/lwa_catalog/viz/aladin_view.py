@@ -16,18 +16,35 @@ if TYPE_CHECKING:
 # updating ``_target``/``_fov`` while Panel overlay refresh observes those
 # traits, which often looks like the sky spinning wildly after a drag. Catalog
 # sky widgets always disable it.
-ALADIN_INIT_DEFAULTS: dict[str, Any] = {"inertia": False}
+#
+# ``show_status_bar=False``: Aladin Lite's bottom bar reports every HiPS fetch
+# (default base ``P/DSS2/color``, plus our LWA tiles on pan). That message
+# blinks after the sky is already drawn; catalog notebooks use their own
+# Panel status panes instead.
+#
+# ``hips_list=[]``: skip Aladin Lite's built-in favorites (DSS2, 2MASS, …) so
+# DSS2 is not seeded into the layer cache unless the caller sets ``survey`` to
+# it (e.g. ``target_samples`` optical base).
+ALADIN_INIT_DEFAULTS: dict[str, Any] = {
+    "inertia": False,
+    "show_status_bar": False,
+    "hips_list": [],
+}
 
 
 def make_aladin(**kwargs: Any) -> Aladin:
     """Construct an ``ipyaladin.Aladin`` with catalog sky-view defaults.
 
-    Always sets ``inertia=False`` unless the caller overrides it. Extra kwargs
-    are forwarded to :class:`ipyaladin.Aladin` (survey, target, fov, …).
+    Always sets ``inertia=False``, ``show_status_bar=False``, and
+    ``hips_list=[]`` unless the caller overrides them. Extra kwargs are
+    forwarded to :class:`ipyaladin.Aladin` (survey, target, fov, …).
     """
     from ipyaladin import Aladin
 
     opts = {**ALADIN_INIT_DEFAULTS, **kwargs}
+    # Fresh list so Aladin Lite cannot mutate the module default in place.
+    if "hips_list" not in kwargs:
+        opts["hips_list"] = list(ALADIN_INIT_DEFAULTS["hips_list"])
     return Aladin(**opts)
 
 

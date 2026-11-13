@@ -16,7 +16,13 @@ from lwa_catalog.viz.aladin import (
     overlay_trace_members,
 )
 from lwa_catalog.viz.coordinates import format_coordinate_deg, parse_coordinate
-from lwa_catalog.constants import NVSS_BMAJ_DEG, VLASS_BMAJ_DEG, VLSSR_BMAJ_DEG
+from lwa_catalog.constants import (
+    GLEAM_BMAJ_DEG,
+    LODES_BMAJ_DEG,
+    NVSS_BMAJ_DEG,
+    VLASS_BMAJ_DEG,
+    VLSSR_BMAJ_DEG,
+)
 from lwa_catalog.viz.aladin import catalog_with_survey_beam
 from lwa_catalog.viz.hips import (
     default_hips_survey,
@@ -133,6 +139,8 @@ def test_make_aladin_disables_inertia_by_default() -> None:
     from lwa_catalog.viz.aladin_view import ALADIN_INIT_DEFAULTS, make_aladin
 
     assert ALADIN_INIT_DEFAULTS.get("inertia") is False
+    assert ALADIN_INIT_DEFAULTS.get("show_status_bar") is False
+    assert ALADIN_INIT_DEFAULTS.get("hips_list") == []
     captured: dict = {}
 
     class _FakeAladin:
@@ -142,12 +150,15 @@ def test_make_aladin_disables_inertia_by_default() -> None:
     with patch("ipyaladin.Aladin", _FakeAladin):
         make_aladin(survey="mock://s", target="0 0", fov=10.0, height=200)
     assert captured["inertia"] is False
+    assert captured["show_status_bar"] is False
+    assert captured["hips_list"] == []
     assert captured["fov"] == 10.0
 
     captured.clear()
     with patch("ipyaladin.Aladin", _FakeAladin):
-        make_aladin(inertia=True, fov=5.0)
+        make_aladin(inertia=True, show_status_bar=True, fov=5.0)
     assert captured["inertia"] is True
+    assert captured["show_status_bar"] is True
 
 
 def test_survey_hips_url_known() -> None:
@@ -157,6 +168,9 @@ def test_survey_hips_url_known() -> None:
     vlass = survey_hips_url("VLASS")
     assert "MedianStack" in vlass
     assert vlass.endswith("/")
+    gleam = survey_hips_url("GLEAM")
+    assert "GLEAM" in gleam
+    assert gleam.endswith("/")
 
 
 def test_survey_hips_url_override_and_aladin_id() -> None:
@@ -196,6 +210,8 @@ def test_catalog_with_survey_beam_lwa_preserves_shapes() -> None:
         ("VLSSR", VLSSR_BMAJ_DEG),
         ("NVSS", NVSS_BMAJ_DEG),
         ("VLASS", VLASS_BMAJ_DEG),
+        ("LoDeSS", LODES_BMAJ_DEG),
+        ("GLEAM", GLEAM_BMAJ_DEG),
     ],
 )
 def test_catalog_with_survey_beam_circular(survey: str, beam: float) -> None:
