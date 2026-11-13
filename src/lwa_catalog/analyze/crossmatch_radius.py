@@ -12,6 +12,8 @@ from lwa_catalog.analyze.reliability import resolve_bmaj
 from lwa_catalog.constants import (
     ERASS3_POSITION_ERROR_DEFAULT_ARCSEC,
     FREUND2022_POSITION_ERROR_DEFAULT_ARCSEC,
+    GLEAM_BMAJ_ARCSEC,
+    GLEAM_POSITION_ERROR_DEFAULT_ARCSEC,
     LODES_BMAJ_ARCSEC,
     LODES_POSITION_ERROR_DEFAULT_ARCSEC,
     MILLIQUAS_POSITION_ERROR_DEFAULT_ARCSEC,
@@ -111,6 +113,14 @@ LODES_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
 LODES_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
     mode="beam",
     default_arcsec=LODES_BMAJ_ARCSEC,
+)
+GLEAM_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
+    mode="localization",
+    default_arcsec=GLEAM_POSITION_ERROR_DEFAULT_ARCSEC,
+)
+GLEAM_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
+    mode="beam",
+    default_arcsec=GLEAM_BMAJ_ARCSEC,
 )
 RFC_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
     mode="localization",

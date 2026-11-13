@@ -184,11 +184,12 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   separate rows. Transitive hub chaining through a third tile (`A—X—B`) is
   accepted deferred debt. Output is LST-merged-shaped Parquets for
   `build_global_metacatalog`. Optional **cross-band forced fill**
-  (`create/crossband_forced_fill.py`): post–tile-merge / pre-fusion
-  neighbor-seeded forced Peak+Total on HEALPix cutouts — gap **insert**
-  (reverse-confused / missing near-position detect) and phot-dip
-  **replace** (unconfused Peak step). Not inside multi-tier merge. Healpix
-  detect notebook: `ENABLE_CROSSBAND_FORCED_FILL` (default off).
+  (`create/crossband_forced_fill.py`): neighbor-seeded forced Peak+Total on
+  HEALPix cutouts — gap **insert** (reverse-confused / missing near-position
+  detect) and phot-dip **replace** (unconfused Peak step). Not inside
+  multi-tier merge. Lives in **`metacatalog_reliability.ipynb`**
+  (`ENABLE_CROSSBAND_FORCED_FILL`, default off): updates `metacatalog_lst_*`,
+  re-fuses, then quality flags. Detect notebooks fuse tile-merged LST as-is.
   Optional **prebuilt maps** (`USE_PREBUILT_HEALPIX`): discover
   `HEALPIX_ROOT/{band}/I/healpix/` via `create.healpix_prebuilt` (infer bands
   from `*MHz` dirs; prefer `ssub-rst8` when the jybeam glob matches twice),
@@ -349,6 +350,7 @@ External catalogs live under `REFERENCE_CATALOGS_DIR = Path("/fast/claw/catalogs
 | VLASS | ~3 GHz | 2.5″ | CIRADA QL component CSV |
 | LoDeSS | 15–30 MHz (ν₀≈23 MHz) | ~45″ | `/fast/claw/LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits` |
 | RFC 2026c | VLBI (S–K) | mas | `/fast/claw/rfc_2026c_cat.txt` (+ `rfc_2026c_cross_match.txt` NED `type`) |
+| GLEAM EG | 72–231 MHz (20×) | ~2′ | `/fast/claw/GLEAM_EGC_v2.fits` (CDS VIII/100; Dec≤+30°) |
 | eRASS:3 | X-ray | `POS_ERR` (~1–12″) | `eRASSc3_Main_LS10_Public_*.fits` |
 | NED-LVS | hosts | position+diameter | `NEDLVS_current.fits` |
 | MilliQUAS | optical AGN | fixed 1″ | `/fast/claw/milliquas.dat` (FITS) |
@@ -394,6 +396,12 @@ Photometric attach (`attach_radio_surveys_to_metacatalog` in
   `association_rows_from_match` / `ASSOCIATION_SPEC_RFC` (`class_native` =
   NED `type`; blank → harmonized `radio`). **Not** a photometric SED attach
   band.
+- GLEAM load/match/attach lives in `analyze/gleam.py` (`load_gleam_catalog`,
+  `match_catalog_to_gleam`, `attach_gleam_to_metacatalog`): Dec≤+30°
+  footprint; match once then copy all 20 narrowband
+  `Peak_flux_GLEAMnn` / `Total_flux_GLEAMnn` (+ errors); associations via
+  `association_rows_from_survey_attach(..., "GLEAM")`. Download CDS
+  `GLEAM_EGC_v2.fits` once (China-VO mirror if Strasbourg fails).
 - eRASS:3 load/match lives in `analyze/erass3.py`; notebook
   `xray_crossmatch.ipynb`. Footprint cut is **Galactic**
   `l ∈ [180°, 360°)` (western Gal sky), not RA-west. Match radius uses
@@ -584,14 +592,14 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `ovro_lwa_metacatalog.ipynb` | RGB detect → LST merge → fusion; Fit quality section |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same on 15 MHz subbands |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd experiment vs LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix → nested TAN tiles → residual-chained 3-tier PyBDSF (C3); hourly `coadd_fits` or `USE_PREBUILT_HEALPIX` mosaic `*MHz/I/healpix/` (prefer `ssub-rst8`) rewritten as MAP+WEIGHT under `OUTPUT_DIR` with Primary beam/`RESTFRQ`; `(α,κ)` from `beam_scale.json` / `BEAM_SCALE`; BPA=90°; `merge_tile_metacatalog`; optional cross-band forced fill → band fusion |
+| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix → nested TAN tiles → residual-chained 3-tier PyBDSF (C3); hourly `coadd_fits` or `USE_PREBUILT_HEALPIX` mosaic `*MHz/I/healpix/` (prefer `ssub-rst8`) rewritten as MAP+WEIGHT under `OUTPUT_DIR` with Primary beam/`RESTFRQ`; `(α,κ)` from `beam_scale.json` / `BEAM_SCALE`; BPA=90°; `merge_tile_metacatalog` → band fusion (forced fill is in reliability) |
 | `beam_alpha_kappa_estimate.ipynb` | Size α + shared κ (+ optional zenith VLSSR hybrid) → `beam_scale.json` |
 | `beam_alpha_bootstrap.ipynb` | Scalar VLSSR + neighbor Total/Peak α → `beam_alpha_by_band.parquet` |
 | `metacatalog_query.ipynb` | Browse, sky overlay, **band-merge source trace**, Mahalanobis |
-| `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + **band-merge** source trace |
+| `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + **band-merge** source trace; optional cross-band forced fill (`ENABLE_CROSSBAND_FORCED_FILL`) before flags |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
 | `metacatalog_spectral_modeling.ipynb` | Prefer radio spectral product or create it; Taylor SED (LWA ± surveys) |
-| `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS/LoDeSS → `metacatalog_spectral.parquet` + unique associations; RFC position QA + NED-type classification associations |
+| `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS/LoDeSS/GLEAM → `metacatalog_spectral.parquet` + unique associations; RFC position QA + NED-type classification associations |
 | `optical_crossmatch.ipynb` | NED-LVS + MilliQUAS → unique rows in `metacatalog_associations.parquet` |
 | `xray_crossmatch.ipynb` | eRASS:3 / Freund / Xu / 2RXS → associations; in-memory class pie + sky QA |
 | `metacatalog_classifications.ipynb` | Harmonize associations, flag conflicts, class pies / stacked bars |
@@ -895,8 +903,9 @@ plane structure.
   fraction vs deep-first M→S fuse with little dropout cost on pilot tiles.
   **Ship residual-chained 3-tier** as healpix detect default:
   `(9,11)→(5,7)→(2,3)` on obs then `obs−bkg−model` (no clip); drop notebook
-  Stage-3 append; keep `ENABLE_CROSSBAND_FORCED_FILL` opt-in; beam from
-  `beam_scale.json`. → `experiment-multi-tier-pybdsf-threshold-order.md`,
+  Stage-3 append; keep `ENABLE_CROSSBAND_FORCED_FILL` opt-in in
+  `metacatalog_reliability.ipynb`; beam from `beam_scale.json`. →
+  `experiment-multi-tier-pybdsf-threshold-order.md`,
   `plan-multi-tier-scheme-b-residual.md`,
   `implement-multi-tier-scheme-b-residual.md`
 
@@ -918,8 +927,8 @@ this pilot).
 **Keep residual-chained 3-tier (C3 / library default).** Same-map B is
 worse on complex and dropouts; do not restore Stage-3 append for that.
 Optional length-2 residual C only if runtime dominates. Forced fill stays
-post–tile-merge / pre-fusion, opt-in. →
-`research-scheme-c-residual-multitier.md`,
+opt-in in `metacatalog_reliability.ipynb` (LST rewrite + re-fuse before
+quality). → `research-scheme-c-residual-multitier.md`,
 `experiment-scheme-c-vs-b-residual-2tier.md` (harnesses
 `experiment_scheme_c_vs_b_residual_2tier.py`,
 `experiment_scheme_c_residual_hips.py`).
@@ -955,11 +964,12 @@ never signed off):
   `quality_flag`.
 - HiPS overlay Phase 4: tier-diff overlays, MOC footprints.
 - Persist member-level tables instead of rematching.
-- Validate cross-band forced fill on `/fast/claw` trees (426/861 recovery +
-  false-positive rate on steep smooth SEDs) before enabling
-  `ENABLE_CROSSBAND_FORCED_FILL` by default; island undercount (451) still
-  needs island-sum / `n_assoc>1` SED gates and/or optional tier-3 forced
-  bright-`M` collapse (`plan` not yet shipped).
+- Validate cross-band forced fill on `/fast/claw` trees via
+  `metacatalog_reliability.ipynb` (426/861 recovery + false-positive rate on
+  steep smooth SEDs) before enabling `ENABLE_CROSSBAND_FORCED_FILL` by
+  default; island undercount (451) still needs island-sum / `n_assoc>1` SED
+  gates and/or optional tier-3 forced bright-`M` collapse (`plan` not yet
+  shipped).
 - Full-sky / one-band smoke of residual-chained defaults
   (`DETECT_TIER_THRESHOLDS` / C3) vs legacy same-map+Stage3 trees beyond the
   2026-11 four-tile pilot (`frac_M`, `detect_stage` mix, VLSSR);

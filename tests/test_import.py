@@ -131,6 +131,30 @@ def test_analyze_lodess_exports() -> None:
     assert hasattr(LodesMatchResult, "__dataclass_fields__")
 
 
+def test_analyze_gleam_exports() -> None:
+    from lwa_catalog.analyze import (
+        GLEAM_ASSOC_BAND,
+        GLEAM_REFERENCE_RADIUS_LOCALIZATION,
+        GleamMatchConfig,
+        GleamMatchResult,
+        attach_gleam_to_metacatalog,
+        load_gleam_catalog,
+        match_catalog_to_gleam,
+        summarize_gleam_match,
+    )
+    from lwa_catalog.constants import GLEAM_BANDS
+
+    assert callable(load_gleam_catalog)
+    assert callable(match_catalog_to_gleam)
+    assert callable(attach_gleam_to_metacatalog)
+    assert callable(summarize_gleam_match)
+    assert GLEAM_ASSOC_BAND == "GLEAM"
+    assert GleamMatchConfig().dec_max_deg == 30.0
+    assert hasattr(GleamMatchResult, "__dataclass_fields__")
+    assert GLEAM_REFERENCE_RADIUS_LOCALIZATION.mode == "localization"
+    assert len(GLEAM_BANDS) == 20
+
+
 def test_analyze_rfc_exports() -> None:
     from lwa_catalog.analyze import (
         ASSOCIATION_SPEC_RFC,

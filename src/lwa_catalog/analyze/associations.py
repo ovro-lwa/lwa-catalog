@@ -52,6 +52,7 @@ HARMONIZED_CLASS_MAP: dict[str, str] = {
     "NVSS": "radio",
     "VLASS": "radio",
     "LoDeSS": "radio",
+    "GLEAM": "radio",
     # RFC NED ``type`` examples (actual logic is catalog-aware for RFC).
     "QSO": "agn",
     "QSOc": "agn",
@@ -62,7 +63,13 @@ HARMONIZED_CLASS_MAP: dict[str, str] = {
     "XrayS": "xray",
 }
 
-RADIO_ASSOCIATION_CATALOGS: tuple[str, ...] = ("VLSSR", "NVSS", "VLASS", "LoDeSS")
+RADIO_ASSOCIATION_CATALOGS: tuple[str, ...] = (
+    "VLSSR",
+    "NVSS",
+    "VLASS",
+    "LoDeSS",
+    "GLEAM",
+)
 
 
 @dataclass(frozen=True, slots=True)

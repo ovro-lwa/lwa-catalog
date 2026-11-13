@@ -9,13 +9,21 @@ import numpy as np
 import pandas as pd
 
 from lwa_catalog.constants import (
+    GLEAM_BANDS,
     SUBBAND_BANDS_MHZ,
     SUBBAND_REF_FREQ_MHZ,
     band_frequency_hz,
 )
 
 # External survey bands optionally attached before spectral modeling.
-SURVEY_SED_BANDS: tuple[str, ...] = ("LoDeSS", "VLSSR", "NVSS", "VLASS")
+# GLEAM narrowbands appear when Peak/Total_flux_GLEAMnn columns exist.
+SURVEY_SED_BANDS: tuple[str, ...] = (
+    "LoDeSS",
+    "VLSSR",
+    "NVSS",
+    "VLASS",
+    *GLEAM_BANDS,
+)
 
 FluxKind = Literal["total", "peak"]
 _MIN_TAYLOR_TERMS = 2

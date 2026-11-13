@@ -5,13 +5,14 @@
 | `ovro_lwa_metacatalog.ipynb` | Discover FITS → PyBDSF → LST merge → global metacatalog (Parquet) |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same pipeline on 15 frequency subbands (18–82 MHz) |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd hourly Full-band FITS to one SIN mosaic → PyBDSF → compare to LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix (`nside=2048`) → nested TAN tiles → residual-chained 3-tier PyBDSF / C3; hourly `coadd_fits` **or** `USE_PREBUILT_HEALPIX` mosaic dirs (`*MHz/I/healpix/`, prefer `ssub-rst8`) rewritten as MAP+WEIGHT under `OUTPUT_DIR` (beam/`RESTFRQ` from mosaic Primary); `(α,κ)` from `beam_scale.json`; attach BPA=90°; optional cross-band forced fill |
+| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix (`nside=2048`) → nested TAN tiles → residual-chained 3-tier PyBDSF / C3; hourly `coadd_fits` **or** `USE_PREBUILT_HEALPIX` mosaic dirs (`*MHz/I/healpix/`, prefer `ssub-rst8`) rewritten as MAP+WEIGHT under `OUTPUT_DIR` (beam/`RESTFRQ` from mosaic Primary); `(α,κ)` from `beam_scale.json`; attach BPA=90°; fuse tile-merged LST (forced fill is in reliability) |
 | `ovro_lwa_healpix_36mhz_map_compare.ipynb` | 36 MHz only: tile-detect xhall Galactic-masked HEALPix vs current coadd; toggle HiPS + catalogs (no fusion) |
-| `beam_alpha_kappa_estimate.ipynb` | Size α + shared Dec κ (+ optional zenith VLSSR hybrid) → `beam_scale.json` |
+| `beam_alpha_kappa_probe.ipynb` | Fast size-only `(α, κ)` prior on Dec-ladder probe tiles (`α=1` detect, no VLSSR) → `beam_scale.json` for full-sky detect |
+| `beam_alpha_kappa_estimate.ipynb` | Post-crossmatch validation: re-estimate `(α, κ)` on full-sky tiles (+ optional zenith VLSSR hybrid); Peak/Total comparison plots |
 | `beam_alpha_bootstrap.ipynb` | Scalar VLSSR-anchored + neighbor Total/Peak α → `beam_alpha_by_band.parquet` |
 | `metacatalog_sky_view.ipynb` | Load quality metacatalog and explore on the sky |
 | `metacatalog_query.ipynb` | Browse all Parquet catalogs, sortable table, nearest-source coordinate query |
-| `metacatalog_reliability.ipynb` | Build cleaned/gold reliability tiers from metacatalog + LST tree |
+| `metacatalog_reliability.ipynb` | `quality_flag` / HiPS / subsets; optional cross-band forced fill (`ENABLE_CROSSBAND_FORCED_FILL`) then re-fuse before flags |
 | `metacatalog_vlssr_qa.ipynb` | VLSSR cross-match QA — Blue completeness, over-split, multiplicity diagnostics |
 | `metacatalog_spectral_modeling.ipynb` | Post-hoc Taylor spectral fits — BIC model selection, SED diagnostics |
 | `metacatalog_nedlvs_crossmatch.ipynb` | NED-LVS cross-match — galaxy host association, recovery vs distance |

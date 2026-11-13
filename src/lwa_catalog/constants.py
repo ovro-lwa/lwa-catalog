@@ -69,6 +69,45 @@ RFC_CROSS_MATCH_DEFAULT_PATH: Path = Path("/fast/claw/rfc_2026c_cross_match.txt"
 # Fallback 1σ when eRA/eDE are missing (~few mas; match is LWA-radius dominated).
 RFC_POSITION_ERROR_DEFAULT_ARCSEC: float = 0.01
 
+# GLEAM Extragalactic Catalog (Hurley-Walker et al. 2017; CDS VIII/100).
+# Dec ≤ +30°, ~2′ resolution, 20 narrowband fluxes 72–231 MHz. Download once:
+#   curl -L -o /fast/claw/GLEAM_EGC_v2.fits.gz \
+#     http://vizier.china-vo.org/ftp/cats/viii/100/GLEAM_EGC_v2.fits.gz
+#   gunzip -f /fast/claw/GLEAM_EGC_v2.fits.gz
+GLEAM_DEFAULT_PATH: Path = Path("/fast/claw/GLEAM_EGC_v2.fits")
+GLEAM_DEC_MAX_DEG: float = 30.0
+GLEAM_BMAJ_ARCSEC: float = 120.0
+GLEAM_BMAJ_DEG: float = GLEAM_BMAJ_ARCSEC / 3600.0
+# Fallback 1σ when per-source position errors are missing.
+GLEAM_POSITION_ERROR_DEFAULT_ARCSEC: float = 3.0
+# Narrowband channel midpoints (MHz); wide 170–231 MHz is not attached.
+GLEAM_NARROW_MHZ: tuple[int, ...] = (
+    76,
+    84,
+    92,
+    99,
+    107,
+    115,
+    122,
+    130,
+    143,
+    151,
+    158,
+    166,
+    174,
+    181,
+    189,
+    197,
+    204,
+    212,
+    220,
+    227,
+)
+GLEAM_BANDS: tuple[str, ...] = tuple(f"GLEAM{mhz}" for mhz in GLEAM_NARROW_MHZ)
+GLEAM_BAND_FREQ_HZ: dict[str, float] = {
+    f"GLEAM{mhz}": float(mhz) * 1e6 for mhz in GLEAM_NARROW_MHZ
+}
+
 # eROSITA eRASS:3 Main + Legacy Survey DR10 counterparts (Merloni et al.;
 # German / western Galactic hemisphere, Galactic longitude 180°–360°).
 ERASS3_DEFAULT_PATH: Path = Path(
@@ -264,6 +303,7 @@ BAND_FREQ_HZ: dict[str, float] = {
     "NVSS": NVSS_FREQ_HZ,
     "VLASS": VLASS_FREQ_HZ,
     "LoDeSS": LODES_FREQ_HZ,
+    **GLEAM_BAND_FREQ_HZ,
 }
 
 # (label, band_lo_or_a, band_hi_or_b) for α = log(S_a/S_b) / log(ν_a/ν_b).
