@@ -9,12 +9,13 @@ import pytest
 from lwa_catalog.analyze.spectral import (
     SpectralFitConfig,
     evaluate_taylor_spectrum,
+    expand_survey_fit_bands,
     fit_metacatalog_spectra,
     fit_single_spectrum,
     gather_band_flux_measurements,
     summarize_spectral_fit,
 )
-from lwa_catalog.constants import SUBBAND_BANDS_MHZ, SUBBAND_REF_FREQ_MHZ
+from lwa_catalog.constants import GLEAM_BANDS, SUBBAND_BANDS_MHZ, SUBBAND_REF_FREQ_MHZ
 
 
 def _power_law_flux(nu_hz: np.ndarray, *, alpha: float, s_ref: float, nu_ref_hz: float) -> np.ndarray:
@@ -95,6 +96,16 @@ def test_fit_curvature_selects_three_terms() -> None:
     assert fit.coeffs[2] == pytest.approx(a2, abs=1e-6)
 
 
+def test_expand_survey_fit_bands_gleam_alias() -> None:
+    assert expand_survey_fit_bands(("NVSS",)) == ("NVSS",)
+    expanded = expand_survey_fit_bands(("NVSS", "GLEAM", "VLASS"))
+    assert expanded[0] == "NVSS"
+    assert expanded[-1] == "VLASS"
+    assert expanded[1:-1] == GLEAM_BANDS
+    # Explicit narrowband + alias does not duplicate.
+    assert expand_survey_fit_bands(("GLEAM", "GLEAM76")) == GLEAM_BANDS
+
+
 def test_resolve_sed_bands_includes_survey_columns() -> None:
     from lwa_catalog.analyze.spectral import resolve_sed_bands
 
@@ -110,6 +121,53 @@ def test_resolve_sed_bands_includes_survey_columns() -> None:
     assert "55MHz" in bands
     assert "NVSS" in bands
     assert "VLSSR" not in bands  # column absent
+
+
+def test_resolve_sed_bands_expands_gleam_alias() -> None:
+    from lwa_catalog.analyze.spectral import resolve_sed_bands
+
+    row = pd.Series(
+        {
+            "Total_flux_55MHz": 1.0,
+            "Total_flux_GLEAM76": 0.9,
+            "Total_flux_GLEAM227": 0.3,
+            "Total_flux_GLEAM": 5.0,  # wide sentinel must not become an SED band
+        }
+    )
+    bands = resolve_sed_bands(row, survey_bands=("GLEAM",))
+    assert "55MHz" in bands
+    assert "GLEAM76" in bands
+    assert "GLEAM227" in bands
+    assert "GLEAM" not in bands
+
+
+def test_gather_gleam_uses_shared_n_confused() -> None:
+    row = pd.Series(
+        {
+            "Total_flux_55MHz": 1.0,
+            "Total_flux_GLEAM76": 0.9,
+            "Total_flux_GLEAM84": 0.85,
+            "n_confused_55MHz": 1,
+            "n_confused_GLEAM": 1,
+        }
+    )
+    _, _, _, used = gather_band_flux_measurements(
+        row,
+        bands=("55MHz", "GLEAM76", "GLEAM84"),
+        flux_kind="total",
+        unconfused_only=True,
+    )
+    assert used == ("55MHz", "GLEAM76", "GLEAM84")
+
+    row_confused = row.copy()
+    row_confused["n_confused_GLEAM"] = 2
+    _, _, _, used_conf = gather_band_flux_measurements(
+        row_confused,
+        bands=("55MHz", "GLEAM76", "GLEAM84"),
+        flux_kind="total",
+        unconfused_only=True,
+    )
+    assert used_conf == ("55MHz",)
 
 
 def test_gather_band_flux_origin_fallback() -> None:

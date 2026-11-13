@@ -170,6 +170,11 @@ def test_attach_gleam_writes_narrowband_fluxes(tmp_path) -> None:
     assert float(row["Peak_flux_GLEAM76"]) == pytest.approx(1.5)
     assert float(row["Total_flux_GLEAM76"]) == pytest.approx(1.8)
     assert float(row["Peak_flux_GLEAM227"]) == pytest.approx(0.4)
+    # Wide 170–231 MHz Peak/Total must not be attached as SED channels.
+    assert "Peak_flux_GLEAM" not in out.columns
+    assert "Total_flux_GLEAM" not in out.columns
+    assert "E_Peak_flux_GLEAM" not in out.columns
+    assert "E_Total_flux_GLEAM" not in out.columns
     assert "GLEAM" in str(row["bands_present"]).split(",")
 
     assoc = association_rows_from_survey_attach(out, GLEAM_ASSOC_BAND)
@@ -181,4 +186,5 @@ def test_attach_gleam_writes_narrowband_fluxes(tmp_path) -> None:
     bands = resolve_sed_bands(out.columns)
     assert "GLEAM76" in bands
     assert "GLEAM227" in bands
+    assert "GLEAM" not in bands
     assert set(GLEAM_BANDS).issuperset({"GLEAM76", "GLEAM227"})

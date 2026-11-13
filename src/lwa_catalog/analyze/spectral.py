@@ -17,6 +17,8 @@ from lwa_catalog.constants import (
 
 # External survey bands optionally attached before spectral modeling.
 # GLEAM narrowbands appear when Peak/Total_flux_GLEAMnn columns exist.
+# Sentinel ``GLEAM`` (assoc only) is not an SED channel — expand via
+# :func:`expand_survey_fit_bands`.
 SURVEY_SED_BANDS: tuple[str, ...] = (
     "LoDeSS",
     "VLSSR",
@@ -24,6 +26,11 @@ SURVEY_SED_BANDS: tuple[str, ...] = (
     "VLASS",
     *GLEAM_BANDS,
 )
+
+# Alias in SURVEY_FIT_BANDS / notebooks → all GLEAM narrowband SED channels.
+_SURVEY_FIT_BAND_ALIASES: dict[str, tuple[str, ...]] = {
+    "GLEAM": GLEAM_BANDS,
+}
 
 FluxKind = Literal["total", "peak"]
 _MIN_TAYLOR_TERMS = 2
@@ -72,6 +79,27 @@ def _flux_column_names(flux_kind: FluxKind) -> tuple[str, str]:
     return "Total_flux", "E_Total_flux"
 
 
+def expand_survey_fit_bands(survey_bands: Sequence[str]) -> tuple[str, ...]:
+    """Expand survey aliases into concrete SED band labels (deduped, order kept).
+
+    ``\"GLEAM\"`` expands to all :data:`~lwa_catalog.constants.GLEAM_BANDS`
+    narrowbands. Other labels pass through unchanged. Use this on notebook
+    ``SURVEY_FIT_BANDS`` before checking ``{flux}_{band}`` columns.
+    """
+    out: list[str] = []
+    for band in survey_bands:
+        key = str(band)
+        expanded = _SURVEY_FIT_BAND_ALIASES.get(key)
+        if expanded is None:
+            if key not in out:
+                out.append(key)
+            continue
+        for sub in expanded:
+            if sub not in out:
+                out.append(sub)
+    return tuple(out)
+
+
 def resolve_sed_bands(
     columns: pd.Series | pd.Index | Sequence[str],
     *,
@@ -83,6 +111,7 @@ def resolve_sed_bands(
 
     Used by SED plots so LoDeSS/VLSSR/NVSS/VLASS points appear when those
     columns exist on a radio-enriched ``metacatalog_spectral.parquet`` row.
+    Survey aliases such as ``GLEAM`` are expanded before the column check.
     """
     flux_prefix, _ = _flux_column_names(flux_kind)
     if isinstance(columns, pd.Series):
@@ -90,15 +119,25 @@ def resolve_sed_bands(
     else:
         names = {str(name) for name in columns}
     out: list[str] = []
-    for band in (*lwa_bands, *survey_bands):
+    for band in (*lwa_bands, *expand_survey_fit_bands(survey_bands)):
         if f"{flux_prefix}_{band}" in names and band not in out:
             out.append(str(band))
     return tuple(out)
 
 
+def _confused_column_for_band(band: str) -> str:
+    """Column name for reverse-confusion of *band*.
+
+    GLEAM narrowbands share the sentinel ``n_confused_GLEAM`` from attach.
+    """
+    if band in GLEAM_BANDS:
+        return "n_confused_GLEAM"
+    return f"n_confused_{band}"
+
+
 def _band_is_unconfused(row: pd.Series, band: str) -> bool:
-    """True when ``n_confused_{band}`` is present and equals 1."""
-    conf_col = f"n_confused_{band}"
+    """True when the band's ``n_confused_*`` column is present and equals 1."""
+    conf_col = _confused_column_for_band(band)
     if conf_col not in row.index:
         return False
     n_conf = pd.to_numeric(row[conf_col], errors="coerce")

@@ -42,11 +42,9 @@ from lwa_catalog.create.merge import (
 # Sentinel band key for ``n_assoc_GLEAM`` / associations (not a SED channel).
 GLEAM_ASSOC_BAND: str = "GLEAM"
 
+# Association metadata only — do not attach wide 170–231 MHz Peak/Total as
+# ``Peak_flux_GLEAM`` / ``Total_flux_GLEAM``. Narrowband fluxes fan out below.
 _GLEAM_ATTACH_CORE_FIELDS: tuple[str, ...] = (
-    "Peak_flux",
-    "Total_flux",
-    "E_Peak_flux",
-    "E_Total_flux",
     "RA",
     "DEC",
     "Component_name",
@@ -626,9 +624,11 @@ def attach_gleam_to_metacatalog(
     """Attach GLEAM as photometric bands after a single position match.
 
     Writes ``n_assoc_GLEAM`` / ``n_confused_GLEAM`` / ``RA_GLEAM`` / ``DEC_GLEAM``
-    / wide ``Peak_flux_GLEAM`` plus ``Peak_flux_GLEAMnn`` / ``Total_flux_GLEAMnn``
-    (+ errors) for all 20 narrowbands from the same matched GLEAM row.
-    Unmatched survey rows are discarded. LWA astrometry is unchanged.
+    / ``Component_name_GLEAM`` plus ``Peak_flux_GLEAMnn`` / ``Total_flux_GLEAMnn``
+    (+ errors) for all 20 narrowbands from the same matched GLEAM row. The wide
+    170–231 MHz Peak/Total is used only for the match representative pick and is
+    **not** written as ``Peak_flux_GLEAM`` / ``Total_flux_GLEAM``. Unmatched
+    survey rows are discarded. LWA astrometry is unchanged.
     """
     if reference_radius is None:
         reference_radius = GLEAM_REFERENCE_RADIUS_LOCALIZATION
