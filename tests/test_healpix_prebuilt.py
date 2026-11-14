@@ -9,7 +9,9 @@ import pytest
 
 from lwa_catalog.create.healpix_prebuilt import (
     DEFAULT_PREBUILT_HEALPIX_GLOB,
+    FeatherCompanions,
     beam_and_restfreq_from_healpix_fits,
+    companion_maps_for_jybeam,
     discover_prebuilt_healpix_maps,
     list_mhz_subband_dirs,
     load_prebuilt_healpix_map,
@@ -187,6 +189,80 @@ def test_beam_and_restfreq_missing_bmaj(tmp_path: Path) -> None:
     fits.HDUList([primary]).writeto(path)
     with pytest.raises(ValueError, match="BMAJ/BMIN"):
         beam_and_restfreq_from_healpix_fits(path)
+
+
+def _feather_name(band: str, kind: str, *, ssub: bool) -> str:
+    """FEATHER3 product name; ``psfmap``/``pkcorr`` live under ``_pbcorr_coadd``."""
+    ssub_part = "_ssub-rst8" if ssub else ""
+    coadd = "pbcorr_coadd" if kind in ("psfmap", "pkcorr") else "coadd"
+    product = "jybeam_feather" if kind == "jybeam" else f"feather_{kind}"
+    return (
+        f"{band}_I_deep_Taper_Robust-0.75_{coadd}{ssub_part}_mosaic_{product}_allsky_"
+        f"20241218-20251029_N024.fits"
+    )
+
+
+def _feather_set(healpix: Path, band: str, *, ssub: bool, kinds=("pbmap", "psfmap", "pkcorr")):
+    jybeam = _touch(healpix / _feather_name(band, "jybeam", ssub=ssub))
+    for kind in kinds:
+        _touch(healpix / _feather_name(band, kind, ssub=ssub))
+    return jybeam
+
+
+def test_companion_maps_ssub(tmp_path: Path) -> None:
+    band = "78MHz"
+    healpix = _band_healpix_dir(tmp_path, band)
+    _feather_set(healpix, band, ssub=False)
+    jybeam = _feather_set(healpix, band, ssub=True)
+    got = companion_maps_for_jybeam(jybeam)
+    assert got == FeatherCompanions(
+        pbmap=healpix / _feather_name(band, "pbmap", ssub=True),
+        psfmap=healpix / _feather_name(band, "psfmap", ssub=True),
+        pkcorr=healpix / _feather_name(band, "pkcorr", ssub=True),
+    )
+
+
+def test_companion_maps_plain(tmp_path: Path) -> None:
+    band = "18MHz"
+    healpix = _band_healpix_dir(tmp_path, band)
+    jybeam = _feather_set(healpix, band, ssub=False)
+    got = companion_maps_for_jybeam(jybeam)
+    assert got is not None
+    assert got.psfmap.name == _feather_name(band, "psfmap", ssub=False)
+    assert "_pbcorr_coadd_mosaic_feather_psfmap_" in got.psfmap.name
+    assert "_coadd_mosaic_feather_pbmap_" in got.pbmap.name
+    assert "pbcorr" not in got.pbmap.name
+
+
+def test_companion_maps_require_same_variant(tmp_path: Path) -> None:
+    band = "73MHz"
+    healpix = _band_healpix_dir(tmp_path, band)
+    _feather_set(healpix, band, ssub=False)
+    jybeam = _feather_set(healpix, band, ssub=True, kinds=("pbmap",))
+    with pytest.raises(FileNotFoundError) as err:
+        companion_maps_for_jybeam(jybeam)
+    message = str(err.value)
+    assert "psfmap" in message
+    assert "pkcorr" in message
+    assert "pbmap:" not in message
+
+
+def test_companion_maps_require_pkcorr(tmp_path: Path) -> None:
+    band = "59MHz"
+    healpix = _band_healpix_dir(tmp_path, band)
+    jybeam = _feather_set(healpix, band, ssub=False, kinds=("pbmap", "psfmap"))
+    with pytest.raises(FileNotFoundError, match="pkcorr"):
+        companion_maps_for_jybeam(jybeam)
+
+
+def test_companion_maps_missing_psfmap_or_not_feather(tmp_path: Path) -> None:
+    band = "41MHz"
+    healpix = _band_healpix_dir(tmp_path, band)
+    jybeam = _feather_set(healpix, band, ssub=False, kinds=("pbmap", "pkcorr"))
+    with pytest.raises(FileNotFoundError, match="psfmap"):
+        companion_maps_for_jybeam(jybeam)
+    other = _touch(tmp_path / "healpix_41MHz_nside2048.fits")
+    assert companion_maps_for_jybeam(other) is None
 
 
 def test_load_prebuilt_ring_to_nested(tmp_path: Path) -> None:

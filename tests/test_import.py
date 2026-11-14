@@ -360,10 +360,13 @@ def test_analyze_spectral_exports() -> None:
         fit_metacatalog_spectra,
         fit_single_spectrum,
         gather_band_flux_measurements,
+        resolve_flux_scale,
         summarize_spectral_fit,
     )
     from lwa_catalog.constants import SUBBAND_REF_FREQ_MHZ
 
+    assert callable(resolve_flux_scale)
+    assert SpectralFitConfig().flux_scale == "auto"
     assert callable(fit_metacatalog_spectra)
     assert callable(fit_single_spectrum)
     assert callable(gather_band_flux_measurements)
@@ -468,6 +471,53 @@ def test_analyze_beam_alpha_bootstrap_exports() -> None:
     assert BeamAlphaBootstrapResult is not None
     assert BeamAlphaKappaEstimateConfig is not None
     assert BeamAlphaKappaEstimateResult is not None
+
+
+def test_analyze_feather_photometry_exports() -> None:
+    from lwa_catalog.analyze import (
+        FEATHER_PHOTOMETRY_METHOD,
+        BandKDiagnostics,
+        FeatherPhotometryBatchResult,
+        FeatherPhotometryConfig,
+        FeatherPhotometryResult,
+        PhotometryCalibration,
+        PhotometryKModel,
+        calibrate_layout_photometry,
+        calibrate_lst_photometry,
+        estimate_photometry_k_model,
+        load_photometry_calibration,
+        lst_bands_in_layout,
+        sample_healpix_at,
+        summarize_feather_photometry,
+        verify_lst_photometry,
+        write_photometry_calibration,
+    )
+    from lwa_catalog.constants import BAND_CAL_FLUX_FIELDS, CAL_DIAGNOSTIC_COLUMNS
+
+    assert FEATHER_PHOTOMETRY_METHOD == "feather3_psfmap_joint_k"
+    for fn in (
+        calibrate_layout_photometry,
+        calibrate_lst_photometry,
+        estimate_photometry_k_model,
+        load_photometry_calibration,
+        lst_bands_in_layout,
+        sample_healpix_at,
+        summarize_feather_photometry,
+        verify_lst_photometry,
+        write_photometry_calibration,
+    ):
+        assert callable(fn)
+    for cls in (
+        BandKDiagnostics,
+        FeatherPhotometryBatchResult,
+        FeatherPhotometryConfig,
+        FeatherPhotometryResult,
+        PhotometryCalibration,
+        PhotometryKModel,
+    ):
+        assert cls is not None
+    assert "Total_flux_cal" in BAND_CAL_FLUX_FIELDS
+    assert "Omega_eff" in CAL_DIAGNOSTIC_COLUMNS
 
 
 def test_create_apis_importable() -> None:

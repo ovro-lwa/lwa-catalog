@@ -13,9 +13,15 @@ from lwa_catalog.analyze.spectral import (
     fit_metacatalog_spectra,
     fit_single_spectrum,
     gather_band_flux_measurements,
+    resolve_flux_scale,
     summarize_spectral_fit,
 )
-from lwa_catalog.constants import GLEAM_BANDS, SUBBAND_BANDS_MHZ, SUBBAND_REF_FREQ_MHZ
+from lwa_catalog.constants import (
+    GLEAM_BANDS,
+    SUBBAND_BANDS_MHZ,
+    SUBBAND_REF_FREQ_MHZ,
+    band_frequency_hz,
+)
 
 
 def _power_law_flux(nu_hz: np.ndarray, *, alpha: float, s_ref: float, nu_ref_hz: float) -> np.ndarray:
@@ -433,3 +439,95 @@ def test_fit_metacatalog_spectra_ten_rows_under_one_second() -> None:
     elapsed = time.perf_counter() - start
     assert result.summary["n_sources"] == 10
     assert elapsed < 1.0
+
+
+def _calibrated_row(*, alpha: float = -0.7, calibrate_32: bool = True) -> pd.Series:
+    """LWA bands with raw = apparent × PB and ``*_cal`` = true flux; one survey band."""
+    nu_ref = SUBBAND_REF_FREQ_MHZ * 1e6
+    lwa = ("82MHz", "55MHz", "32MHz")
+    true = {
+        b: float(
+            _power_law_flux(np.array([band_frequency_hz(b)]), alpha=alpha, s_ref=10.0,
+                            nu_ref_hz=nu_ref)[0]
+        )
+        for b in (*lwa, "VLSSR")
+    }
+    pb = {"82MHz": 0.3, "55MHz": 0.5, "32MHz": 0.7}
+    row: dict[str, object] = {"origin_band": "82MHz"}
+    for band in lwa:
+        row[f"Total_flux_{band}"] = true[band] * pb[band]
+        row[f"E_Total_flux_{band}"] = 0.05 * true[band] * pb[band]
+        if band != "32MHz" or calibrate_32:
+            row[f"Total_flux_cal_{band}"] = true[band]
+            row[f"E_Total_flux_cal_{band}"] = 0.05 * true[band]
+    row["Total_flux_VLSSR"] = true["VLSSR"]
+    row["E_Total_flux_VLSSR"] = 0.05 * true["VLSSR"]
+    for band in (*lwa, "VLSSR"):
+        row[f"n_confused_{band}"] = 1
+    return pd.Series(row)
+
+
+_CAL_BANDS = ("82MHz", "55MHz", "32MHz", "VLSSR")
+
+
+def test_gather_calibrated_scale_for_all_lwa_bands() -> None:
+    row = _calibrated_row()
+    _, flux, err, used = gather_band_flux_measurements(row, bands=_CAL_BANDS)
+    assert used == _CAL_BANDS
+    assert flux[0] == pytest.approx(row["Total_flux_cal_82MHz"])
+    assert err[1] == pytest.approx(row["E_Total_flux_cal_55MHz"])
+    assert flux[2] == pytest.approx(row["Total_flux_cal_32MHz"])
+    assert flux[3] == pytest.approx(row["Total_flux_VLSSR"])
+
+    _, raw_flux, _, _ = gather_band_flux_measurements(row, bands=_CAL_BANDS, flux_scale="apparent")
+    assert raw_flux[0] == pytest.approx(row["Total_flux_82MHz"])
+    assert raw_flux[2] == pytest.approx(row["Total_flux_32MHz"])
+
+
+def test_gather_nan_calibrated_skips_band() -> None:
+    row = _calibrated_row()
+    row["Total_flux_cal_55MHz"] = np.nan
+    _, _, _, used = gather_band_flux_measurements(row, bands=("82MHz", "55MHz", "32MHz"))
+    assert used == ("82MHz", "32MHz")
+
+
+def test_gather_rejects_partially_calibrated_row() -> None:
+    row = _calibrated_row(calibrate_32=False)
+    with pytest.raises(ValueError, match="partially calibrated LWA flux.*32MHz"):
+        gather_band_flux_measurements(row, bands=_CAL_BANDS)
+    _, _, _, used = gather_band_flux_measurements(row, bands=_CAL_BANDS, flux_scale="apparent")
+    assert used == _CAL_BANDS
+
+
+def test_fit_metacatalog_uses_calibrated_flux() -> None:
+    meta = pd.DataFrame([_calibrated_row(alpha=-0.8)])
+    cal = fit_metacatalog_spectra(meta, SpectralFitConfig(bands=_CAL_BANDS))
+    assert cal.metacatalog["spec_model_a1"].iloc[0] == pytest.approx(-0.8, abs=1e-6)
+    assert cal.metacatalog["spec_model_n_terms"].iloc[0] == 2
+    assert cal.summary["flux_scale"] == "calibrated"
+    assert "LWA flux scale:               calibrated" in summarize_spectral_fit(cal)
+    assert cal.warnings == []
+
+    raw = fit_metacatalog_spectra(meta, SpectralFitConfig(bands=_CAL_BANDS, flux_scale="apparent"))
+    assert raw.summary["flux_scale"] == "apparent"
+    assert abs(raw.metacatalog["spec_model_a1"].iloc[0] + 0.8) > 0.1
+
+
+def test_fit_metacatalog_rejects_partial_calibration() -> None:
+    meta = pd.DataFrame([_calibrated_row(calibrate_32=False)])
+    with pytest.raises(ValueError, match="32MHz"):
+        fit_metacatalog_spectra(meta, SpectralFitConfig(bands=_CAL_BANDS))
+
+
+def test_resolve_flux_scale() -> None:
+    cal = ["Total_flux_82MHz", "Total_flux_cal_82MHz", "Total_flux_VLSSR"]
+    raw = ["Total_flux_82MHz", "Total_flux_VLSSR"]
+    bands = ("82MHz", "VLSSR")
+    assert resolve_flux_scale(cal, bands) == "calibrated"
+    assert resolve_flux_scale(raw, bands) == "apparent"
+    assert resolve_flux_scale(cal, bands, flux_scale="apparent") == "apparent"
+    assert resolve_flux_scale(cal, bands, flux_kind="peak") == "apparent"
+    with pytest.raises(ValueError, match="no Total_flux_cal"):
+        resolve_flux_scale(raw, bands, flux_scale="calibrated")
+    with pytest.raises(ValueError, match="flux_scale must be"):
+        resolve_flux_scale(cal, bands, flux_scale="both")  # type: ignore[arg-type]

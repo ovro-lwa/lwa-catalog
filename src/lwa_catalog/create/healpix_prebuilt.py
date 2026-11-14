@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,9 @@ import numpy as np
 __all__ = [
     "DEFAULT_PREBUILT_HEALPIX_GLOB",
     "DEFAULT_PREBUILT_PREFER_SUBSTRING",
+    "FeatherCompanions",
     "beam_and_restfreq_from_healpix_fits",
+    "companion_maps_for_jybeam",
     "discover_prebuilt_healpix_maps",
     "list_mhz_subband_dirs",
     "load_prebuilt_healpix_map",
@@ -225,6 +228,55 @@ def beam_and_restfreq_from_healpix_fits(
     bpa = float(header.get("BPA", 0.0))
     restfreq = float(restfreq_hz_from_header(header))
     return bmaj, bmin, bpa, restfreq
+
+
+_JYBEAM_TOKEN = "_mosaic_jybeam_feather_"
+
+
+@dataclass(frozen=True)
+class FeatherCompanions:
+    """Companion maps of one FEATHER3 ``jybeam`` mosaic (all RING ``SIGNAL``).
+
+    ``pbmap`` is the effective primary beam ``PB_eff`` (dimensionless),
+    ``psfmap`` the effective beam solid angle ``Ω_eff`` (sr), and ``pkcorr``
+    the injection peak dilution (``≈0.81``).
+    """
+
+    pbmap: Path
+    psfmap: Path
+    pkcorr: Path
+
+
+def companion_maps_for_jybeam(path: Path | str) -> FeatherCompanions | None:
+    """Locate ``pbmap`` / ``psfmap`` / ``pkcorr`` beside a FEATHER3 ``jybeam`` map.
+
+    FEATHER3 naming (same directory)::
+
+        …_coadd[_ssub-rst8]_mosaic_jybeam_feather_…         (input)
+        …_coadd[_ssub-rst8]_mosaic_feather_pbmap_…          PB_eff
+        …_pbcorr_coadd[_ssub-rst8]_mosaic_feather_psfmap_…  Ω_eff [sr]
+        …_pbcorr_coadd[_ssub-rst8]_mosaic_feather_pkcorr_…  peak dilution
+
+    All three companions are required in the same variant (``ssub-rst8`` or
+    plain) as *path*, so every band is calibrated from the same kind of
+    inputs. Returns ``None`` when *path* is not a ``jybeam`` feather product;
+    raises :class:`FileNotFoundError` listing any missing companion.
+    """
+    path = Path(path)
+    name = path.name
+    if _JYBEAM_TOKEN not in name:
+        return None
+    pbcorr_name = name.replace("_coadd", "_pbcorr_coadd", 1)
+    candidates = {
+        "pbmap": path.with_name(name.replace(_JYBEAM_TOKEN, "_mosaic_feather_pbmap_")),
+        "psfmap": path.with_name(pbcorr_name.replace(_JYBEAM_TOKEN, "_mosaic_feather_psfmap_")),
+        "pkcorr": path.with_name(pbcorr_name.replace(_JYBEAM_TOKEN, "_mosaic_feather_pkcorr_")),
+    }
+    missing = [f"{kind}: {p.name}" for kind, p in candidates.items() if not p.is_file()]
+    if missing:
+        msg = f"FEATHER3 companions missing beside {path}: " + "; ".join(missing)
+        raise FileNotFoundError(msg)
+    return FeatherCompanions(**candidates)
 
 
 def _coordsys_to_frame(code: str | None) -> str:

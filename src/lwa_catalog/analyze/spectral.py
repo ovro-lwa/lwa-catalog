@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from lwa_catalog.constants import (
+    COLOR_BANDS,
     GLEAM_BANDS,
     SUBBAND_BANDS_MHZ,
     SUBBAND_REF_FREQ_MHZ,
@@ -33,6 +34,8 @@ _SURVEY_FIT_BAND_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 FluxKind = Literal["total", "peak"]
+FluxScale = Literal["auto", "calibrated", "apparent"]
+_LWA_BANDS = frozenset((*SUBBAND_BANDS_MHZ, *COLOR_BANDS))
 _MIN_TAYLOR_TERMS = 2
 _MAX_TAYLOR_TERMS = 4
 _NAN_COEFFS = (float("nan"),) * _MAX_TAYLOR_TERMS
@@ -50,6 +53,9 @@ class SpectralFitConfig:
     column_prefix: str = "spec_"
     # When True, gather only bands with ``n_confused_{band} == 1`` (unique reverse claim).
     unconfused_only: bool = True
+    # One flux scale for every LWA band of the table (see resolve_flux_scale);
+    # survey bands always use their own ``{flux}_{band}`` columns.
+    flux_scale: FluxScale = "auto"
 
 
 @dataclass(frozen=True)
@@ -77,6 +83,49 @@ def _flux_column_names(flux_kind: FluxKind) -> tuple[str, str]:
     if flux_kind == "peak":
         return "Peak_flux", "E_Peak_flux"
     return "Total_flux", "E_Total_flux"
+
+
+def resolve_flux_scale(
+    columns: pd.Series | pd.Index | Sequence[str],
+    bands: Sequence[str],
+    *,
+    flux_kind: FluxKind = "total",
+    flux_scale: FluxScale = "auto",
+) -> Literal["calibrated", "apparent"]:
+    """Pick one LWA flux scale for a table: FEATHER3 ``*_cal`` or apparent.
+
+    ``"auto"`` means calibrated when any LWA band in *bands* has a
+    ``{flux}_cal_{band}`` column, else apparent. Calibrated mode requires
+    ``{flux}_cal_{band}`` for **every** LWA band with a ``{flux}_{band}``
+    column, so all frequencies use the same Total/Peak measurement; a
+    partially calibrated table raises :class:`ValueError`. Survey bands are
+    not affected.
+    """
+    if flux_scale not in ("auto", "calibrated", "apparent"):
+        msg = f"flux_scale must be 'auto', 'calibrated' or 'apparent' (got {flux_scale!r})"
+        raise ValueError(msg)
+    if flux_scale == "apparent":
+        return "apparent"
+    flux_prefix, _ = _flux_column_names(flux_kind)
+    if isinstance(columns, pd.Series):
+        names = {str(name) for name in columns.index}
+    else:
+        names = {str(name) for name in columns}
+    lwa = [str(b) for b in bands if b in _LWA_BANDS]
+    calibrated = [b for b in lwa if f"{flux_prefix}_cal_{b}" in names]
+    if not calibrated:
+        if flux_scale == "calibrated":
+            msg = f"flux_scale='calibrated' but no {flux_prefix}_cal_{{band}} columns exist"
+            raise ValueError(msg)
+        return "apparent"
+    missing = [b for b in lwa if f"{flux_prefix}_{b}" in names and b not in calibrated]
+    if missing:
+        msg = (
+            f"partially calibrated LWA flux: no {flux_prefix}_cal_{{band}} for "
+            f"{', '.join(missing)}; recalibrate every band or use flux_scale='apparent'"
+        )
+        raise ValueError(msg)
+    return "calibrated"
 
 
 def expand_survey_fit_bands(survey_bands: Sequence[str]) -> tuple[str, ...]:
@@ -156,6 +205,7 @@ def gather_band_flux_measurements(
     flux_kind: FluxKind = "total",
     origin_band_key: str = "origin_band",
     unconfused_only: bool = False,
+    flux_scale: FluxScale = "auto",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, tuple[str, ...]]:
     """Return ``(nu_hz, flux_jy, err_jy, used_bands)`` for positive finite fluxes.
 
@@ -164,6 +214,11 @@ def gather_band_flux_measurements(
   primary unsuffixed flux column (same pattern as
   :func:`~lwa_catalog.analyze.nedlvs.resolve_highest_frequency_peak_flux`).
 
+  *flux_scale* is resolved once for the row with :func:`resolve_flux_scale`.
+  In calibrated mode every LWA band reads ``{flux}_cal_{band}`` /
+  ``E_{flux}_cal_{band}`` (a NaN value skips the band); survey bands keep
+  ``{flux}_{band}``.
+
   When *unconfused_only* is True, skip bands unless ``n_confused_{band} == 1``
   (unique reverse claim of the stored band source). Missing / non-finite /
   other values exclude the band.
@@ -171,8 +226,12 @@ def gather_band_flux_measurements(
   *used_bands* is parallel to the returned arrays (same length and order) so
   callers can classify points (e.g. LWA vs survey) without re-filtering.
     """
-    flux_prefix, err_prefix = _flux_column_names(flux_kind)
     origin_band = str(row.get(origin_band_key, "") or "")
+    calibrated = (
+        resolve_flux_scale(row, bands, flux_kind=flux_kind, flux_scale=flux_scale) == "calibrated"
+    )
+    flux_names = _flux_column_names(flux_kind)
+    cal_names = (f"{flux_names[0]}_cal", f"{flux_names[1]}_cal")
 
     nu_list: list[float] = []
     flux_list: list[float] = []
@@ -187,6 +246,7 @@ def gather_band_flux_measurements(
         if not np.isfinite(freq) or freq <= 0.0:
             continue
 
+        flux_prefix, err_prefix = cal_names if calibrated and band in _LWA_BANDS else flux_names
         flux_col = f"{flux_prefix}_{band}"
         err_col = f"{err_prefix}_{band}"
         flux = np.nan
@@ -492,12 +552,16 @@ def fit_metacatalog_spectra(
     n_flux_values: list[int] = []
     n_fitted = 0
 
+    flux_scale = resolve_flux_scale(
+        out.columns, cfg.bands, flux_kind=cfg.flux_kind, flux_scale=cfg.flux_scale
+    )
     for _, row in out.iterrows():
         nu_hz, flux_jy, err_jy, _ = gather_band_flux_measurements(
             row,
             bands=cfg.bands,
             flux_kind=cfg.flux_kind,
             unconfused_only=cfg.unconfused_only,
+            flux_scale=flux_scale,
         )
         fit = fit_single_spectrum(nu_hz, flux_jy, err_jy, config=cfg)
         fit_rows.append(_single_fit_to_row(fit, prefix))
@@ -513,12 +577,13 @@ def fit_metacatalog_spectra(
     for col in _output_column_names(prefix):
         out[col] = fit_df[col]
 
-    summary: dict[str, float | int | dict[int, int]] = {
+    summary: dict[str, float | int | str | dict[int, int]] = {
         "n_sources": int(len(out)),
         "n_fitted": int(n_fitted),
         "n_terms_hist": n_terms_hist,
         "median_bic": float(np.median(bic_values)) if bic_values else float("nan"),
         "median_n_flux": float(np.median(n_flux_values)) if n_flux_values else float("nan"),
+        "flux_scale": flux_scale,
         "n_warnings": len(warnings),
     }
     return SpectralFitResult(summary=summary, metacatalog=out, warnings=warnings)
@@ -548,6 +613,8 @@ def summarize_spectral_fit(result: SpectralFitResult) -> str:
         f"  3-term: {int(hist[3]):6d}",
         f"  4-term: {int(hist[4]):6d}",
     ]
+    if "flux_scale" in summary:
+        lines.append(f"LWA flux scale:               {summary['flux_scale']}")
     if result.warnings:
         lines.append("")
         lines.append("Warnings:")

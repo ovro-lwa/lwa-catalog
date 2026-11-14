@@ -1002,3 +1002,102 @@ def test_associate_band_empty_meta_does_not_seed_when_append_false() -> None:
         representative="peak_flux",
     )
     assert len(out) == 0
+
+
+def _calibrated(src: dict, factor: float) -> dict:
+    """Self-consistent FEATHER3 ``*_cal`` columns: PB=1/factor, PK=1, k=1, Ω_eff=Ω_fit."""
+    omega_fit = np.pi / (4.0 * np.log(2.0)) * np.radians(src["Maj"]) * np.radians(src["Min"])
+    peak_cal = src["Peak_flux"] * factor
+    return {
+        **src,
+        "Peak_flux_cal": peak_cal,
+        "E_Peak_flux_cal": 0.1 * peak_cal,
+        "Total_flux_cal": peak_cal,
+        "E_Total_flux_cal": 0.1 * peak_cal,
+        "PB_eff": 1.0 / factor,
+        "PKCORR": 1.0,
+        "Omega_eff": omega_fit,
+        "k_phot": 1.0,
+    }
+
+
+_SUBBANDS = ("18MHz", "23MHz", "27MHz")
+_SUBBAND_KW = dict(
+    seed_band="27MHz",
+    assoc_bands=("23MHz", "18MHz"),
+    color_bands=_SUBBANDS,
+    band_freq_hz={b: float(b.removesuffix("MHz")) * 1e6 for b in _SUBBANDS},
+)
+
+
+def _subband_sources() -> dict[str, dict]:
+    return {
+        "27MHz": _src(ra=10.0, dec=20.0, peak=2.0, lst_hour="01h", band="27MHz"),
+        "23MHz": _src(ra=10.05, dec=20.0, peak=1.5, lst_hour="01h", band="23MHz"),
+        "18MHz": _src(ra=10.2, dec=20.1, peak=1.0, lst_hour="01h", band="18MHz"),
+    }
+
+
+def test_build_subband_metacatalog_carries_cal_columns() -> None:
+    """``*_cal`` fields fuse as ``{field}_{band}``; raw columns are unchanged."""
+    sources = _subband_sources()
+    factors = {"27MHz": 2.5, "23MHz": 3.0, "18MHz": 4.0}
+    meta = build_subband_metacatalog(
+        {b: pd.DataFrame([_calibrated(src, factors[b])]) for b, src in sources.items()},
+        **_SUBBAND_KW,
+    )
+    row = meta.iloc[0]
+    assert float(row["Peak_flux_cal_27MHz"]) == pytest.approx(5.0)
+    assert float(row["Total_flux_cal_23MHz"]) == pytest.approx(4.5)
+    assert float(row["E_Total_flux_cal_18MHz"]) == pytest.approx(0.4)
+    assert "Total_flux_cal" not in meta.columns  # subband: no top-level flux
+    assert "PB_eff_27MHz" not in meta.columns  # diagnostics stay on LST tables
+
+    raw = build_subband_metacatalog(
+        {b: pd.DataFrame([src]) for b, src in sources.items()}, **_SUBBAND_KW
+    )
+    assert not any("_cal_" in c for c in raw.columns)
+    pd.testing.assert_frame_equal(meta[list(raw.columns)], raw)
+
+
+def test_build_subband_metacatalog_rejects_mixed_calibration() -> None:
+    sources = _subband_sources()
+    catalogs = {
+        "27MHz": pd.DataFrame([_calibrated(sources["27MHz"], 2.5)]),
+        "23MHz": pd.DataFrame([sources["23MHz"]]),
+        "18MHz": pd.DataFrame([_calibrated(sources["18MHz"], 4.0)]),
+    }
+    with pytest.raises(ValueError, match="uncalibrated: 23MHz"):
+        build_subband_metacatalog(catalogs, **_SUBBAND_KW)
+
+
+def test_build_subband_metacatalog_rejects_stale_calibration() -> None:
+    """Forced fill changing raw flux without recalibration must not fuse."""
+    sources = _subband_sources()
+    catalogs = {b: pd.DataFrame([_calibrated(src, 2.0)]) for b, src in sources.items()}
+    catalogs["18MHz"].loc[0, "Peak_flux"] = 1.7
+    with pytest.raises(ValueError, match="18MHz: 1 rows with Peak_flux_cal inconsistent"):
+        build_subband_metacatalog(catalogs, **_SUBBAND_KW)
+
+    appended = {b: pd.DataFrame([_calibrated(src, 2.0)]) for b, src in sources.items()}
+    extra = _src(ra=40.0, dec=10.0, peak=1.0, lst_hour="02h", band="23MHz")
+    appended["23MHz"] = pd.concat([appended["23MHz"], pd.DataFrame([extra])], ignore_index=True)
+    with pytest.raises(ValueError, match="23MHz: 1 rows without k_phot"):
+        build_subband_metacatalog(appended, **_SUBBAND_KW)
+
+
+def test_build_global_metacatalog_top_level_cal_from_seed() -> None:
+    """RGB primary flux path copies seed ``Peak/Total_flux_cal`` top-level."""
+    sources = {
+        "Full": _src(ra=10.0, dec=20.0, peak=2.0, lst_hour="01h", band="Full"),
+        "Blue": _src(ra=10.01, dec=20.0, peak=1.8, lst_hour="01h", band="Blue"),
+        "Green": _src(ra=50.0, dec=20.0, peak=1.0, lst_hour="01h", band="Green"),
+        "Red": _src(ra=80.0, dec=20.0, peak=1.0, lst_hour="01h", band="Red"),
+    }
+    meta = build_global_metacatalog(
+        {b: pd.DataFrame([_calibrated(src, 3.0)]) for b, src in sources.items()}
+    )
+    row = meta.loc[meta["origin_band"] == "Full"].iloc[0]
+    assert float(row["Peak_flux"]) == pytest.approx(2.0)
+    assert float(row["Peak_flux_cal"]) == pytest.approx(6.0)
+    assert float(row["Total_flux_cal_Blue"]) == pytest.approx(5.4)

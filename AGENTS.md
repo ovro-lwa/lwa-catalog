@@ -569,8 +569,10 @@ UI lives at the bottom of `metacatalog_query.ipynb` (and
   `lwa_catalog.viz.browser`. Other helpers live in `lwa_catalog.viz` (HiPS
   preference / fetch, FOV restore, nearest-source match, overlays). Pan/zoom
   uses `DebouncedAladinViewRefresh`. Construct Aladin via `make_aladin`
-  (`inertia=False`) — Aladin Lite's default mouse-release coast keeps
-  updating `_target`/`_fov` and looks like runaway spinning after a drag.
+  (`inertia=False`, `show_status_bar=False`, `hips_list=[]`) — Aladin
+  Lite's default mouse-release coast keeps updating `_target`/`_fov` and
+  looks like runaway spinning after a drag; the status bar blinks
+  `P/DSS2/color loading…` even when LWA is the base survey.
   Explicit **Load sky view** / **Run**.
   The `meta_id` field sits above the sky widget; **Load sky view** selects that
   id and recenters. Sky clicks highlight with gold (`SELECTION_OVERLAY_COLOR`
@@ -658,7 +660,8 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
 - LWA band colors on external-survey overlays.
 - Leaving Aladin Lite `inertia=True` (default) on catalog sky widgets —
   mouse-release coast + `DebouncedAladinViewRefresh` looks like runaway spinning.
-  Use `make_aladin` (`inertia=False`).
+  Use `make_aladin` (`inertia=False`, `show_status_bar=False`,
+  `hips_list=[]`).
 - Ellipse-only catalog overlays (no always-on pixel crosses) — tiny
   `POS_ERR` / survey beams vanish at wide FOV.
 - Folding eRASS / X-ray columns into `metacatalog_spectral.parquet`.
@@ -933,6 +936,30 @@ quality). → `research-scheme-c-residual-multitier.md`,
 `experiment_scheme_c_vs_b_residual_2tier.py`,
 `experiment_scheme_c_residual_hips.py`).
 
+### FEATHER3 apparent flux + psfmap photometry (subband5, 2026-11-13)
+
+`experiment-pybdsf-flux-reliability-psfmap.md`. Prebuilt FEATHER3 `jybeam`
+mosaics are **apparent flux** (PB as weight, never divided out) and their
+Jy/beam unit is the **per-pixel Ω_eff** (`jybeam ≈ jysr·PB_eff·Ω_eff`), not
+the header beam. Companions per band: `pbmap` (PB_eff), `psfmap` (Ω_eff sr),
+`pkcorr` (injection peak dilution ≈0.81). PB_eff ≈0.21 at Dec −30° vs 0.74
+at zenith; Ω_eff/Ω_hdr 2.86 → 1.20 (and ~1.5× **within** one southern
+`nside_tile=4` tile).
+
+- GLEAM (73–82 MHz, unique, `S`) Peak/GLEAM 0.20→0.66 across Dec is PB
+ attenuation, not beam. `Peak/(PB_eff·PKCORR)` → **1.03–1.14**, 0.03 dex.
+- `Total = Peak·Ω_fit/(k(δ)·Ω_eff)/(PB_eff·PKCORR)` with GLEAM-free
+ `k(δ)` = median Ω_fit/Ω_eff of bright `S` (k≈1.26 at 23–41 MHz, ≈1.40 at
+ 59–82 MHz) → **1.00–1.14**, Total/Peak 0.98–0.99 per Dec bin.
+- Ω_fit/Ω_eff is Dec-flat to 1.2× on 23/41/59/78 MHz; Ω_fit/Ω_att(α,κ)
+ drifts 1.8–2.3× and fails north of zenith (κ has no term there).
+- Attached detect beam does **not** move fitted Peak/Maj/Min (≤0.1%,
+ 5 tiles); it only rescales native Total. Correct per source, catalog-side;
+ re-detect only for association radius.
+- Header-beam Total (α=1, κ=0) is wrong on these maps (south 0.75).
+- Residual ~10% Dec trend common to Peak and Total (south ≈1.02, north
+ ≈1.14) is not PSF — PB model / flux scale / confusion, open.
+
 ## Open and deferred
 
 Still true after the workflow trail (manual Jupyter on `/fast/claw` was almost
@@ -974,6 +1001,9 @@ never signed off):
   (`DETECT_TIER_THRESHOLDS` / C3) vs legacy same-map+Stage3 trees beyond the
   2026-11 four-tile pilot (`frac_M`, `detect_stage` mix, VLSSR);
   signed-residual deep-tier RMS fallback rate.
+- Implement FEATHER3 per-source photometry (`PB_eff`, `Ω_eff`, `PKCORR`,
+ self-calibrated `k(δ)`) as an `analyze` step; investigate the leftover
+ ~10% Dec trend vs GLEAM.
 - Cosmic-web / diffuse HEALPix cross-correlation science path remains
   research-only (`research-cosmic-web-diffuse-healpix-cross-correlation.md`).
 - `notebooks/README.md` and root `README.md` still under-document radio/spectral

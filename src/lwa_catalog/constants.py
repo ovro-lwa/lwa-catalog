@@ -375,6 +375,16 @@ SUBBAND_METACATALOG_FLUX_FIELDS: tuple[str, ...] = (
     "E_Total_flux",
 )
 
+# FEATHER3 calibrated fluxes on ``metacatalog_lst_{band}`` (additive; raw
+# ``Peak_flux`` / ``Total_flux`` stay apparent). See analyze.feather_photometry.
+BAND_CAL_FLUX_FIELDS: tuple[str, ...] = (
+    "Peak_flux_cal",
+    "E_Peak_flux_cal",
+    "Total_flux_cal",
+    "E_Total_flux_cal",
+)
+CAL_DIAGNOSTIC_COLUMNS: tuple[str, ...] = ("PB_eff", "PKCORR", "Omega_eff", "k_phot")
+
 BAND_SHAPE_FIELDS: tuple[str, ...] = (
     "RA",
     "DEC",

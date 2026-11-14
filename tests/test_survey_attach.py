@@ -239,3 +239,26 @@ def test_attach_empty_metacatalog_stays_empty() -> None:
         footprint_filter=False,
     )
     assert len(out) == 0
+
+
+def test_attach_survey_passes_calibrated_lwa_columns_through() -> None:
+    meta = pd.DataFrame(
+        [{**_meta_row(), "Peak_flux_cal_82MHz": 6.0, "Total_flux_cal_82MHz": 6.2}]
+    )
+    vlssr = pd.DataFrame(
+        [{"RA": 10.01, "DEC": 20.0, "Peak_flux": 1.2, "BMAJ": VLSSR_BMAJ_DEG}]
+    )
+    out = attach_survey_to_metacatalog(
+        meta,
+        vlssr,
+        "VLSSR",
+        lwa_radius=CrossmatchRadiusSpec(mode="fixed", fixed_arcsec=1800.0),
+        reference_radius=CrossmatchRadiusSpec(mode="fixed", fixed_arcsec=80.0),
+        footprint_filter=False,
+    )
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert float(row["Peak_flux_cal_82MHz"]) == 6.0
+    assert float(row["Total_flux_cal_82MHz"]) == 6.2
+    assert float(row["Peak_flux_VLSSR"]) == 1.2
+    assert "Peak_flux_cal_VLSSR" not in out.columns

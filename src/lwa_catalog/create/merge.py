@@ -12,6 +12,7 @@ from astropy.coordinates import SkyCoord
 
 from lwa_catalog.constants import (
     ASSOC_BANDS,
+    BAND_CAL_FLUX_FIELDS,
     BAND_FIELDS,
     BAND_FREQ_HZ,
     CLUSTER_JITTER_RMS_COL,
@@ -586,6 +587,9 @@ def _primary_fields_from_band(row: pd.Series, *, include_flux: bool = True) -> d
     if include_flux:
         out["Peak_flux"] = row["Peak_flux"]
         out["Total_flux"] = row["Total_flux"]
+        for field in ("Peak_flux_cal", "Total_flux_cal"):
+            if field in row.index:
+                out[field] = row[field]
     return out
 
 
@@ -642,6 +646,9 @@ def _attach_band_columns(
     entry[f"n_confused_{band}"] = int(n_assoc if n_confused is None else n_confused)
     for field in band_fields:
         entry[f"{field}_{band}"] = band_row.get(field, np.nan)
+    for field in BAND_CAL_FLUX_FIELDS:
+        if field in band_row.index:
+            entry[f"{field}_{band}"] = band_row[field]
     entry[f"source_file_{band}"] = band_row.get("source_file", "")
 
 
@@ -966,6 +973,34 @@ def associate_band_into_metacatalog(
     return pd.DataFrame(rows)
 
 
+def _require_uniform_photometry(
+    lst_merged: Mapping[str, pd.DataFrame], bands: Sequence[str]
+) -> None:
+    from lwa_catalog.analyze.feather_photometry import verify_lst_photometry
+
+    populated = [b for b in bands if len(lst_merged[b])]
+    calibrated = [b for b in populated if "Peak_flux_cal" in lst_merged[b].columns]
+    if not calibrated:
+        return
+    uncalibrated = [b for b in populated if b not in calibrated]
+    if uncalibrated:
+        msg = (
+            "FEATHER3 photometry must cover every fused band; uncalibrated: "
+            f"{', '.join(uncalibrated)} (run calibrate_layout_photometry)"
+        )
+        raise ValueError(msg)
+    problems = [
+        f"{band}: {problem}"
+        for band in populated
+        for problem in verify_lst_photometry(lst_merged[band])
+    ]
+    if problems:
+        msg = "stale FEATHER3 photometry (re-run calibrate_layout_photometry): " + "; ".join(
+            problems
+        )
+        raise ValueError(msg)
+
+
 def build_global_metacatalog(
     lst_merged: dict[str, pd.DataFrame],
     *,
@@ -1011,7 +1046,13 @@ def build_global_metacatalog(
     -----
     ``n_lst_contributions`` on the fused row is the sum of each associated
     band's LST-image count (the value produced by :func:`merge_lst_metacatalog`).
+
+    Raises :class:`ValueError` when FEATHER3 photometric calibration is not
+    uniform across the fused bands (some calibrated, some not) or a
+    calibrated table is stale (see
+    :func:`lwa_catalog.analyze.feather_photometry.verify_lst_photometry`).
     """
+    _require_uniform_photometry(lst_merged, (seed_band, *assoc_bands))
     merge_kw = _merge_build_kwargs(
         assoc_bands=assoc_bands,
         band_fields=band_fields,

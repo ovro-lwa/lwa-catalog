@@ -40,6 +40,7 @@ from lwa_catalog.paths import CatalogLayout
 __all__ = [
     "BEAM_ALPHA_BY_BAND_COLUMNS",
     "BEAM_ALPHA_STEP_COLUMNS",
+    "PHOTOMETRY_KEY",
     "BeamAlphaBootstrapConfig",
     "BeamAlphaBootstrapResult",
     "bootstrap_beam_alpha",
@@ -62,6 +63,8 @@ BEAM_ALPHA_BY_BAND_COLUMNS: tuple[str, ...] = (
     "nu_mhz",
     "alpha_over_alpha_anchor",
 )
+
+PHOTOMETRY_KEY = "PHOTOMETRY"
 
 BEAM_ALPHA_STEP_COLUMNS: tuple[str, ...] = (
     "band_lo",
@@ -412,6 +415,10 @@ def write_beam_scale_json(
     *beam_scale* may be a scalar, ``{band: α}``, ``{band: {alpha, kappa}}``,
     ``{band: BeamScaleModel}``, or a bootstrap
     :class:`BeamAlphaBootstrapResult` (includes VLSSR anchor metadata).
+
+    An existing ``PHOTOMETRY`` key (FEATHER3 calibration, see
+    :mod:`lwa_catalog.analyze.feather_photometry`) is carried over from disk;
+    every other key is replaced.
     """
     if isinstance(path, CatalogLayout):
         out = path.beam_scale_json()
@@ -452,6 +459,11 @@ def write_beam_scale_json(
             if key == "BEAM_SCALE":
                 continue
             payload[str(key)] = value
+
+    if PHOTOMETRY_KEY not in payload and out.is_file():
+        existing = read_beam_scale_json(out)
+        if PHOTOMETRY_KEY in existing:
+            payload[PHOTOMETRY_KEY] = existing[PHOTOMETRY_KEY]
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
