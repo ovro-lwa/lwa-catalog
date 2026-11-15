@@ -84,6 +84,7 @@ from lwa_catalog.analyze.bootstrap import (
     select_bijective_pairs,
 )
 from lwa_catalog.analyze.crossmatch_radius import (
+    DEFAULT_PRECISE_BEAM_FRAC,
     ERASS3_REFERENCE_RADIUS_LOCALIZATION,
     FREUND2022_REFERENCE_RADIUS_LOCALIZATION,
     GLEAM_REFERENCE_RADIUS_BEAM,
@@ -106,6 +107,7 @@ from lwa_catalog.analyze.crossmatch_radius import (
     VLSSR_REFERENCE_RADIUS_BEAM,
     VLSSR_REFERENCE_RADIUS_FIXED,
     CrossmatchRadiusSpec,
+    attach_bmaj_precise_from_lst,
     describe_crossmatch_radius,
     match_radius_deg,
     resolve_localization_sigma_deg,
@@ -400,6 +402,7 @@ __all__ = [
     "mahalanobis_outlier_scores",
     "numeric_feature_matrix",
     "resolve_mahalanobis_columns",
+    "DEFAULT_PRECISE_BEAM_FRAC",
     "CrossmatchRadiusSpec",
     "ERASS3_REFERENCE_RADIUS_LOCALIZATION",
     "FREUND2022_REFERENCE_RADIUS_LOCALIZATION",
@@ -422,6 +425,7 @@ __all__ = [
     "VLASS_REFERENCE_RADIUS_LOCALIZATION",
     "VLSSR_REFERENCE_RADIUS_BEAM",
     "VLSSR_REFERENCE_RADIUS_FIXED",
+    "attach_bmaj_precise_from_lst",
     "describe_crossmatch_radius",
     "match_radius_deg",
     "resolve_localization_sigma_deg",

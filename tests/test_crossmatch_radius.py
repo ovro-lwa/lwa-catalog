@@ -7,11 +7,13 @@ import pandas as pd
 import pytest
 
 from lwa_catalog.analyze.crossmatch_radius import (
+    DEFAULT_PRECISE_BEAM_FRAC,
     CrossmatchRadiusSpec,
     LWA_CROSSMATCH_RADIUS_BEAM,
     NEDLVS_LWA_RADIUS,
     NEDLVS_REFERENCE_RADIUS_FIXED,
     VLSSR_REFERENCE_RADIUS_FIXED,
+    attach_bmaj_precise_from_lst,
     catalog_match_frame,
     describe_crossmatch_radius,
     match_radius_deg,
@@ -25,6 +27,7 @@ from lwa_catalog.constants import (
     VLSSR_BMAJ_ARCSEC,
     VLSSR_POSITION_ERROR_ARCSEC,
 )
+from lwa_catalog.paths import CatalogLayout
 
 
 def test_fixed_radius_requires_arcsec() -> None:
@@ -109,3 +112,100 @@ def test_fixed_radius_with_sigma_scale() -> None:
     spec = CrossmatchRadiusSpec(mode="fixed", fixed_arcsec=NVSS_BMAJ_ARCSEC, sigma_scale=2.0)
     row = pd.Series({})
     assert match_radius_deg(row, spec) == pytest.approx(2.0 * NVSS_BMAJ_ARCSEC / 3600.0)
+
+
+def test_precise_beam_frac_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="precise_beam_frac"):
+        CrossmatchRadiusSpec(mode="localization", precise_beam_frac=0.0)
+
+
+def test_localization_precise_beam_frac_dominates_when_larger() -> None:
+    spec = CrossmatchRadiusSpec(
+        mode="localization",
+        sigma_scale=3.0,
+        precise_beam_frac=DEFAULT_PRECISE_BEAM_FRAC,
+        default_arcsec=5.0,
+    )
+    # 1σ = 1″ → 3σ = 3″; 0.1 × 463″ ≈ 46.3″
+    row = pd.Series(
+        {
+            "match_sigma_deg": 1.0 / 3600.0,
+            "BMAJ_precise": 463.0 / 3600.0,
+        }
+    )
+    assert match_radius_deg(row, spec) == pytest.approx(0.1 * 463.0 / 3600.0)
+
+
+def test_localization_precise_beam_frac_yields_to_large_sigma() -> None:
+    spec = CrossmatchRadiusSpec(
+        mode="localization",
+        sigma_scale=3.0,
+        precise_beam_frac=0.1,
+    )
+    # 1σ = 30″ → 3σ = 90″; 0.1 × 463″ ≈ 46.3″ → loc wins
+    row = pd.Series(
+        {
+            "match_sigma_deg": 30.0 / 3600.0,
+            "BMAJ_precise": 463.0 / 3600.0,
+        }
+    )
+    assert match_radius_deg(row, spec) == pytest.approx(90.0 / 3600.0)
+
+
+def test_localization_precise_beam_frac_missing_column_falls_back() -> None:
+    spec = CrossmatchRadiusSpec(
+        mode="localization",
+        sigma_scale=3.0,
+        precise_beam_frac=0.1,
+        default_arcsec=5.0,
+    )
+    row = pd.Series({"match_sigma_deg": 2.0 / 3600.0})
+    assert match_radius_deg(row, spec) == pytest.approx(6.0 / 3600.0)
+
+
+def test_describe_includes_precise_beam_frac() -> None:
+    spec = CrossmatchRadiusSpec(
+        mode="localization",
+        sigma_scale=3.0,
+        precise_beam_frac=0.1,
+    )
+    text = describe_crossmatch_radius(spec)
+    assert "3σ" in text
+    assert "0.1×BMAJ_precise" in text
+
+
+def test_attach_bmaj_precise_from_lst(tmp_path) -> None:
+    layout = CatalogLayout(tmp_path)
+    lst82 = pd.DataFrame(
+        {
+            "RA": [10.0, 10.1],
+            "DEC": [0.0, 0.0],
+            "BMAJ": [0.12, 0.15],
+            "Peak_flux": [5.0, 1.0],
+        }
+    )
+    lst78 = pd.DataFrame(
+        {
+            "RA": [20.0],
+            "DEC": [1.0],
+            "BMAJ": [0.14],
+            "Peak_flux": [2.0],
+        }
+    )
+    layout.lst_merged("82MHz").parent.mkdir(parents=True, exist_ok=True)
+    lst82.to_parquet(layout.lst_merged("82MHz"), index=False)
+    lst78.to_parquet(layout.lst_merged("78MHz"), index=False)
+
+    meta = pd.DataFrame(
+        {
+            "RA": [10.001, 20.001, 50.0],
+            "DEC": [0.0, 1.0, 0.0],
+            "astrometry_band": ["82MHz", "78MHz", "82MHz"],
+            "BMAJ_match": [0.5, 0.5, 0.5],
+        }
+    )
+    out = attach_bmaj_precise_from_lst(meta, layout)
+    assert "BMAJ_precise" in out.columns
+    assert float(out.loc[0, "BMAJ_precise"]) == pytest.approx(0.12)
+    assert float(out.loc[1, "BMAJ_precise"]) == pytest.approx(0.14)
+    assert not np.isfinite(float(out.loc[2, "BMAJ_precise"]))

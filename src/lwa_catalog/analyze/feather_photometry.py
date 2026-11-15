@@ -165,10 +165,12 @@ class FeatherPhotometryConfig:
     ref_freq_mhz: float = SUBBAND_REF_FREQ_MHZ
 
     def as_mapping(self) -> dict[str, Any]:
+        """Serialize for the ``PHOTOMETRY`` JSON ``config`` block."""
         return asdict(self)
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any]) -> FeatherPhotometryConfig:
+        """Rebuild from a mapping (unknown keys ignored)."""
         return cls(**{name: raw[name] for name in cls.__dataclass_fields__ if name in raw})
 
 
@@ -183,6 +185,7 @@ class BandKDiagnostics:
     n_dec: tuple[int, ...]
 
     def as_mapping(self) -> dict[str, Any]:
+        """Serialize per-band diagnostics for ``PHOTOMETRY`` JSON."""
         return {
             "n_used": int(self.n_used),
             "k_all": float(self.k_all),
@@ -193,6 +196,7 @@ class BandKDiagnostics:
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any]) -> BandKDiagnostics:
+        """Rebuild from a mapping written by :meth:`as_mapping`."""
         return cls(
             n_used=int(raw["n_used"]),
             k_all=float(raw["k_all"]),
@@ -221,6 +225,7 @@ class PhotometryKModel:
 
     @property
     def bands(self) -> tuple[str, ...]:
+        """Band labels present in :attr:`band_offset` (insertion order)."""
         return tuple(self.band_offset)
 
     def k_at(self, band: str, dec: np.ndarray | float) -> np.ndarray:
@@ -237,6 +242,7 @@ class PhotometryKModel:
         return np.exp(ln_k)
 
     def as_mapping(self) -> dict[str, Any]:
+        """Serialize the joint model for the ``PHOTOMETRY`` JSON ``k_model`` block."""
         return {
             "band_offset": {b: float(a) for b, a in self.band_offset.items()},
             "band_freq_mhz": {b: float(f) for b, f in self.band_freq_mhz.items()},
@@ -250,6 +256,7 @@ class PhotometryKModel:
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any]) -> PhotometryKModel:
+        """Rebuild from a mapping written by :meth:`as_mapping`."""
         lo, hi = (float(d) for d in raw["dec_range"])
         return cls(
             band_offset={str(b): float(a) for b, a in raw["band_offset"].items()},
@@ -276,6 +283,7 @@ class PhotometryCalibration:
     method: str = FEATHER_PHOTOMETRY_METHOD
 
     def as_mapping(self) -> dict[str, Any]:
+        """Serialize the tree-level ``PHOTOMETRY`` payload."""
         return {
             "method": self.method,
             "config": self.config.as_mapping(),
@@ -294,6 +302,7 @@ class PhotometryCalibration:
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any]) -> PhotometryCalibration:
+        """Rebuild from the ``PHOTOMETRY`` object in ``beam_scale.json``."""
         companions = {
             str(band): FeatherCompanions(
                 pbmap=Path(entry["maps"]["pbmap"]),

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import pandas as pd
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 
 from lwa_catalog.analyze.reliability import resolve_bmaj
 from lwa_catalog.constants import (
@@ -31,6 +33,9 @@ from lwa_catalog.constants import (
     VLSSR_POSITION_ERROR_ARCSEC,
 )
 
+if TYPE_CHECKING:
+    from lwa_catalog.paths import CatalogLayout
+
 # 1σ defaults (degrees) when ``match_source`` is a cascaded radio survey and
 # ``match_sigma_deg`` is absent (e.g. older metacatalog_spectral.parquet).
 MATCH_SOURCE_SIGMA_DEG: dict[str, float] = {
@@ -39,6 +44,9 @@ MATCH_SOURCE_SIGMA_DEG: dict[str, float] = {
     "VLASS": VLASS_BMAJ_ARCSEC / 3600.0,
     "LoDeSS": LODES_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
 }
+
+# Default fraction of high-frequency / astrometry-band BMAJ for LWA external match.
+DEFAULT_PRECISE_BEAM_FRAC: float = 0.1
 
 CrossmatchRadiusMode = Literal["beam", "localization", "fixed"]
 
@@ -65,12 +73,20 @@ class CrossmatchRadiusSpec:
     default_arcsec
         Fallback radius in arcseconds when beam or localization columns are
         missing on a row.
+    precise_beam_frac
+        When ``mode == "localization"`` and this is set, the radius is
+        ``max(sigma_scale × σ_loc, precise_beam_frac × BMAJ_precise)`` using
+        the row's ``BMAJ_precise`` column (degrees). Ignored for ``beam`` /
+        ``fixed``. Attach ``BMAJ_precise`` via
+        :func:`attach_bmaj_precise_from_lst`. Missing / non-finite
+        ``BMAJ_precise`` falls back to localization only.
     """
 
     mode: CrossmatchRadiusMode = "beam"
     fixed_arcsec: float | None = None
     sigma_scale: float = 1.0
     default_arcsec: float | None = None
+    precise_beam_frac: float | None = None
 
     def __post_init__(self) -> None:
         if self.mode == "fixed" and self.fixed_arcsec is None:
@@ -78,6 +94,12 @@ class CrossmatchRadiusSpec:
             raise ValueError(msg)
         if self.sigma_scale <= 0.0:
             msg = f"sigma_scale must be positive, got {self.sigma_scale!r}"
+            raise ValueError(msg)
+        if self.precise_beam_frac is not None and self.precise_beam_frac <= 0.0:
+            msg = (
+                f"precise_beam_frac must be positive when set, "
+                f"got {self.precise_beam_frac!r}"
+            )
             raise ValueError(msg)
 
 
@@ -244,7 +266,14 @@ def match_radius_deg(row: pd.Series, spec: CrossmatchRadiusSpec) -> float:
         row,
         default_deg=fallback_deg if fallback_deg > 0.0 else 1.0 / 3600.0,
     )
-    return sigma * scale
+    loc_radius = sigma * scale
+    frac = spec.precise_beam_frac
+    if frac is None:
+        return loc_radius
+    precise = pd.to_numeric(row.get("BMAJ_precise"), errors="coerce")
+    if not np.isfinite(precise) or float(precise) <= 0.0:
+        return loc_radius
+    return max(loc_radius, float(frac) * float(precise))
 
 
 def apply_match_radius(
@@ -331,4 +360,103 @@ def describe_crossmatch_radius(spec: CrossmatchRadiusSpec) -> str:
         base += ")"
     if spec.sigma_scale != 1.0:
         base += f" × {spec.sigma_scale:g}σ"
+    if spec.mode == "localization" and spec.precise_beam_frac is not None:
+        base += f"; max with {spec.precise_beam_frac:g}×BMAJ_precise"
     return base
+
+
+def attach_bmaj_precise_from_lst(
+    meta: pd.DataFrame,
+    layout: CatalogLayout,
+    *,
+    band_col: str = "astrometry_band",
+) -> pd.DataFrame:
+    """Attach ``BMAJ_precise`` from LST-merged catalogs named by *band_col*.
+
+    For each distinct band value in *band_col*, loads
+    ``layout.lst_merged(band)`` and associates meta rows to that LST catalog
+    with ``associate_catalogs`` (meta search scale = ``BMAJ_match`` when
+    present, else the LST catalog median ``BMAJ``). Among hits, copies the
+    **nearest** LST row's ``BMAJ`` (degrees). Missing LST files, blank band
+    labels, or unmatched rows leave ``BMAJ_precise`` as NaN (localization-only
+    fallback when ``precise_beam_frac`` is set).
+
+    Does not write Parquet.
+    """
+    from lwa_catalog.create.merge import associate_catalogs
+
+    out = meta.copy()
+    out["BMAJ_precise"] = np.nan
+    if out.empty or "RA" not in out.columns or "DEC" not in out.columns:
+        return out
+    if band_col not in out.columns:
+        return out
+
+    bands = out[band_col].fillna("").astype(str).str.strip()
+    for band in sorted({b for b in bands.unique().tolist() if b and b.lower() != "nan"}):
+        path = layout.lst_merged(band)
+        if not path.is_file():
+            continue
+        lst = pd.read_parquet(path, columns=["RA", "DEC", "BMAJ"])
+        if lst.empty or "BMAJ" not in lst.columns:
+            continue
+        lst = lst.reset_index(drop=True)
+        lst_bmaj = pd.to_numeric(lst["BMAJ"], errors="coerce").to_numpy(dtype=float)
+        finite_lst = lst_bmaj[np.isfinite(lst_bmaj) & (lst_bmaj > 0.0)]
+        if finite_lst.size == 0:
+            continue
+        median_lst_bmaj = float(np.median(finite_lst))
+
+        mask = bands == band
+        subset = out.loc[mask]
+        if subset.empty:
+            continue
+
+        if "BMAJ_match" in subset.columns:
+            meta_bmaj = pd.to_numeric(subset["BMAJ_match"], errors="coerce").to_numpy(
+                dtype=float
+            )
+        else:
+            meta_bmaj = np.full(len(subset), np.nan, dtype=float)
+        meta_bmaj = np.where(
+            np.isfinite(meta_bmaj) & (meta_bmaj > 0.0), meta_bmaj, median_lst_bmaj
+        )
+
+        meta_frame = pd.DataFrame(
+            {
+                "RA": pd.to_numeric(subset["RA"], errors="coerce").to_numpy(dtype=float),
+                "DEC": pd.to_numeric(subset["DEC"], errors="coerce").to_numpy(dtype=float),
+                "BMAJ": meta_bmaj,
+            }
+        )
+        lst_frame = pd.DataFrame(
+            {
+                "RA": pd.to_numeric(lst["RA"], errors="coerce").to_numpy(dtype=float),
+                "DEC": pd.to_numeric(lst["DEC"], errors="coerce").to_numpy(dtype=float),
+                "BMAJ": lst_bmaj,
+            }
+        )
+        hits, _ = associate_catalogs(meta_frame, lst_frame)
+        if not hits:
+            continue
+
+        meta_sc = SkyCoord(
+            ra=meta_frame["RA"].to_numpy(dtype=float) * u.deg,
+            dec=meta_frame["DEC"].to_numpy(dtype=float) * u.deg,
+        )
+        lst_sc = SkyCoord(
+            ra=lst_frame["RA"].to_numpy(dtype=float) * u.deg,
+            dec=lst_frame["DEC"].to_numpy(dtype=float) * u.deg,
+        )
+        subset_index = subset.index.to_numpy()
+        for local_i, lst_ilocs in hits.items():
+            if not lst_ilocs:
+                continue
+            seps = meta_sc[local_i].separation(lst_sc[lst_ilocs]).deg
+            j_best = int(lst_ilocs[int(np.argmin(seps))])
+            bmaj = float(lst_bmaj[j_best])
+            if not np.isfinite(bmaj) or bmaj <= 0.0:
+                continue
+            out.at[subset_index[local_i], "BMAJ_precise"] = bmaj
+
+    return out
