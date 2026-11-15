@@ -53,13 +53,13 @@ Under `CatalogLayout(root)` / `OUTPUT_DIR` / `CATALOG_DIR`:
 | Layer | Path | Role |
 | ----- | ---- | ---- |
 | Per-image sources | `sources_{lst}_{band}.parquet` | One PyBDSF `gaul` catalog per FITS |
-| LST-merged band | `metacatalog_lst_{band}.parquet` | Same-source identity within one band |
-| Global fusion | `metacatalog.parquet` | One row per unique sky source (+ `quality_flag` after reliability) |
-| Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows; optional radio survey attach then `spec_*` fits |
+| LST-merged band | `metacatalog_lst_{band}.parquet` | Same-source identity within one band; FEATHER3 trees also carry additive `Peak_flux_cal` / `Total_flux_cal` (+ `E_*_cal`, diagnostics) |
+| Global fusion | `metacatalog.parquet` | One row per unique sky source (+ `quality_flag` after reliability); carries `{field}_cal_{band}` when LST was calibrated |
+| Analysis subset | `metacatalog_spectral.parquet` | Quality-filtered rows; optional radio survey attach then `spec_*` fits (LWA SED uses `*_cal` when present) |
 | Associations | `metacatalog_associations.parquet` | Long-form unique cross-match evidence (`meta_id`↔`ref_id`); replace-by-`catalog` |
 | Per-band beam α | `beam_alpha_by_band.parquet` | VLSSR+neighbor bootstrap; input to healpix re-detect `BEAM_SCALE` |
-| α+κ size table | `beam_alpha_kappa_by_band.parquet` | Joint size α + shared κ (+ hybrid VLSSR `s`) |
-| BEAM_SCALE JSON | `beam_scale.json` | Scalar, `{band: α}`, or `{band: {alpha, kappa}}` + metadata |
+| α+κ size table | `beam_alpha_kappa_by_band.parquet` | Joint size α + shared κ (+ hybrid VLSSR `s`); association-radius prior, not FEATHER3 photometry |
+| BEAM_SCALE JSON | `beam_scale.json` | `BEAM_SCALE`: scalar, `{band: α}`, or `{band: {alpha, kappa}}` + metadata; optional tree-level `PHOTOMETRY` (FEATHER3 joint `k(δ, ν)` + companion map paths) |
 | Legacy residual matched | `residual_matched_{band}.parquet` | Older Stage-3 trees only — healpix notebook no longer writes; `resid_leftover` bit unused until rewired |
 | PyBDSF background | `healpix_background_{band}_nside*.fits` | Tier-1 per-tile `mean_arr` sampled onto HEALPix (image product, MAP+WEIGHT); subtract in every residual |
 | Legacy X-ray sidecar | `metacatalog_xray.parquet` | Older trees only — **do not write**; use associations |
@@ -108,7 +108,7 @@ Cache is **path existence**, not content hashing.
 | `lwa_catalog.io` | Parquet `read_*` / `write_*`; pandas by default, `as_table=True` for Arrow |
 | `lwa_catalog.constants` | Bands, beams, frequencies, required columns, overlay colors |
 | `lwa_catalog.create` | Discover FITS, PyBDSF detect, LST merge, band fusion |
-| `lwa_catalog.analyze` | Post-hoc science: reliability, VLSSR/NVSS/VLASS/NED-LVS, spectral, forced photometry, attach, rematch, Mahalanobis, HiPS maps |
+| `lwa_catalog.analyze` | Post-hoc science: reliability, FEATHER3 `*_cal` photometry, VLSSR/NVSS/VLASS/NED-LVS, spectral, forced photometry, attach, rematch, Mahalanobis, HiPS maps |
 | `lwa_catalog.viz` | Aladin overlays, HiPS URLs, FOV filter/restore, coordinates, `CatalogBrowser` |
 
 **Post-hoc science belongs in `analyze/` (and `viz/`), not in fusion.** Do not
@@ -150,15 +150,20 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   stretch `E=1+κ·max(0,φ−δ)` at tile-center Dec (`φ=OVRO_LATITUDE_DEG`).
   Attach/catalog **`BPA` is always 90°** on the HEALPix-tile path (E–W
   formation; ignore hourly-header BPA). Catalog `BMAJ`/`BMIN` follow the
-  tile-effective beam (also the association radius). Prefer
-  `estimate_beam_alpha_kappa` + hybrid near-zenith VLSSR α rescale
-  (`beam_alpha_kappa_estimate.ipynb`) for production photometry; scalar
-  `bootstrap_beam_alpha` remains available. Residual-only
-  **`estimate_beam_scale`** (`create/beam_scale.py`) is **not**
-  photometry-optimal. Do **not** equal-weight Dec-probe Maj means or fit BPA
-  from source PA. Detect loads `OUTPUT_DIR/beam_scale.json` via
-  `load_beam_scale` / `resolve_beam_scale_model`. PyBDSF fits an **image-plane**
-  Gaussian (not deconvolved⊗beam);
+  tile-effective beam (also the association radius). On **FEATHER3**
+  prebuilt mosaics, `(α, κ)` is **not** the photometry path — use
+  `analyze/feather_photometry.py` (`calibrate_layout_photometry`) after tile
+  merge to write additive `*_cal` columns and tree-level `PHOTOMETRY` in
+  `beam_scale.json` (raw `Peak_flux`/`Total_flux` stay apparent map
+  measurements). α/κ from `estimate_beam_alpha_kappa` /
+  `beam_alpha_kappa_probe.ipynb` / scalar `bootstrap_beam_alpha` still set
+  the attached beam / association radius on non-FEATHER trees and for
+  FEATHER3 matching. Residual-only **`estimate_beam_scale`**
+  (`create/beam_scale.py`) is **not** photometry-optimal. Do **not**
+  equal-weight Dec-probe Maj means or fit BPA from source PA. Detect loads
+  `OUTPUT_DIR/beam_scale.json` via `load_beam_scale` /
+  `resolve_beam_scale_model`. PyBDSF fits an **image-plane** Gaussian (not
+  deconvolved⊗beam);
   `Total_flux = Peak_flux × (Maj×Min)/(BMAJ×BMIN)`.
   `Total < Peak` means fitted FWHM < attached beam (`fix_to_beam` is off).
   Default HEALPix-tile detect is **residual-chained 3-tier** (pilot
@@ -188,14 +193,18 @@ tables / `warnings`, a batch function, `summarize_*` text, re-export from
   HEALPix cutouts — gap **insert** (reverse-confused / missing near-position
   detect) and phot-dip **replace** (unconfused Peak step). Not inside
   multi-tier merge. Lives in **`metacatalog_reliability.ipynb`**
-  (`ENABLE_CROSSBAND_FORCED_FILL`, default off): updates `metacatalog_lst_*`,
-  re-fuses, then quality flags. Detect notebooks fuse tile-merged LST as-is.
-  Optional **prebuilt maps** (`USE_PREBUILT_HEALPIX`): discover
-  `HEALPIX_ROOT/{band}/I/healpix/` via `create.healpix_prebuilt` (infer bands
-  from `*MHz` dirs; prefer `ssub-rst8` when the jybeam glob matches twice),
-  RING→NESTED + finite WEIGHT, rewrite canonical MAP+WEIGHT under `OUTPUT_DIR`;
-  beam / restfreq from mosaic Primary (`beam_and_restfreq_from_healpix_fits`;
-  `FITS_ROOT` unused in this mode).
+  (`ENABLE_CROSSBAND_FORCED_FILL`, default off): updates `metacatalog_lst_*`
+  (raw Peak/Total only), re-applies stored `PHOTOMETRY` when present, re-fuses,
+  then quality flags. Detect notebooks: after tile-merged LST write, optional
+  `CALIBRATE_FEATHER_PHOTOMETRY` (FEATHER3 companions required) then fuse;
+  fusion raises on mixed or stale `*_cal`. Optional **prebuilt maps**
+  (`USE_PREBUILT_HEALPIX`): discover `HEALPIX_ROOT/{band}/I/healpix/` via
+  `create.healpix_prebuilt` (infer bands from `*MHz` dirs; prefer `ssub-rst8`
+  when the jybeam glob matches twice), RING→NESTED + finite WEIGHT, rewrite
+  canonical MAP+WEIGHT under `OUTPUT_DIR`; beam / restfreq from mosaic Primary
+  (`beam_and_restfreq_from_healpix_fits`; `FITS_ROOT` unused in this mode).
+  FEATHER3 companions via `companion_maps_for_jybeam` (strict: pbmap, psfmap,
+  pkcorr in the same variant; missing → error).
   **Background + rms boxes:** PyBDSF fits Gaussians to `image − mean`; the
   coadd zero level is negative (≈ −0.04 Jy/beam), so `obs − model` alone
   reads as ~2× oversubtraction. Pass `background_out=` to
@@ -320,12 +329,15 @@ MHz extras persist via `include_extras=True`.
 
 **`bands_present` is not a flux-validity mask.** A band can be listed while
 `{flux}_{band}` is `NaN`. Modeling and SED work must require **positive finite**
-flux per channel.
+flux per channel. On FEATHER3 trees prefer `Peak_flux_cal_*` /
+`Total_flux_cal_*` (spectral `flux_scale="auto"|"calibrated"`); raw
+`Peak_flux_*` / `Total_flux_*` remain the apparent map measurements used by
+painters, residuals, forced fill, and rematch.
 
 | Product | Flux layout | Spectral | Astrometry |
 | ------- | ----------- | -------- | ---------- |
-| RGB metacatalog | Top-level flux from `origin_band` + `{field}_{Blue,Green,Red}` | Merge-time two-point `alpha_RG` / `alpha_GB` on **Total_flux** | LWA `RA`/`DEC`; `BMAJ_match` grows with attached LWA bands |
-| MHz subband | No top-level flux; `Peak_flux_{18MHz…82MHz}` (15×) | Post-hoc Taylor `spec_model_*` at ν₀ = **55 MHz** | `astrometry_band`; no merge-time `alpha_*` |
+| RGB metacatalog | Top-level flux from `origin_band` + `{field}_{Blue,Green,Red}` (+ optional `*_cal`) | Merge-time two-point `alpha_RG` / `alpha_GB` on **Total_flux** (apparent; cal path deferred) | LWA `RA`/`DEC`; `BMAJ_match` grows with attached LWA bands |
+| MHz subband | No top-level flux; `Peak_flux_{18MHz…82MHz}` (15×); FEATHER3 also `Peak_flux_cal_*` / `Total_flux_cal_*` | Post-hoc Taylor `spec_model_*` at ν₀ = **55 MHz** on `*_cal` when present | `astrometry_band`; no merge-time `alpha_*` |
 | Radio attach | `Peak_flux_{VLASS,NVSS,VLSSR}` on **existing LWA rows** | Not in default spectral `bands` | LWA astrometry **frozen**; `BMAJ_match` not updated |
 
 Two-point `alpha = log(S_a/S_b) / log(ν_a/ν_b)` is a 1-term log-power-law
@@ -487,6 +499,11 @@ paint those rows.
 - Model: `ln S(ν) = Σ a_j [ln(ν/ν₀)]^j`, ν₀ = `SUBBAND_REF_FREQ_MHZ = 55.0`.
 - Default `flux_kind="total"`; `peak` supported. Weights `σ_lnS = E_S/S`;
   missing errors → equal weights.
+- **`flux_scale`** (`"auto"` | `"calibrated"` | `"apparent"`, default
+  `"auto"`): chosen once per table via `resolve_flux_scale`. Calibrated mode
+  reads LWA `{prefix}_cal_{band}` for every LWA band that has a raw column
+  (partial calibration raises); surveys keep their own columns. Apparent mode
+  uses raw `{prefix}_{band}`. Do **not** mix scales per band.
 - Default `SpectralFitConfig.unconfused_only=True` (`FIT_UNCONFUSED_ONLY` in
   the notebook): per row, gather only bands with `n_confused_{band} == 1`
   (unique reverse claim). Set False to fit all positive finite fluxes.
@@ -498,7 +515,7 @@ paint those rows.
 - v1 is a Python row loop. Prefers existing `metacatalog_spectral.parquet` from
   optional radio crossmatch (fits LWA + survey fluxes when present); otherwise
   quality-filters fusion and creates the file. Writes by default
-  (`WRITE_OUTPUT=True`).
+  (`WRITE_OUTPUT=True`). Notebook sets `FLUX_SCALE = "auto"`.
 - Do not put VLASS/NVSS/VLSSR into default `bands` unless those columns exist.
 
 ---
@@ -594,14 +611,15 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `ovro_lwa_metacatalog.ipynb` | RGB detect → LST merge → fusion; Fit quality section |
 | `ovro_lwa_metacatalog_subband.ipynb` | Same on 15 MHz subbands |
 | `ovro_lwa_mosaic_detect.ipynb` | Coadd experiment vs LST-merged catalog |
-| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix → nested TAN tiles → residual-chained 3-tier PyBDSF (C3); hourly `coadd_fits` or `USE_PREBUILT_HEALPIX` mosaic `*MHz/I/healpix/` (prefer `ssub-rst8`) rewritten as MAP+WEIGHT under `OUTPUT_DIR` with Primary beam/`RESTFRQ`; `(α,κ)` from `beam_scale.json` / `BEAM_SCALE`; BPA=90°; `merge_tile_metacatalog` → band fusion (forced fill is in reliability) |
-| `beam_alpha_kappa_estimate.ipynb` | Size α + shared κ (+ optional zenith VLSSR hybrid) → `beam_scale.json` |
+| `ovro_lwa_healpix_tile_detect.ipynb` | HEALPix → nested TAN tiles → residual-chained 3-tier PyBDSF (C3); hourly `coadd_fits` or `USE_PREBUILT_HEALPIX` mosaic `*MHz/I/healpix/` (prefer `ssub-rst8`) rewritten as MAP+WEIGHT under `OUTPUT_DIR` with Primary beam/`RESTFRQ`; `(α,κ)` from `beam_scale.json` / `BEAM_SCALE`; BPA=90°; FEATHER3 `CALIBRATE_FEATHER_PHOTOMETRY` → `*_cal` + `PHOTOMETRY`; `merge_tile_metacatalog` → band fusion (forced fill is in reliability) |
+| `beam_alpha_kappa_estimate.ipynb` | FEATHER3 photometry validation (Ω_fit/Ω_eff vs joint `k`, Total_cal/Peak_cal, GLEAM/VLSSR ratios); optional `(α, κ)` re-estimate for non-FEATHER trees (`RUN_ALPHA_KAPPA`) |
+| `beam_alpha_kappa_probe.ipynb` | Fast size-only `(α, κ)` prior → `beam_scale.json` (association radius; not FEATHER3 photometry) |
 | `beam_alpha_bootstrap.ipynb` | Scalar VLSSR + neighbor Total/Peak α → `beam_alpha_by_band.parquet` |
 | `metacatalog_query.ipynb` | Browse, sky overlay, **band-merge source trace**, Mahalanobis |
-| `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + **band-merge** source trace; optional cross-band forced fill (`ENABLE_CROSSBAND_FORCED_FILL`) before flags |
+| `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + **band-merge** source trace; optional cross-band forced fill (`ENABLE_CROSSBAND_FORCED_FILL`) then re-apply `PHOTOMETRY` before flags |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
-| `metacatalog_spectral_modeling.ipynb` | Prefer radio spectral product or create it; Taylor SED (LWA ± surveys) |
-| `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS/LoDeSS/GLEAM → `metacatalog_spectral.parquet` + unique associations; RFC position QA + NED-type classification associations |
+| `metacatalog_spectral_modeling.ipynb` | Prefer radio spectral product or create it; Taylor SED (LWA ± surveys); `FLUX_SCALE="auto"` |
+| `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS/LoDeSS/GLEAM → `metacatalog_spectral.parquet` + unique associations; RFC position QA + NED-type classification associations; LWA flux QA uses `Total_flux_cal_*` when calibrated |
 | `optical_crossmatch.ipynb` | NED-LVS + MilliQUAS → unique rows in `metacatalog_associations.parquet` |
 | `xray_crossmatch.ipynb` | eRASS:3 / Freund / Xu / 2RXS → associations; in-memory class pie + sky QA |
 | `metacatalog_classifications.ipynb` | Harmonize associations, flag conflicts, class pies / stacked bars |
@@ -680,6 +698,18 @@ power-law recovers `a1 ≈ α` with parsimony; Mahalanobis threshold equals
   explicitly replaces rematch.
 - Residual-optimal `estimate_beam_scale` α as the production photometry /
   Total-flux SED default (59/78 MHz Total inflation).
+- Overwriting PyBDSF `Peak_flux` / `Total_flux` (or tile/LST raw columns)
+  with FEATHER3-calibrated values — keep additive `*_cal` only; raw stays
+  the apparent map measurement for painters, residuals, forced fill, rematch.
+- Painting residual / catalog HiPS with `*_cal` amplitudes onto apparent
+  FEATHER3 maps (model and map would disagree).
+- Fitting SEDs or survey flux QA on raw FEATHER3 `Peak_flux_*` /
+  `Total_flux_*` when `*_cal` columns exist (`flux_scale="auto"` /
+  `"calibrated"`; all LWA bands or none).
+- Per-band / per-bin `k` fallbacks, optional missing `pkcorr`, or calibrating
+  only a subset of LST bands in a tree (uniform joint `k(δ, ν)` or error).
+- Treating `(α, κ)` / `BEAM_SCALE` as the FEATHER3 Total-flux photometry path
+  (they set association radius; photometry is `PHOTOMETRY` + `*_cal`).
 - Keeping hourly-header median `BPA` on HEALPix-tile detect (use **90°**).
 - Fitting BPA from median source `PA`, or circularizing header beams before
   α/κ (keep header `BMAJ`/`BMIN` sizes; κ adds Maj stretch).
@@ -841,19 +871,27 @@ re-run a harness to regenerate tables. Older PSF pilots may lack a top-level
   → conclusions above (fake-source recovery harness was not retained)
 - **Shipped defaults / tools:**
   - Default: isotropic `DEFAULT_BEAM_SCALE = 1.0` (`κ=0`); HEALPix-tile attach
-    **`BPA=90°`**. Production photometry: `BeamScaleModel(α, κ)` with shared κ
-    and per-band α; hybrid near-zenith VLSSR can rescale all α. Historical
-    scalar **α=1.2 at 73 MHz** (subband2) remains a VLSSR Total reference.
+    **`BPA=90°`**. On non-FEATHER trees (and for association radius on
+    FEATHER3), `BeamScaleModel(α, κ)` with shared κ and per-band α; hybrid
+    near-zenith VLSSR can rescale all α. Historical scalar **α=1.2 at
+    73 MHz** (subband2) remains a VLSSR Total reference for those trees.
+  - **FEATHER3 production photometry:** `calibrate_layout_photometry` /
+    `analyze/feather_photometry.py` — joint `k(δ, ν)`, additive `*_cal`,
+    tree-level `PHOTOMETRY` in `beam_scale.json`. Validate with
+    `beam_alpha_kappa_estimate.ipynb` Sections 1–2. Plan:
+    `plan-feather3-psfmap-photometry.md`.
   - Estimate (α+κ size + hybrid): `estimate_beam_alpha_kappa` /
-    `beam_alpha_kappa_estimate.ipynb` — near-zenith `|δ−φ|≤20°` α; shared
-    n-weighted κ; optional zenith VLSSR `s`. Writes `beam_scale.json`.
+    `beam_alpha_kappa_estimate.ipynb` Section 3 (`RUN_ALPHA_KAPPA`) or
+    `beam_alpha_kappa_probe.ipynb` — near-zenith `|δ−φ|≤20°` α; shared
+    n-weighted κ; optional zenith VLSSR `s`. Writes `BEAM_SCALE` (preserves
+    `PHOTOMETRY`).
   - Estimate (resid): `estimate_beam_scale` — probe resid only; not Total α.
   - Estimate (scalar VLSSR): `bootstrap_beam_alpha` /
     `beam_alpha_bootstrap.ipynb` — still valid isotropic path (`κ=0`).
   - **Reject** equal-weight Dec-probe Maj means, BPA-from-source-PA, and
     residual-opt α as Total-SED defaults. Validate Dec-binned Maj/BMAJ and
     Min/BMIN plus zenith vs all-sky VLSSR ratios.
-  - Plan: `plan-anisotropic-header-beam-alpha.md`
+  - Plan (α/κ association prior): `plan-anisotropic-header-beam-alpha.md`
 
 ### 78 MHz residual / background (subband4, 2026-10-29)
 
@@ -938,27 +976,34 @@ quality). → `research-scheme-c-residual-multitier.md`,
 
 ### FEATHER3 apparent flux + psfmap photometry (subband5, 2026-11-13)
 
-`experiment-pybdsf-flux-reliability-psfmap.md`. Prebuilt FEATHER3 `jybeam`
-mosaics are **apparent flux** (PB as weight, never divided out) and their
-Jy/beam unit is the **per-pixel Ω_eff** (`jybeam ≈ jysr·PB_eff·Ω_eff`), not
-the header beam. Companions per band: `pbmap` (PB_eff), `psfmap` (Ω_eff sr),
+`experiment-pybdsf-flux-reliability-psfmap.md`; **shipped** as
+`analyze/feather_photometry.py` + detect/reliability notebooks
+(`plan-feather3-psfmap-photometry.md`). Prebuilt FEATHER3 `jybeam` mosaics
+are **apparent flux** (PB as weight, never divided out) and their Jy/beam
+unit is the **per-pixel Ω_eff** (`jybeam ≈ jysr·PB_eff·Ω_eff`), not the
+header beam. Companions per band: `pbmap` (PB_eff), `psfmap` (Ω_eff sr),
 `pkcorr` (injection peak dilution ≈0.81). PB_eff ≈0.21 at Dec −30° vs 0.74
 at zenith; Ω_eff/Ω_hdr 2.86 → 1.20 (and ~1.5× **within** one southern
 `nside_tile=4` tile).
 
 - GLEAM (73–82 MHz, unique, `S`) Peak/GLEAM 0.20→0.66 across Dec is PB
- attenuation, not beam. `Peak/(PB_eff·PKCORR)` → **1.03–1.14**, 0.03 dex.
-- `Total = Peak·Ω_fit/(k(δ)·Ω_eff)/(PB_eff·PKCORR)` with GLEAM-free
- `k(δ)` = median Ω_fit/Ω_eff of bright `S` (k≈1.26 at 23–41 MHz, ≈1.40 at
- 59–82 MHz) → **1.00–1.14**, Total/Peak 0.98–0.99 per Dec bin.
+  attenuation, not beam. `Peak/(PB_eff·PKCORR)` → **1.03–1.14**, 0.03 dex.
+- Catalog-side: `Peak_flux_cal = Peak/(PB·PK)`;
+  `Total_flux_cal = Peak·Ω_fit/(k(δ,ν)·Ω_eff)/(PB·PK)` with joint
+  GLEAM-free `k(δ, ν)` across all LST bands (v1.2). Experiment per-band
+  medians k≈1.26 (23–41 MHz) / ≈1.40 (59–82 MHz) → GLEAM ratios
+  **1.00–1.14**, Total/Peak 0.98–0.99 per Dec bin. Subband5 dry run:
+  bright-`S` Total_cal/Peak_cal ≈0.99–1.02 in every populated Dec bin.
 - Ω_fit/Ω_eff is Dec-flat to 1.2× on 23/41/59/78 MHz; Ω_fit/Ω_att(α,κ)
- drifts 1.8–2.3× and fails north of zenith (κ has no term there).
+  drifts 1.8–2.3× and fails north of zenith (κ has no term there).
 - Attached detect beam does **not** move fitted Peak/Maj/Min (≤0.1%,
- 5 tiles); it only rescales native Total. Correct per source, catalog-side;
- re-detect only for association radius.
+  5 tiles); it only rescales native Total. Correct per source, catalog-side
+  (`*_cal`); re-detect only for association radius.
 - Header-beam Total (α=1, κ=0) is wrong on these maps (south 0.75).
 - Residual ~10% Dec trend common to Peak and Total (south ≈1.02, north
- ≈1.14) is not PSF — PB model / flux scale / confusion, open.
+  ≈1.14) is not PSF — PB model / flux scale / confusion, open.
+- Raw `Peak_flux`/`Total_flux` untouched; fusion refuses mixed/stale
+  `*_cal`; spectral `flux_scale="auto"`.
 
 ## Open and deferred
 
@@ -1001,16 +1046,17 @@ never signed off):
   (`DETECT_TIER_THRESHOLDS` / C3) vs legacy same-map+Stage3 trees beyond the
   2026-11 four-tile pilot (`frac_M`, `detect_stage` mix, VLSSR);
   signed-residual deep-tier RMS fallback rate.
-- Implement FEATHER3 per-source photometry (`PB_eff`, `Ω_eff`, `PKCORR`,
- self-calibrated `k(δ)`) as an `analyze` step; investigate the leftover
- ~10% Dec trend vs GLEAM.
+- FEATHER3 photometry library + notebooks shipped; **manual** subband5
+  calibrate → re-fuse → reliability → radio_crossmatch → validation
+  Sections 1–2 still pending operator sign-off. Leftover ~10% Dec trend vs
+  GLEAM (PB model / flux scale / confusion) remains open.
 - Cosmic-web / diffuse HEALPix cross-correlation science path remains
   research-only (`research-cosmic-web-diffuse-healpix-cross-correlation.md`).
-- `notebooks/README.md` and root `README.md` still under-document radio/spectral
-  sidecars and several notebooks.
+- Root `README.md` still under-documents radio/spectral sidecars (notebook
+  table in `notebooks/README.md` updated for FEATHER3 / validation).
 
 Later than this distillation (exists in code; treat the modules as authority):
 `analyze/nedlvs.py`, `nvss.py`, `vlass.py`, `erass3.py`, `bootstrap.py`,
-`crossmatch_radius.py`, expanded `SourceQualityFlag`, background-aware
-residual writers, hybrid Aladin markers
-(`ellipse_visible_at_fov` / `DEFAULT_MIN_ELLIPSE_FOV_FRAC`).
+`crossmatch_radius.py`, `feather_photometry.py`, expanded
+`SourceQualityFlag`, background-aware residual writers, hybrid Aladin
+markers (`ellipse_visible_at_fov` / `DEFAULT_MIN_ELLIPSE_FOV_FRAC`).
