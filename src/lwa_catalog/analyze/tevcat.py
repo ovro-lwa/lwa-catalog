@@ -150,9 +150,9 @@ def _finalize_tevcat_frame(df: pd.DataFrame) -> pd.DataFrame:
 def load_tevcat_catalog(path: Path | str | None = None) -> pd.DataFrame:
     """Load Wakely & Horan 2008 TeVCat (VOTable).
 
-    Reads ``/fast/claw/tevcat.vot`` by default. Lower-case ``ra``/``dec`` become
-    ``RA``/``DEC``. Match ``BMAJ`` is ``max(size_x, size_y)`` in degrees when
-    finite, else
+    Reads ``TEVCAT_DEFAULT_PATH`` under ``REFERENCE_CATALOGS_DIR`` by default.
+    Lower-case ``ra``/``dec`` become ``RA``/``DEC``. Match ``BMAJ`` is
+    ``max(size_x, size_y)`` in degrees when finite, else
     :data:`~lwa_catalog.constants.TEVCAT_DEFAULT_EXTENT_ARCMIN`.
 
     Parameters

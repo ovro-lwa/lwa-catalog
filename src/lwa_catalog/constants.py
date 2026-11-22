@@ -58,23 +58,25 @@ LODES_BMAJ_DEG: float = LODES_BMAJ_ARCSEC / 3600.0
 LODES_DEC_MIN_DEG: float = 20.0
 # Fallback 1σ when per-source E_RA/E_DEC are missing (~median hypot of LoDeSS gaul).
 LODES_POSITION_ERROR_DEFAULT_ARCSEC: float = 2.5
-LODES_DEFAULT_PATH: Path = Path(
-    "/fast/claw/LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits"
+LODES_DEFAULT_PATH: Path = (
+    REFERENCE_CATALOGS_DIR / "LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits"
 )
 
 # Radio Fundamental Catalogue (Petrov & Kovalev 2025; rfc_2026c release).
 # VLBI absolute-astrometry positions of compact radio sources (mas-level).
-RFC_DEFAULT_PATH: Path = Path("/fast/claw/rfc_2026c_cat.txt")
-RFC_CROSS_MATCH_DEFAULT_PATH: Path = Path("/fast/claw/rfc_2026c_cross_match.txt")
+RFC_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "rfc_2026c_cat.txt"
+RFC_CROSS_MATCH_DEFAULT_PATH: Path = (
+    REFERENCE_CATALOGS_DIR / "rfc_2026c_cross_match.txt"
+)
 # Fallback 1σ when eRA/eDE are missing (~few mas; match is LWA-radius dominated).
 RFC_POSITION_ERROR_DEFAULT_ARCSEC: float = 0.01
 
 # GLEAM Extragalactic Catalog (Hurley-Walker et al. 2017; CDS VIII/100).
 # Dec ≤ +30°, ~2′ resolution, 20 narrowband fluxes 72–231 MHz. Download once:
-#   curl -L -o /fast/claw/GLEAM_EGC_v2.fits.gz \
+#   curl -L -o /fast/claw/catalogs/GLEAM_EGC_v2.fits.gz \
 #     http://vizier.china-vo.org/ftp/cats/viii/100/GLEAM_EGC_v2.fits.gz
-#   gunzip -f /fast/claw/GLEAM_EGC_v2.fits.gz
-GLEAM_DEFAULT_PATH: Path = Path("/fast/claw/GLEAM_EGC_v2.fits")
+#   gunzip -f /fast/claw/catalogs/GLEAM_EGC_v2.fits.gz
+GLEAM_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "GLEAM_EGC_v2.fits"
 GLEAM_DEC_MAX_DEG: float = 30.0
 GLEAM_BMAJ_ARCSEC: float = 120.0
 GLEAM_BMAJ_DEG: float = GLEAM_BMAJ_ARCSEC / 3600.0
@@ -110,8 +112,8 @@ GLEAM_BAND_FREQ_HZ: dict[str, float] = {
 
 # eROSITA eRASS:3 Main + Legacy Survey DR10 counterparts (Merloni et al.;
 # German / western Galactic hemisphere, Galactic longitude 180°–360°).
-ERASS3_DEFAULT_PATH: Path = Path(
-    "/fast/claw/eRASSc3_Main_LS10_Public_27Jul2026.fits"
+ERASS3_DEFAULT_PATH: Path = (
+    REFERENCE_CATALOGS_DIR / "eRASSc3_Main_LS10_Public_27Jul2026.fits"
 )
 # Footprint: western Galactic hemisphere (eROSITA German share).
 ERASS3_GLON_MIN_DEG: float = 180.0
@@ -120,7 +122,7 @@ ERASS3_GLON_MAX_DEG: float = 360.0
 ERASS3_POSITION_ERROR_DEFAULT_ARCSEC: float = 4.0
 
 # Freund et al. 2022 stellar counterparts to ROSAT/2RXS (VizieR J/A+A/664/A105 main).
-FREUND2022_DEFAULT_PATH: Path = Path("/fast/claw/freund2022.dat")
+FREUND2022_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "freund2022.dat"
 # Fallback 1σ when ePos is missing (~catalog median).
 FREUND2022_POSITION_ERROR_DEFAULT_ARCSEC: float = 12.0
 # Paper science sample: p_stellar > 0.51, p_ij > 0.5, not subdwarf.
@@ -129,13 +131,13 @@ FREUND2022_DEFAULT_PIJ_MIN: float = 0.5
 
 # Xu et al. 2022 RXGCC ROSAT extended galaxy clusters (VizieR J/A+A/658/A59 table3).
 # Operator file is FITS despite the ``.dat`` suffix.
-RXGCC_DEFAULT_PATH: Path = Path("/fast/claw/xu2022table3.dat")
+RXGCC_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "xu2022table3.dat"
 # Fallback angular extent when R500* / Ext are missing (~catalog R500* median).
 RXGCC_DEFAULT_EXTENT_ARCMIN: float = 9.0
 
 # Boller et al. 2016 2RXS compact source catalog (VizieR J/A+A/588/A103).
 # CDS ASCII ``cat2rxs.dat`` (``.dat.gz`` also accepted by the loader).
-TWORXS_DEFAULT_PATH: Path = Path("/fast/claw/cat2rxs.dat")
+TWORXS_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "cat2rxs.dat"
 # Fallback 1σ when XERR/YERR are missing (~median of 45″×hypot(XERR,YERR)).
 TWORXS_POSITION_ERROR_DEFAULT_ARCSEC: float = 15.0
 # Image pixel scale used for XERR/YERR → arcsec (ReadMe: 45 arcsec/pix).
@@ -145,13 +147,13 @@ TWORXS_DEFAULT_EXIML_MIN: float = 9.0
 
 # Wakely & Horan 2008 TeVCat VHE gamma-ray sources (VOTable export).
 # https://ui.adsabs.harvard.edu/abs/2008ICRC....3.1341W/abstract
-TEVCAT_DEFAULT_PATH: Path = Path("/fast/claw/tevcat.vot")
+TEVCAT_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "tevcat.vot"
 # Fallback angular extent when size_x/size_y are missing (point-like TeV).
 TEVCAT_DEFAULT_EXTENT_ARCMIN: float = 3.0
 
 # MilliQUAS (Flesch) all-sky quasar/AGN catalog. Operator file is FITS despite
-# the ``.dat`` suffix (e.g. ``/fast/claw/milliquas.dat``).
-MILLIQUAS_DEFAULT_PATH: Path = Path("/fast/claw/milliquas.dat")
+# the ``.dat`` suffix (e.g. ``/fast/claw/catalogs/milliquas.dat``).
+MILLIQUAS_DEFAULT_PATH: Path = REFERENCE_CATALOGS_DIR / "milliquas.dat"
 # Typical optical centroid uncertainty (Gaia/SDSS/Pan-STARRS; 1σ, arcsec).
 MILLIQUAS_POSITION_ERROR_DEFAULT_ARCSEC: float = 1.0
 

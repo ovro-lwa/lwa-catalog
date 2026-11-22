@@ -328,9 +328,9 @@ def load_gleam_catalog(path: Path | str | None = None) -> pd.DataFrame:
         msg = (
             f"GLEAM catalog not found: {catalog_path}. "
             "Download CDS VIII/100 once, e.g.\n"
-            "  curl -L -o /fast/claw/GLEAM_EGC_v2.fits.gz \\\n"
+            "  curl -L -o /fast/claw/catalogs/GLEAM_EGC_v2.fits.gz \\\n"
             "    http://vizier.china-vo.org/ftp/cats/viii/100/GLEAM_EGC_v2.fits.gz\n"
-            "  gunzip -f /fast/claw/GLEAM_EGC_v2.fits.gz"
+            "  gunzip -f /fast/claw/catalogs/GLEAM_EGC_v2.fits.gz"
         )
         raise FileNotFoundError(msg)
 
