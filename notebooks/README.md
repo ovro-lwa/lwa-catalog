@@ -20,6 +20,7 @@
 | `radio_crossmatch.ipynb` | Radio survey attach (LoDeSS/VLSSR/NVSS/VLASS) → `metacatalog_spectral.parquet` + unique associations; LWA-vs-survey flux QA uses calibrated `Total_flux_cal_*` on FEATHER3 trees (`LWA_FLUX_SCALE`) |
 | `xray_crossmatch.ipynb` | eRASS:3 / Freund / Xu / 2RXS → `metacatalog_associations.parquet`; in-memory pie + eRASS/LWA HiPS sky QA |
 | `metacatalog_classifications.ipynb` | Harmonize associations, flag conflicts, class pies / stacked bars |
+| `galaxy_spectral_analysis.ipynb` | Read-only analysis of `class_harmonized == "galaxy"` rows: stored Taylor-model distribution vs parent, subband drop-outs / dips, per-telescope fit residuals, two-point α matrix + colour–colour, in-band turnover ν_p, SSA vs FFA model comparison, USS candidates |
 | `target_samples.ipynb` | Class samples (galaxies, clusters, giant radio sources, peaked-spectrum, SNRs, pulsars, PWNe, XRBs, X-ray/optical) for `metacatalog_query.ipynb` |
 
 ## Catalog storage
