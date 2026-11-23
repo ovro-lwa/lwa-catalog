@@ -110,6 +110,52 @@ GLEAM_BAND_FREQ_HZ: dict[str, float] = {
     f"GLEAM{mhz}": float(mhz) * 1e6 for mhz in GLEAM_NARROW_MHZ
 }
 
+# ASKAP RACS Stokes I source catalogues (Duchesne+; CASDA AS110).
+# Download once (requires astroquery):
+#   python -m lwa_catalog.analyze.racs download --out /fast/claw/catalogs/racs
+# RACSmid is the fixed 25″ auxiliary catalogue (Dec ≤ +30°), not the primary.
+RACS_BANDS: tuple[str, ...] = ("RACSlow2", "RACSmid", "RACShigh")
+RACS_LOW2_FREQ_HZ: float = 887.5e6
+RACS_MID_FREQ_HZ: float = 1367.5e6
+RACS_HIGH_FREQ_HZ: float = 1655.5e6
+RACS_FREQ_HZ: dict[str, float] = {
+    "RACSlow2": RACS_LOW2_FREQ_HZ,
+    "RACSmid": RACS_MID_FREQ_HZ,
+    "RACShigh": RACS_HIGH_FREQ_HZ,
+}
+# Median / fixed PSF major FWHM (arcsec) for defaults and overlays.
+RACS_LOW2_BMAJ_ARCSEC: float = 14.2
+RACS_MID_BMAJ_ARCSEC: float = 25.0
+RACS_HIGH_BMAJ_ARCSEC: float = 11.8
+RACS_BMAJ_ARCSEC: dict[str, float] = {
+    "RACSlow2": RACS_LOW2_BMAJ_ARCSEC,
+    "RACSmid": RACS_MID_BMAJ_ARCSEC,
+    "RACShigh": RACS_HIGH_BMAJ_ARCSEC,
+}
+RACS_BMAJ_DEG: dict[str, float] = {
+    band: arcsec / 3600.0 for band, arcsec in RACS_BMAJ_ARCSEC.items()
+}
+# Survey Declination ceilings (degrees).
+RACS_LOW2_DEC_MAX_DEG: float = 49.0
+RACS_MID_DEC_MAX_DEG: float = 30.0
+RACS_HIGH_DEC_MAX_DEG: float = 49.0
+RACS_DEC_MAX_DEG: dict[str, float] = {
+    "RACSlow2": RACS_LOW2_DEC_MAX_DEG,
+    "RACSmid": RACS_MID_DEC_MAX_DEG,
+    "RACShigh": RACS_HIGH_DEC_MAX_DEG,
+}
+# Fallback 1σ when per-source E_RA/E_DEC are missing.
+RACS_POSITION_ERROR_DEFAULT_ARCSEC: float = 1.0
+RACS_CATALOG_DIR: Path = REFERENCE_CATALOGS_DIR / "racs"
+RACS_LOW2_DEFAULT_PATH: Path = RACS_CATALOG_DIR / "racs_low2_sources.parquet"
+RACS_MID_DEFAULT_PATH: Path = RACS_CATALOG_DIR / "racs_mid_25arcsec_sources.parquet"
+RACS_HIGH_DEFAULT_PATH: Path = RACS_CATALOG_DIR / "racs_high_sources.parquet"
+RACS_DEFAULT_PATHS: dict[str, Path] = {
+    "RACSlow2": RACS_LOW2_DEFAULT_PATH,
+    "RACSmid": RACS_MID_DEFAULT_PATH,
+    "RACShigh": RACS_HIGH_DEFAULT_PATH,
+}
+
 # eROSITA eRASS:3 Main + Legacy Survey DR10 counterparts (Merloni et al.;
 # German / western Galactic hemisphere, Galactic longitude 180°–360°).
 ERASS3_DEFAULT_PATH: Path = (
@@ -305,6 +351,7 @@ BAND_FREQ_HZ: dict[str, float] = {
     "NVSS": NVSS_FREQ_HZ,
     "VLASS": VLASS_FREQ_HZ,
     "LoDeSS": LODES_FREQ_HZ,
+    **RACS_FREQ_HZ,
     **GLEAM_BAND_FREQ_HZ,
 }
 

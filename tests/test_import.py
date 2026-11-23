@@ -131,6 +131,35 @@ def test_analyze_lodess_exports() -> None:
     assert hasattr(LodesMatchResult, "__dataclass_fields__")
 
 
+def test_analyze_racs_exports() -> None:
+    from lwa_catalog.analyze import (
+        RACS_REFERENCE_RADIUS_LOCALIZATION,
+        RACS_TAP_TABLES,
+        RacsMatchConfig,
+        RacsMatchResult,
+        default_path_for_band,
+        download_racs_catalogs,
+        load_racs_catalog,
+        match_catalog_to_racs,
+        summarize_racs_match,
+    )
+    from lwa_catalog.constants import RACS_BANDS, band_frequency_hz
+
+    assert callable(load_racs_catalog)
+    assert callable(match_catalog_to_racs)
+    assert callable(summarize_racs_match)
+    assert callable(download_racs_catalogs)
+    assert callable(default_path_for_band)
+    assert RacsMatchConfig().band == "RACSmid"
+    assert hasattr(RacsMatchResult, "__dataclass_fields__")
+    assert RACS_REFERENCE_RADIUS_LOCALIZATION.mode == "localization"
+    assert set(RACS_TAP_TABLES) == set(RACS_BANDS)
+    assert band_frequency_hz("RACSmid") == 1367.5e6
+    assert RACS_TAP_TABLES["RACSmid"] == "AS110.racs_mid_25arcsec_sources_v01"
+    assert RACS_TAP_TABLES["RACSlow2"] == "AS110.racs_low2_v01"
+    assert "v02" not in RACS_TAP_TABLES["RACSlow2"]
+
+
 def test_analyze_gleam_exports() -> None:
     from lwa_catalog.analyze import (
         GLEAM_ASSOC_BAND,

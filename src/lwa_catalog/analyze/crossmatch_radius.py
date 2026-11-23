@@ -24,6 +24,8 @@ from lwa_catalog.constants import (
     NEDLVS_DEFAULT_POSITION_SIGMA_SCALE,
     NVSS_BMAJ_ARCSEC,
     NVSS_POSITION_ERROR_DEFAULT_ARCSEC,
+    RACS_BMAJ_ARCSEC,
+    RACS_POSITION_ERROR_DEFAULT_ARCSEC,
     RFC_POSITION_ERROR_DEFAULT_ARCSEC,
     RXGCC_DEFAULT_EXTENT_ARCMIN,
     TEVCAT_DEFAULT_EXTENT_ARCMIN,
@@ -43,6 +45,10 @@ MATCH_SOURCE_SIGMA_DEG: dict[str, float] = {
     "NVSS": NVSS_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
     "VLASS": VLASS_BMAJ_ARCSEC / 3600.0,
     "LoDeSS": LODES_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
+    # Uppercase keys match advance_from_match(... source.upper()).
+    "RACSLOW2": RACS_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
+    "RACSMID": RACS_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
+    "RACSHIGH": RACS_POSITION_ERROR_DEFAULT_ARCSEC / 3600.0,
 }
 
 # Default fraction of high-frequency / astrometry-band BMAJ for LWA external match.
@@ -143,6 +149,14 @@ GLEAM_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
 GLEAM_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
     mode="beam",
     default_arcsec=GLEAM_BMAJ_ARCSEC,
+)
+RACS_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
+    mode="localization",
+    default_arcsec=RACS_POSITION_ERROR_DEFAULT_ARCSEC,
+)
+RACS_REFERENCE_RADIUS_BEAM = CrossmatchRadiusSpec(
+    mode="beam",
+    default_arcsec=RACS_BMAJ_ARCSEC["RACSmid"],
 )
 RFC_REFERENCE_RADIUS_LOCALIZATION = CrossmatchRadiusSpec(
     mode="localization",
