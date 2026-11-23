@@ -360,12 +360,12 @@ External catalogs live under `REFERENCE_CATALOGS_DIR = Path("/fast/claw/catalogs
 | VLSSR | 74 MHz | circular 80″ | `vlssr_radecpeak.txt` |
 | NVSS | 1.4 GHz | 45″ | `nvss/nvss_vizier.parquet` |
 | VLASS | ~3 GHz | 2.5″ | CIRADA QL component CSV |
-| LoDeSS | 15–30 MHz (ν₀≈23 MHz) | ~45″ | `/fast/claw/LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits` |
-| RFC 2026c | VLBI (S–K) | mas | `/fast/claw/rfc_2026c_cat.txt` (+ `rfc_2026c_cross_match.txt` NED `type`) |
-| GLEAM EG | 72–231 MHz (20×) | ~2′ | `/fast/claw/GLEAM_EGC_v2.fits` (CDS VIII/100; Dec≤+30°) |
+| LoDeSS | 15–30 MHz (ν₀≈23 MHz) | ~45″ | `LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits` |
+| RFC 2026c | VLBI (S–K) | mas | `rfc_2026c_cat.txt` (+ `rfc_2026c_cross_match.txt` NED `type`) |
+| GLEAM EG | 72–231 MHz (20×) | ~2′ | `GLEAM_EGC_v2.fits` (CDS VIII/100; Dec≤+30°) |
 | eRASS:3 | X-ray | `POS_ERR` (~1–12″) | `eRASSc3_Main_LS10_Public_*.fits` |
 | NED-LVS | hosts | position+diameter | `NEDLVS_current.fits` |
-| MilliQUAS | optical AGN | fixed 1″ | `/fast/claw/milliquas.dat` (FITS) |
+| MilliQUAS | optical AGN | fixed 1″ | `milliquas.dat` (FITS) |
 
 **Match radii.** Radio, X-ray, and optical QA matchers share
 `CrossmatchRadiusSpec` (`lwa_radius` / `reference_radius`) and
@@ -623,6 +623,7 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `optical_crossmatch.ipynb` | NED-LVS + MilliQUAS → unique rows in `metacatalog_associations.parquet` |
 | `xray_crossmatch.ipynb` | eRASS:3 / Freund / Xu / 2RXS → associations; in-memory class pie + sky QA |
 | `metacatalog_classifications.ipynb` | Harmonize associations, flag conflicts, class pies / stacked bars |
+| `galaxy_spectral_analysis.ipynb` | Read-only `class_harmonized == "galaxy"` study: stored-fit distribution, subband drop-outs / per-telescope residuals, two-point α pairs, LWA-only turnover ν_p, SSA/FFA comparison, USS tiers (helpers local; writes nothing) |
 | `metacatalog_nedlvs_crossmatch.ipynb` | Legacy NED-LVS notebook name; prefer `optical_crossmatch.ipynb` |
 | `target_samples.ipynb` | Class samples for the query browser |
 
