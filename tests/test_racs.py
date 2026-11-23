@@ -101,6 +101,23 @@ def test_load_racs_catalog_mjy_to_jy_and_dec_corr(tmp_path) -> None:
     assert row["Name"] == "J004000+200000"
 
 
+def test_load_racs_converts_typical_tap_mjy_medians(tmp_path) -> None:
+    """Real CASDA dumps have Peak median ~2–4 mJy (not ≫10); still convert."""
+    path = tmp_path / "racs_low2.parquet"
+    _write_mini_racs_parquet(
+        path,
+        [
+            _raw_tap_like_row(peak_mjy=2.3, total_mjy=2.8, name="faint0"),
+            _raw_tap_like_row(ra=11.0, peak_mjy=3.1, total_mjy=3.5, name="faint1"),
+            _raw_tap_like_row(ra=12.0, peak_mjy=4.0, total_mjy=4.5, name="faint2"),
+        ],
+    )
+    df = load_racs_catalog(path, band="RACSlow2")
+    assert len(df) == 3
+    assert float(df["Peak_flux"].median()) == pytest.approx(0.0031)
+    assert float(df["Total_flux"].iloc[0]) == pytest.approx(0.0028)
+
+
 def test_load_racs_missing_file_mentions_download(tmp_path) -> None:
     with pytest.raises(FileNotFoundError, match="Download with"):
         load_racs_catalog(tmp_path / "missing.parquet", band="RACSlow2")

@@ -177,10 +177,11 @@ def _finalize_racs_frame(df: pd.DataFrame, *, band: RacsBand) -> pd.DataFrame:
     peak = _series_from_aliases(df, ("Peak_flux", "peak_flux"))
     e_peak = _series_from_aliases(df, ("E_Peak_flux", "e_peak_flux"))
 
-    # TAP / FITS catalogues publish mJy; values ≫ 10 are almost certainly mJy.
+    # CASDA TAP Stokes I source tables publish mJy (median Peak ~2–4 mJy).
+    # Treat median > 0.5 as mJy; already-Jy frames (median ≪ 1) stay unchanged.
     def _mjy_to_jy(values: pd.Series) -> pd.Series:
         finite = values[np.isfinite(values.to_numpy(dtype=float))]
-        if not finite.empty and float(finite.median()) > 10.0:
+        if not finite.empty and float(finite.median()) > 0.5:
             return values / 1000.0
         return values
 
