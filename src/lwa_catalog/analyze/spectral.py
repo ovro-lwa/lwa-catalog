@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal, Sequence
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -23,6 +24,9 @@ from lwa_catalog.constants import (
 SURVEY_SED_BANDS: tuple[str, ...] = (
     "LoDeSS",
     "VLSSR",
+    "RACSlow2",
+    "RACSmid",
+    "RACShigh",
     "NVSS",
     "VLASS",
     *GLEAM_BANDS,

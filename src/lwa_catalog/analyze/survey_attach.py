@@ -3,11 +3,15 @@
 Unmatched survey sources are not seeded as new rows. ``match_RA`` /
 ``match_DEC`` / ``match_source`` / ``match_sigma_deg`` record the best cascaded
 match position and 1σ radius (survey coords after bijective
-VLSSR→NVSS→VLASS→LoDeSS when enabled; otherwise native LWA). Top-level LWA
-astrometry and ``BMAJ_match`` are left unchanged. Stored survey flux is the
-brightest associated hit (preferring ``Total_flux`` when available, else peak);
-``n_assoc_{band}`` counts every hit inside the match radius; ``n_confused_{band}``
-counts how many metacatalog rows claim the stored survey source.
+VLSSR→NVSS→RACSmid→RACSlow2→RACShigh→VLASS when enabled; otherwise native
+LWA). Top-level LWA astrometry and ``BMAJ_match`` are left unchanged. Stored
+survey flux is the brightest associated hit (preferring ``Total_flux`` when
+available, else peak); ``n_assoc_{band}`` counts every hit inside the match
+radius; ``n_confused_{band}`` counts how many metacatalog rows claim the stored
+survey source.
+
+LoDeSS is photometrically attached after the cascade (same PSF-ordered attach
+list) but does **not** advance the bootstrap frame.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from lwa_catalog.analyze.crossmatch_radius import (
     LODES_REFERENCE_RADIUS_LOCALIZATION,
     LWA_CROSSMATCH_RADIUS_BEAM,
     NVSS_REFERENCE_RADIUS_LOCALIZATION,
+    RACS_REFERENCE_RADIUS_LOCALIZATION,
     VLASS_REFERENCE_RADIUS_LOCALIZATION,
     VLSSR_REFERENCE_RADIUS_FIXED,
     CrossmatchRadiusSpec,
@@ -39,18 +44,39 @@ from lwa_catalog.analyze.vlssr import _footprint_filter_vlssr
 from lwa_catalog.constants import (
     LODES_DEC_MIN_DEG,
     NVSS_DEC_MIN_DEG,
+    RACS_DEC_MAX_DEG,
     SUBBAND_METACATALOG_FLUX_FIELDS,
     VLASS_DEC_MIN_DEG,
 )
 from lwa_catalog.create.merge import associate_band_into_metacatalog, associate_catalogs
 
-RADIO_SURVEY_BANDS: tuple[str, ...] = ("VLASS", "NVSS", "VLSSR", "LoDeSS")
-CASCADE_SURVEY_BANDS: tuple[str, ...] = ("VLSSR", "NVSS", "VLASS", "LoDeSS")
+# Photometric attach order (PSF coarse → fine, then LoDeSS).
+RADIO_SURVEY_BANDS: tuple[str, ...] = (
+    "VLSSR",
+    "NVSS",
+    "RACSmid",
+    "RACSlow2",
+    "RACShigh",
+    "VLASS",
+    "LoDeSS",
+)
+# Position-bootstrap advance order (PSF coarse → fine; LoDeSS excluded).
+CASCADE_SURVEY_BANDS: tuple[str, ...] = (
+    "VLSSR",
+    "NVSS",
+    "RACSmid",
+    "RACSlow2",
+    "RACShigh",
+    "VLASS",
+)
 
 _DEFAULT_REFERENCE_RADIUS: dict[str, CrossmatchRadiusSpec] = {
     "VLASS": VLASS_REFERENCE_RADIUS_LOCALIZATION,
     "NVSS": NVSS_REFERENCE_RADIUS_LOCALIZATION,
     "VLSSR": VLSSR_REFERENCE_RADIUS_FIXED,
+    "RACSlow2": RACS_REFERENCE_RADIUS_LOCALIZATION,
+    "RACSmid": RACS_REFERENCE_RADIUS_LOCALIZATION,
+    "RACShigh": RACS_REFERENCE_RADIUS_LOCALIZATION,
     "LoDeSS": LODES_REFERENCE_RADIUS_LOCALIZATION,
 }
 
@@ -58,8 +84,10 @@ _DEFAULT_REFERENCE_RADIUS: dict[str, CrossmatchRadiusSpec] = {
 _BOOTSTRAP_ADOPT_RADIUS: dict[str, CrossmatchRadiusSpec] = {
     "VLSSR": VLSSR_REFERENCE_RADIUS_FIXED,
     "NVSS": NVSS_REFERENCE_RADIUS_LOCALIZATION,
+    "RACSlow2": RACS_REFERENCE_RADIUS_LOCALIZATION,
+    "RACSmid": RACS_REFERENCE_RADIUS_LOCALIZATION,
+    "RACShigh": RACS_REFERENCE_RADIUS_LOCALIZATION,
     "VLASS": VLASS_REFERENCE_RADIUS_LOCALIZATION,
-    "LoDeSS": LODES_REFERENCE_RADIUS_LOCALIZATION,
 }
 
 
@@ -80,6 +108,10 @@ def normalize_survey_band_catalog(survey_df: pd.DataFrame) -> pd.DataFrame:
     if "source_file" not in out.columns:
         if "Component_name" in out.columns:
             out["source_file"] = out["Component_name"].astype(str)
+        elif "Name" in out.columns:
+            out["source_file"] = out["Name"].astype(str)
+        elif "name" in out.columns:
+            out["source_file"] = out["name"].astype(str)
         elif "Field" in out.columns:
             out["source_file"] = out["Field"].astype(str)
         else:
@@ -115,6 +147,14 @@ def _footprint_filter_survey(
     if band == "LoDeSS":
         return _footprint_filter_lodess(
             survey_df, meta_df, dec_min_deg=LODES_DEC_MIN_DEG
+        )
+    if band in RACS_DEC_MAX_DEG:
+        # Lazy import so ``python -m lwa_catalog.analyze.racs`` is not
+        # pre-loaded via this module's package ``__init__`` chain.
+        from lwa_catalog.analyze.racs import _footprint_filter_racs
+
+        return _footprint_filter_racs(
+            survey_df, meta_df, dec_max_deg=float(RACS_DEC_MAX_DEG[band])
         )
     return survey_df
 
@@ -224,8 +264,7 @@ def _prepare_survey_for_attach(
 def _write_match_positions(meta_df: pd.DataFrame, frame: pd.DataFrame) -> pd.DataFrame:
     """Copy bootstrap-frame coords onto *meta_df* as ``match_RA`` / ``match_DEC``.
 
-    Also writes ``match_source`` (``LWA`` / ``VLSSR`` / ``NVSS`` / ``VLASS`` /
-    ``LoDeSS``) and
+    Also writes ``match_source`` (``LWA`` / survey band key) and
     ``match_sigma_deg`` from the frame ``BMAJ`` (adopted 1σ / fixed survey
     localization radius in degrees). Top-level ``RA``/``DEC`` are unchanged.
     """
@@ -259,15 +298,18 @@ def attach_radio_surveys_to_metacatalog(
     footprint_filter: bool = True,
     cascade_bootstrap: bool = False,
 ) -> pd.DataFrame:
-    """Attach VLASS, NVSS, VLSSR, and/or LoDeSS onto *meta_df* as photometric bands.
+    """Attach radio surveys onto *meta_df* as photometric bands.
 
-    Keys in *surveys* should be ``VLASS``, ``NVSS``, ``VLSSR``, and/or ``LoDeSS``.
-    Missing keys are skipped. Row count is unchanged.
+    Keys in *surveys* may include any of :data:`RADIO_SURVEY_BANDS`
+    (``VLSSR``, ``NVSS``, ``RACSmid``, ``RACSlow2``, ``RACShigh``, ``VLASS``,
+    ``LoDeSS``). Missing keys are skipped. Row count is unchanged.
 
-    When *cascade_bootstrap* is True, surveys attach in VLSSR → NVSS → VLASS →
-    LoDeSS order and the match frame advances after each bijective step (adopt
-    survey position/error for the next survey) without rewriting metacatalog
-    ``RA``/``DEC``.
+    When *cascade_bootstrap* is True, surveys in :data:`CASCADE_SURVEY_BANDS`
+    attach in PSF-coarse→fine order and the match frame advances after each
+    bijective step (adopt survey position/error for the next survey) without
+    rewriting metacatalog ``RA``/``DEC``. Any remaining keys that appear in both
+    *surveys* and :data:`RADIO_SURVEY_BANDS` (typically ``LoDeSS``) are then
+    attached using the final bootstrap frame **without** further advance.
 
     Always adds ``match_RA`` / ``match_DEC`` / ``match_source`` /
     ``match_sigma_deg`` from the final match frame (cascaded survey position
@@ -283,7 +325,12 @@ def attach_radio_surveys_to_metacatalog(
         order = band_order
 
     present = [band for band in order if band in surveys]
-    color_bands = _bands_present_order(meta_df, present)
+    leftover = [
+        band
+        for band in RADIO_SURVEY_BANDS
+        if band in surveys and band not in present
+    ]
+    color_bands = _bands_present_order(meta_df, (*present, *leftover))
     out = meta_df.reset_index(drop=True)
 
     if not cascade_bootstrap:
@@ -334,4 +381,21 @@ def attach_radio_surveys_to_metacatalog(
             radius_spec=adopt_radius,
             source=band,
         )
+
+    # Attach leftover RADIO_SURVEY_BANDS (e.g. LoDeSS) without bootstrap advance.
+    if leftover:
+        match_base = frame[["RA", "DEC", "BMAJ"]].copy()
+        for band in leftover:
+            out = attach_survey_to_metacatalog(
+                out,
+                surveys[band],
+                band,
+                lwa_radius=lwa_radius,
+                reference_radius=radii[band],
+                band_fields=band_fields,
+                color_bands=color_bands,
+                footprint_filter=footprint_filter,
+                match_base=match_base,
+            )
+
     return _write_match_positions(out, frame)

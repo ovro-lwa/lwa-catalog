@@ -7,7 +7,8 @@ metacatalog astrometry.
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -168,6 +169,16 @@ def advance_bootstrap_frame(
     return out
 
 
+_RACS_BOOTSTRAP_SOURCES: frozenset[str] = frozenset(
+    {"RACSLOW2", "RACSMID", "RACSHIGH"}
+)
+_RACS_BOOTSTRAP_LABEL: dict[str, str] = {
+    "RACSLOW2": "RACSlow2",
+    "RACSMID": "RACSmid",
+    "RACSHIGH": "RACShigh",
+}
+
+
 def _match_result_columns(source: str) -> tuple[str, str, str, str]:
     """Return ``(n_ref_col, positions_col, ref_pos_col, footprint_attr)``."""
     key = source.upper()
@@ -179,8 +190,18 @@ def _match_result_columns(source: str) -> tuple[str, str, str, str]:
         return "n_vlass", "vlass_positions", "vlass_pos", "vlass_footprint"
     if key == "LODESS":
         return "n_lodess", "lodess_positions", "lodess_pos", "lodess_footprint"
+    if key in _RACS_BOOTSTRAP_SOURCES:
+        return "n_racs", "racs_positions", "racs_pos", "racs_footprint"
     msg = f"unsupported bootstrap source: {source!r}"
     raise ValueError(msg)
+
+
+def _bootstrap_source_label(source: str) -> str:
+    """Canonical ``bootstrap_source`` / ``match_source`` label for *source*."""
+    key = source.upper()
+    if key in _RACS_BOOTSTRAP_LABEL:
+        return _RACS_BOOTSTRAP_LABEL[key]
+    return key
 
 
 def advance_from_match(
@@ -194,10 +215,17 @@ def advance_from_match(
 
     *base_frame* must have one row per metacatalog row in the same order as
     ``match_result.meta_flags``.
+
+    RACS bands (``RACSlow2`` / ``RACSmid`` / ``RACShigh``) share
+    ``racs_flags`` / ``racs_footprint`` / ``n_racs`` on
+    :class:`~lwa_catalog.analyze.racs.RacsMatchResult`.
     """
     n_ref_col, positions_col, ref_pos_col, footprint_attr = _match_result_columns(source)
     meta_flags = match_result.meta_flags
-    ref_flags = getattr(match_result, f"{source.lower()}_flags")
+    if source.upper() in _RACS_BOOTSTRAP_SOURCES:
+        ref_flags = match_result.racs_flags
+    else:
+        ref_flags = getattr(match_result, f"{source.lower()}_flags")
     footprint = getattr(match_result, footprint_attr)
 
     if len(base_frame) != len(meta_flags):
@@ -219,7 +247,7 @@ def advance_from_match(
         footprint,
         bijective,
         radius_spec=radius_spec,
-        source=source.upper(),
+        source=_bootstrap_source_label(source),
     )
 
 

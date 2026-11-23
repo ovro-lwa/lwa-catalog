@@ -15,16 +15,19 @@ from lwa_catalog.analyze.bootstrap import (
     select_bijective_pairs,
 )
 from lwa_catalog.analyze.crossmatch_radius import (
-    CrossmatchRadiusSpec,
     NVSS_REFERENCE_RADIUS_LOCALIZATION,
+    RACS_REFERENCE_RADIUS_LOCALIZATION,
     VLSSR_REFERENCE_RADIUS_FIXED,
+    CrossmatchRadiusSpec,
 )
 from lwa_catalog.analyze.nvss import match_catalog_to_nvss
+from lwa_catalog.analyze.racs import RacsMatchResult
 from lwa_catalog.analyze.survey_attach import attach_radio_surveys_to_metacatalog
 from lwa_catalog.analyze.vlass import match_catalog_to_vlass
 from lwa_catalog.analyze.vlssr import VlssrMatchResult, match_catalog_to_vlssr
 from lwa_catalog.constants import (
     NVSS_BMAJ_DEG,
+    RACS_BMAJ_DEG,
     VLASS_BMAJ_DEG,
     VLSSR_BMAJ_DEG,
     VLSSR_POSITION_ERROR_ARCSEC,
@@ -351,3 +354,57 @@ def test_bijective_map_from_hits() -> None:
     assert bijective_map_from_hits({0: [1], 1: [0, 2]}, {1: [0], 0: [1], 2: [1]}) == {
         0: 1
     }
+
+
+def test_advance_from_match_racs_mid_adopts_ref_coords() -> None:
+    meta = pd.DataFrame([_meta_row(0, 10.0, 20.0, bmaj=0.01)])
+    frame = native_lwa_frame(
+        meta, CrossmatchRadiusSpec(mode="fixed", fixed_arcsec=30.0)
+    )
+    result = RacsMatchResult(
+        band="RACSmid",
+        summary={"n_meta_matched": 1},
+        meta_flags=pd.DataFrame(
+            {
+                "meta_id": [0],
+                "RA": [10.0],
+                "DEC": [20.0],
+                "n_racs": [1],
+                "racs_positions": [[0]],
+                "matched": [True],
+            }
+        ),
+        racs_flags=pd.DataFrame(
+            {
+                "racs_pos": [0],
+                "RA": [10.002],
+                "DEC": [20.001],
+                "Peak_flux": [0.3],
+                "Total_flux": [0.35],
+                "n_meta": [1],
+                "meta_ids": [[0]],
+                "oversplit": [False],
+            }
+        ),
+        racs_footprint=pd.DataFrame(
+            [
+                {
+                    "RA": 10.002,
+                    "DEC": 20.001,
+                    "E_RA": 0.0002,
+                    "E_DEC": 0.0002,
+                    "Peak_flux": 0.3,
+                    "Total_flux": 0.35,
+                    "BMAJ": RACS_BMAJ_DEG["RACSmid"],
+                    "BMIN": RACS_BMAJ_DEG["RACSmid"],
+                }
+            ]
+        ),
+    )
+    advanced = advance_from_match(
+        frame, result, RACS_REFERENCE_RADIUS_LOCALIZATION, source="RACSmid"
+    )
+    assert advanced.iloc[0]["bootstrap_source"] == "RACSmid"
+    assert float(advanced.iloc[0]["RA"]) == pytest.approx(10.002)
+    assert float(advanced.iloc[0]["DEC"]) == pytest.approx(20.001)
+    assert bootstrap_source_counts(advanced).get("RACSmid") == 1

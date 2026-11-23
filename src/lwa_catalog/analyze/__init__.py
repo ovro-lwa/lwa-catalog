@@ -6,36 +6,6 @@ workflows (band coverage, association stats, sky selection helpers).
 
 from __future__ import annotations
 
-from lwa_catalog.analyze.associations import (
-    ASSOCIATION_REQUIRED_COLUMNS,
-    ASSOCIATION_SPEC_ERASS3,
-    ASSOCIATION_SPEC_FREUND2022,
-    ASSOCIATION_SPEC_MILLIQUAS,
-    ASSOCIATION_SPEC_NEDLVS,
-    ASSOCIATION_SPEC_RFC,
-    ASSOCIATION_SPEC_TEVCAT,
-    ASSOCIATION_SPEC_TWORXS,
-    ASSOCIATION_SPEC_XU2022,
-    CatalogAssociationSpec,
-    HARMONIZED_CLASS_MAP,
-    RADIO_ASSOCIATION_CATALOGS,
-    association_rows_from_match,
-    association_rows_from_survey_attach,
-    empty_associations_frame,
-    flag_association_conflicts,
-    harmonize_associations,
-    harmonize_class_native,
-    meta_ids_for_classes,
-    meta_ids_for_class_and_spectral,
-    metacatalog_with_erass3_association_columns,
-    ra_dec_key,
-    read_associations,
-    replace_catalog_associations,
-    summarize_classifications,
-    summarize_classifications_text,
-    validate_associations,
-    write_associations,
-)
 from lwa_catalog.analyze.anomaly import (
     CATEGORICAL_FEATURE_COLUMNS,
     DEFAULT_MAHALANOBIS_COLUMNS,
@@ -47,6 +17,36 @@ from lwa_catalog.analyze.anomaly import (
     mahalanobis_outlier_scores,
     numeric_feature_matrix,
     resolve_mahalanobis_columns,
+)
+from lwa_catalog.analyze.associations import (
+    ASSOCIATION_REQUIRED_COLUMNS,
+    ASSOCIATION_SPEC_ERASS3,
+    ASSOCIATION_SPEC_FREUND2022,
+    ASSOCIATION_SPEC_MILLIQUAS,
+    ASSOCIATION_SPEC_NEDLVS,
+    ASSOCIATION_SPEC_RFC,
+    ASSOCIATION_SPEC_TEVCAT,
+    ASSOCIATION_SPEC_TWORXS,
+    ASSOCIATION_SPEC_XU2022,
+    HARMONIZED_CLASS_MAP,
+    RADIO_ASSOCIATION_CATALOGS,
+    CatalogAssociationSpec,
+    association_rows_from_match,
+    association_rows_from_survey_attach,
+    empty_associations_frame,
+    flag_association_conflicts,
+    harmonize_associations,
+    harmonize_class_native,
+    meta_ids_for_class_and_spectral,
+    meta_ids_for_classes,
+    metacatalog_with_erass3_association_columns,
+    ra_dec_key,
+    read_associations,
+    replace_catalog_associations,
+    summarize_classifications,
+    summarize_classifications_text,
+    validate_associations,
+    write_associations,
 )
 from lwa_catalog.analyze.beam_alpha_bootstrap import (
     BEAM_ALPHA_BY_BAND_COLUMNS,
@@ -91,9 +91,6 @@ from lwa_catalog.analyze.crossmatch_radius import (
     GLEAM_REFERENCE_RADIUS_LOCALIZATION,
     LODES_REFERENCE_RADIUS_BEAM,
     LODES_REFERENCE_RADIUS_LOCALIZATION,
-    RACS_REFERENCE_RADIUS_BEAM,
-    RACS_REFERENCE_RADIUS_LOCALIZATION,
-    RFC_REFERENCE_RADIUS_LOCALIZATION,
     LWA_CROSSMATCH_RADIUS_BEAM,
     LWA_CROSSMATCH_RADIUS_LOCALIZATION,
     MILLIQUAS_REFERENCE_RADIUS_FIXED,
@@ -101,6 +98,9 @@ from lwa_catalog.analyze.crossmatch_radius import (
     NEDLVS_REFERENCE_RADIUS_FIXED,
     NVSS_REFERENCE_RADIUS_BEAM,
     NVSS_REFERENCE_RADIUS_LOCALIZATION,
+    RACS_REFERENCE_RADIUS_BEAM,
+    RACS_REFERENCE_RADIUS_LOCALIZATION,
+    RFC_REFERENCE_RADIUS_LOCALIZATION,
     RXGCC_REFERENCE_RADIUS_BEAM,
     TEVCAT_REFERENCE_RADIUS_FIXED,
     TWORXS_REFERENCE_RADIUS_LOCALIZATION,
@@ -128,102 +128,6 @@ from lwa_catalog.analyze.erass3 import (
     match_catalog_to_erass3,
     select_unique_erass3_matches,
     summarize_erass3_match,
-)
-from lwa_catalog.analyze.freund2022 import (
-    FREUND2022_LOAD_COLUMNS,
-    Freund2022MatchConfig,
-    Freund2022MatchResult,
-    filter_freund2022_science_sample,
-    load_freund2022_catalog,
-    match_catalog_to_freund2022,
-    select_unique_freund2022_matches,
-    summarize_freund2022_match,
-)
-from lwa_catalog.analyze.tevcat import (
-    TEVCAT_LOAD_COLUMNS,
-    TevcatMatchConfig,
-    TevcatMatchResult,
-    filter_tevcat_by_subcatalog,
-    load_tevcat_catalog,
-    match_catalog_to_tevcat,
-    select_unique_tevcat_matches,
-    summarize_tevcat_match,
-)
-from lwa_catalog.analyze.tworxs import (
-    TWORXS_LOAD_COLUMNS,
-    TworxsMatchConfig,
-    TworxsMatchResult,
-    filter_tworxs_by_eximl,
-    load_tworxs_catalog,
-    match_catalog_to_tworxs,
-    select_unique_tworxs_matches,
-    summarize_tworxs_match,
-)
-from lwa_catalog.analyze.xu2022 import (
-    RXGCC_CLASS_LABELS,
-    XU2022_LOAD_COLUMNS,
-    Xu2022MatchConfig,
-    Xu2022MatchResult,
-    filter_xu2022_by_class,
-    load_xu2022_catalog,
-    match_catalog_to_xu2022,
-    select_unique_xu2022_matches,
-    summarize_xu2022_match,
-)
-from lwa_catalog.analyze.gleam import (
-    GLEAM_ASSOC_BAND,
-    GleamMatchConfig,
-    GleamMatchResult,
-    attach_gleam_to_metacatalog,
-    load_gleam_catalog,
-    match_catalog_to_gleam,
-    select_unique_gleam_matches,
-    summarize_gleam_match,
-)
-from lwa_catalog.analyze.lodess import (
-    LodesMatchConfig,
-    LodesMatchResult,
-    load_lodess_catalog,
-    match_catalog_to_lodess,
-    select_unique_lodess_matches,
-    summarize_lodess_match,
-)
-from lwa_catalog.analyze.racs import (
-    RACS_TAP_TABLES,
-    RacsMatchConfig,
-    RacsMatchResult,
-    default_path_for_band,
-    download_racs_catalogs,
-    load_racs_catalog,
-    match_catalog_to_racs,
-    select_unique_racs_matches,
-    summarize_racs_match,
-)
-from lwa_catalog.analyze.rfc import (
-    RFC_LOAD_COLUMNS,
-    RfcMatchConfig,
-    RfcMatchResult,
-    load_rfc_catalog,
-    load_rfc_cross_match,
-    match_catalog_to_rfc,
-    rfc_type_counts,
-    select_unique_rfc_matches,
-    summarize_rfc_match,
-)
-from lwa_catalog.analyze.milliquas import (
-    MILLIQUAS_ATTACH_COLUMNS,
-    MILLIQUAS_CLASS_LABELS,
-    MILLIQUAS_LOAD_COLUMNS,
-    MilliquasMatchConfig,
-    MilliquasMatchResult,
-    attach_milliquas_to_metacatalog,
-    filter_milliquas_by_class,
-    load_milliquas_catalog,
-    match_catalog_to_milliquas,
-    milliquas_class_counts,
-    parse_milliquas_type,
-    select_unique_milliquas_matches,
-    summarize_milliquas_match,
 )
 from lwa_catalog.analyze.feather_photometry import (
     FEATHER_PHOTOMETRY_METHOD,
@@ -256,6 +160,26 @@ from lwa_catalog.analyze.forced_photometry import (
     select_forced_seed_row,
     summarize_forced_photometry,
 )
+from lwa_catalog.analyze.freund2022 import (
+    FREUND2022_LOAD_COLUMNS,
+    Freund2022MatchConfig,
+    Freund2022MatchResult,
+    filter_freund2022_science_sample,
+    load_freund2022_catalog,
+    match_catalog_to_freund2022,
+    select_unique_freund2022_matches,
+    summarize_freund2022_match,
+)
+from lwa_catalog.analyze.gleam import (
+    GLEAM_ASSOC_BAND,
+    GleamMatchConfig,
+    GleamMatchResult,
+    attach_gleam_to_metacatalog,
+    load_gleam_catalog,
+    match_catalog_to_gleam,
+    select_unique_gleam_matches,
+    summarize_gleam_match,
+)
 from lwa_catalog.analyze.healpix_cutout import (
     HealpixMapCache,
     cutout_grid_shape,
@@ -273,6 +197,29 @@ from lwa_catalog.analyze.healpix_map import (
     metacatalog_to_hips,
     peak_jy_beam_from_total_flux,
     write_healpix_hips,
+)
+from lwa_catalog.analyze.lodess import (
+    LodesMatchConfig,
+    LodesMatchResult,
+    load_lodess_catalog,
+    match_catalog_to_lodess,
+    select_unique_lodess_matches,
+    summarize_lodess_match,
+)
+from lwa_catalog.analyze.milliquas import (
+    MILLIQUAS_ATTACH_COLUMNS,
+    MILLIQUAS_CLASS_LABELS,
+    MILLIQUAS_LOAD_COLUMNS,
+    MilliquasMatchConfig,
+    MilliquasMatchResult,
+    attach_milliquas_to_metacatalog,
+    filter_milliquas_by_class,
+    load_milliquas_catalog,
+    match_catalog_to_milliquas,
+    milliquas_class_counts,
+    parse_milliquas_type,
+    select_unique_milliquas_matches,
+    summarize_milliquas_match,
 )
 from lwa_catalog.analyze.nedlvs import (
     NedlvsMatchConfig,
@@ -326,6 +273,17 @@ from lwa_catalog.analyze.reliability import (
     quality_flag_names,
     representative_peak_flux,
 )
+from lwa_catalog.analyze.rfc import (
+    RFC_LOAD_COLUMNS,
+    RfcMatchConfig,
+    RfcMatchResult,
+    load_rfc_catalog,
+    load_rfc_cross_match,
+    match_catalog_to_rfc,
+    rfc_type_counts,
+    select_unique_rfc_matches,
+    summarize_rfc_match,
+)
 from lwa_catalog.analyze.spectral import (
     SingleSpectrumFit,
     SpectralFitConfig,
@@ -346,6 +304,16 @@ from lwa_catalog.analyze.survey_attach import (
     attach_survey_to_metacatalog,
     normalize_survey_band_catalog,
 )
+from lwa_catalog.analyze.tevcat import (
+    TEVCAT_LOAD_COLUMNS,
+    TevcatMatchConfig,
+    TevcatMatchResult,
+    filter_tevcat_by_subcatalog,
+    load_tevcat_catalog,
+    match_catalog_to_tevcat,
+    select_unique_tevcat_matches,
+    summarize_tevcat_match,
+)
 from lwa_catalog.analyze.trace import (
     SourceTrace,
     band_merge_offsets,
@@ -358,6 +326,16 @@ from lwa_catalog.analyze.trace import (
     plot_ra_dec_scatter,
     preferred_trace_columns,
     rematch_meta_source,
+)
+from lwa_catalog.analyze.tworxs import (
+    TWORXS_LOAD_COLUMNS,
+    TworxsMatchConfig,
+    TworxsMatchResult,
+    filter_tworxs_by_eximl,
+    load_tworxs_catalog,
+    match_catalog_to_tworxs,
+    select_unique_tworxs_matches,
+    summarize_tworxs_match,
 )
 from lwa_catalog.analyze.vlass import (
     VlassMatchConfig,
@@ -374,6 +352,17 @@ from lwa_catalog.analyze.vlssr import (
     match_catalog_to_vlssr,
     select_blue_associated_rows,
     summarize_vlssr_match,
+)
+from lwa_catalog.analyze.xu2022 import (
+    RXGCC_CLASS_LABELS,
+    XU2022_LOAD_COLUMNS,
+    Xu2022MatchConfig,
+    Xu2022MatchResult,
+    filter_xu2022_by_class,
+    load_xu2022_catalog,
+    match_catalog_to_xu2022,
+    select_unique_xu2022_matches,
+    summarize_xu2022_match,
 )
 
 __all__ = [
@@ -692,3 +681,34 @@ __all__ = [
     "resolve_sed_bands",
     "summarize_spectral_fit",
 ]
+
+# Lazy-load RACS so ``python -m lwa_catalog.analyze.racs`` is not pre-imported
+# by this package ``__init__`` (avoids runpy RuntimeWarning). Eager imports of
+# other survey modules stay unchanged.
+_RACS_LAZY_ATTRS: dict[str, str] = {
+    "RACS_TAP_TABLES": "RACS_TAP_TABLES",
+    "RacsMatchConfig": "RacsMatchConfig",
+    "RacsMatchResult": "RacsMatchResult",
+    "default_path_for_band": "default_path_for_band",
+    "download_racs_catalogs": "download_racs_catalogs",
+    "load_racs_catalog": "load_racs_catalog",
+    "match_catalog_to_racs": "match_catalog_to_racs",
+    "select_unique_racs_matches": "select_unique_racs_matches",
+    "summarize_racs_match": "summarize_racs_match",
+}
+
+
+def __getattr__(name: str):  # noqa: D401 — module-level lazy export
+    attr = _RACS_LAZY_ATTRS.get(name)
+    if attr is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from lwa_catalog.analyze import racs as _racs
+
+    value = getattr(_racs, attr)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *_RACS_LAZY_ATTRS, *__all__})
+

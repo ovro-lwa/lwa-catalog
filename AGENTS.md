@@ -359,6 +359,9 @@ External catalogs live under `REFERENCE_CATALOGS_DIR = Path("/fast/claw/catalogs
 | ------ | ---- | ---- | ------------ |
 | VLSSR | 74 MHz | circular 80″ | `vlssr_radecpeak.txt` |
 | NVSS | 1.4 GHz | 45″ | `nvss/nvss_vizier.parquet` |
+| RACS mid | 1367.5 MHz | fixed 25″ | `racs/racs_mid_25arcsec_sources.parquet` (Dec ≤ +30°) |
+| RACS low2 | 887.5 MHz | ~14.2″ | `racs/racs_low2_sources.parquet` |
+| RACS high | 1655.5 MHz | ~11.8″ | `racs/racs_high_sources.parquet` |
 | VLASS | ~3 GHz | 2.5″ | CIRADA QL component CSV |
 | LoDeSS | 15–30 MHz (ν₀≈23 MHz) | ~45″ | `LoDeSS_MFS-I-image-pb.pybdsf.gaul.fits` |
 | RFC 2026c | VLBI (S–K) | mas | `rfc_2026c_cat.txt` (+ `rfc_2026c_cross_match.txt` NED `type`) |
@@ -387,8 +390,10 @@ cascade QA prefer `match_RA`/`match_DEC` when present
 Photometric attach (`attach_radio_surveys_to_metacatalog` in
 `analyze/survey_attach.py`):
 
-- Order **VLASS → NVSS → VLSSR → LoDeSS** (high → low frequency; cascade
-  bootstrap attaches VLSSR → NVSS → VLASS → LoDeSS).
+- Order **VLSSR → NVSS → RACSmid → RACSlow2 → RACShigh → VLASS → LoDeSS**
+  (PSF coarse → fine, then LoDeSS). Cascade bootstrap advances the same order
+  **without** LoDeSS (`CASCADE_SURVEY_BANDS`); LoDeSS still attaches after the
+  cascade using the final match frame.
 - Flags: `append_unmatched=False`, `update_bmaj_match=False`,
   `representative="peak_flux"`, plus `base_bmaj` so later radii do not loosen.
 - Output **row count equals input LWA row count**. Unmatched survey sources
@@ -399,6 +404,11 @@ Photometric attach (`attach_radio_surveys_to_metacatalog` in
   dominate).
 - **Never** `astrometry_from_highest_frequency` for this attach (VLASS
   components are not LWA centroids).
+- RACS load/match/download lives in `analyze/racs.py` (`load_racs_catalog`,
+  `match_catalog_to_racs`; CLI `python -m lwa_catalog.analyze.racs download
+  --out /fast/claw/catalogs/racs`). Mid uses the **25″** auxiliary source list
+  (Dec ≤ +30°); prefer `Dec_corr`; drop `Flag == 2`. Lazy-exported from
+  `analyze` so the CLI is not pre-imported.
 - LoDeSS load/match lives in `analyze/lodess.py` (`load_lodess_catalog`,
   `match_catalog_to_lodess`); notebook QA compares to LWA **23 MHz**.
 - RFC load/match lives in `analyze/rfc.py` (`load_rfc_catalog`,
@@ -619,7 +629,7 @@ notebooks in `notebooks/README.md` (that file currently lags: it omits
 | `metacatalog_reliability.ipynb` | `cleaned` / `gold` / `quality_flag` / HiPS + **band-merge** source trace; optional cross-band forced fill (`ENABLE_CROSSBAND_FORCED_FILL`) then re-apply `PHOTOMETRY` before flags |
 | `metacatalog_vlssr_qa.ipynb` | Blue completeness, over-split, multiplicity |
 | `metacatalog_spectral_modeling.ipynb` | Prefer radio spectral product or create it; Taylor SED (LWA ± surveys); `FLUX_SCALE="auto"` |
-| `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/VLASS/LoDeSS/GLEAM → `metacatalog_spectral.parquet` + unique associations; RFC position QA + NED-type classification associations; LWA flux QA uses `Total_flux_cal_*` when calibrated |
+| `radio_crossmatch.ipynb` | Optional: quality-filter fusion, attach VLSSR/NVSS/RACS(mid/low2/high)/VLASS/LoDeSS/GLEAM → `metacatalog_spectral.parquet` + unique associations; PSF cascade VLSSR→NVSS→RACS→VLASS (LoDeSS attach-only); RFC position QA + NED-type classification associations; LWA flux QA uses `Total_flux_cal_*` when calibrated; RACS via `python -m lwa_catalog.analyze.racs download` |
 | `optical_crossmatch.ipynb` | NED-LVS + MilliQUAS → unique rows in `metacatalog_associations.parquet` |
 | `xray_crossmatch.ipynb` | eRASS:3 / Freund / Xu / 2RXS → associations; in-memory class pie + sky QA |
 | `metacatalog_classifications.ipynb` | Harmonize associations, flag conflicts, class pies / stacked bars |

@@ -55,9 +55,29 @@ def test_analyze_survey_attach_exports() -> None:
         native_lwa_frame,
         normalize_survey_band_catalog,
     )
+    from lwa_catalog.analyze.spectral import SURVEY_SED_BANDS
 
-    assert RADIO_SURVEY_BANDS == ("VLASS", "NVSS", "VLSSR", "LoDeSS")
-    assert CASCADE_SURVEY_BANDS == ("VLSSR", "NVSS", "VLASS", "LoDeSS")
+    assert RADIO_SURVEY_BANDS == (
+        "VLSSR",
+        "NVSS",
+        "RACSmid",
+        "RACSlow2",
+        "RACShigh",
+        "VLASS",
+        "LoDeSS",
+    )
+    assert CASCADE_SURVEY_BANDS == (
+        "VLSSR",
+        "NVSS",
+        "RACSmid",
+        "RACSlow2",
+        "RACShigh",
+        "VLASS",
+    )
+    assert "LoDeSS" not in CASCADE_SURVEY_BANDS
+    assert RADIO_SURVEY_BANDS[-1] == "LoDeSS"
+    for band in ("RACSlow2", "RACSmid", "RACShigh"):
+        assert band in SURVEY_SED_BANDS
     assert callable(attach_radio_surveys_to_metacatalog)
     assert callable(attach_survey_to_metacatalog)
     assert callable(normalize_survey_band_catalog)
@@ -468,9 +488,9 @@ def test_analyze_band_merge_trace_exports() -> None:
 
 def test_analyze_beam_alpha_bootstrap_exports() -> None:
     from lwa_catalog.analyze import (
+        DEFAULT_ALPHA_KAPPA_PROBE_TILES,
         BeamAlphaBootstrapConfig,
         BeamAlphaBootstrapResult,
-        DEFAULT_ALPHA_KAPPA_PROBE_TILES,
         BeamAlphaKappaEstimateConfig,
         BeamAlphaKappaEstimateResult,
         bootstrap_beam_alpha,

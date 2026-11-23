@@ -17,7 +17,7 @@
 | `metacatalog_spectral_modeling.ipynb` | Post-hoc Taylor spectral fits — BIC model selection, SED diagnostics; `FLUX_SCALE="auto"` fits calibrated `*_cal` LWA fluxes on FEATHER3 trees (all bands or none) |
 | `metacatalog_nedlvs_crossmatch.ipynb` | NED-LVS cross-match — galaxy host association, recovery vs distance |
 | `optical_crossmatch.ipynb` | Optical cross-match — NED-LVS hosts + MilliQUAS → `metacatalog_associations.parquet` |
-| `radio_crossmatch.ipynb` | Radio survey attach (LoDeSS/VLSSR/NVSS/VLASS) → `metacatalog_spectral.parquet` + unique associations; LWA-vs-survey flux QA uses calibrated `Total_flux_cal_*` on FEATHER3 trees (`LWA_FLUX_SCALE`) |
+| `radio_crossmatch.ipynb` | Radio survey attach (VLSSR/NVSS/RACS mid·low2·high/VLASS/LoDeSS/GLEAM) → `metacatalog_spectral.parquet` + unique associations; PSF cascade then LoDeSS attach-only; download RACS with `python -m lwa_catalog.analyze.racs download --out /fast/claw/catalogs/racs`; LWA-vs-survey flux QA uses calibrated `Total_flux_cal_*` on FEATHER3 trees (`LWA_FLUX_SCALE`) |
 | `xray_crossmatch.ipynb` | eRASS:3 / Freund / Xu / 2RXS → `metacatalog_associations.parquet`; in-memory pie + eRASS/LWA HiPS sky QA |
 | `metacatalog_classifications.ipynb` | Harmonize associations, flag conflicts, class pies / stacked bars |
 | `galaxy_spectral_analysis.ipynb` | Read-only analysis of `class_harmonized == "galaxy"` rows: stored Taylor-model distribution vs parent, subband drop-outs / dips, per-telescope fit residuals, two-point α matrix + colour–colour, in-band turnover ν_p, SSA vs FFA model comparison, USS candidates |

@@ -7,11 +7,18 @@ import pandas as pd
 
 from lwa_catalog.analyze.crossmatch_radius import CrossmatchRadiusSpec
 from lwa_catalog.analyze.survey_attach import (
+    CASCADE_SURVEY_BANDS,
     attach_radio_surveys_to_metacatalog,
     attach_survey_to_metacatalog,
     normalize_survey_band_catalog,
 )
-from lwa_catalog.constants import NVSS_BMAJ_DEG, VLASS_BMAJ_DEG, VLSSR_BMAJ_DEG
+from lwa_catalog.constants import (
+    LODES_BMAJ_DEG,
+    NVSS_BMAJ_DEG,
+    RACS_BMAJ_DEG,
+    VLASS_BMAJ_DEG,
+    VLSSR_BMAJ_DEG,
+)
 
 
 def _meta_row(
@@ -262,3 +269,68 @@ def test_attach_survey_passes_calibrated_lwa_columns_through() -> None:
     assert float(row["Total_flux_cal_82MHz"]) == 6.2
     assert float(row["Peak_flux_VLSSR"]) == 1.2
     assert "Peak_flux_cal_VLSSR" not in out.columns
+
+
+def test_cascade_attach_writes_lodess_without_requiring_cascade_membership() -> None:
+    """LoDeSS attaches after the PSF cascade even though it is not in CASCADE."""
+    assert "LoDeSS" not in CASCADE_SURVEY_BANDS
+    meta = pd.DataFrame([_meta_row(ra=10.0, dec=25.0, bmaj=0.5)])
+    # Keep survey positions within ~1″ so tightened post-VLSSR bootstrap radii
+    # still associate (cascade adopts ~3″ VLSSR / ~1″ RACS localization).
+    surveys = {
+        "VLSSR": pd.DataFrame(
+            [{"RA": 10.0, "DEC": 25.0, "Peak_flux": 2.0, "BMAJ": VLSSR_BMAJ_DEG}]
+        ),
+        "RACSmid": pd.DataFrame(
+            [
+                {
+                    "RA": 10.0001,
+                    "DEC": 25.0,
+                    "Peak_flux": 0.3,
+                    "Total_flux": 0.35,
+                    "E_RA": 0.0002,
+                    "E_DEC": 0.0002,
+                    "BMAJ": RACS_BMAJ_DEG["RACSmid"],
+                    "Name": "RACS-mid-hit",
+                }
+            ]
+        ),
+        "LoDeSS": pd.DataFrame(
+            [
+                {
+                    "RA": 10.00005,
+                    "DEC": 25.0,
+                    "Peak_flux": 0.8,
+                    "Total_flux": 1.0,
+                    "E_RA": 0.0003,
+                    "E_DEC": 0.0003,
+                    "BMAJ": LODES_BMAJ_DEG,
+                }
+            ]
+        ),
+    }
+    out = attach_radio_surveys_to_metacatalog(
+        meta,
+        surveys,
+        lwa_radius=CrossmatchRadiusSpec(mode="fixed", fixed_arcsec=1800.0),
+        cascade_bootstrap=True,
+        footprint_filter=False,
+    )
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert float(row["RA"]) == 10.0
+    assert int(row["n_assoc_VLSSR"]) == 1
+    assert int(row["n_assoc_RACSmid"]) == 1
+    assert int(row["n_assoc_LoDeSS"]) == 1
+    assert float(row["Peak_flux_LoDeSS"]) == 0.8
+    assert float(row["Total_flux_LoDeSS"]) == 1.0
+    assert "LoDeSS" in str(row["bands_present"])
+    assert "RACSmid" in str(row["bands_present"])
+
+
+def test_normalize_survey_maps_name_to_source_file() -> None:
+    raw = pd.DataFrame(
+        {"RA": [10.0], "DEC": [20.0], "Peak_flux": [0.1], "Name": ["J004000+200000"]}
+    )
+    out = normalize_survey_band_catalog(raw)
+    assert out.iloc[0]["source_file"] == "J004000+200000"
